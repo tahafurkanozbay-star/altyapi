@@ -13,7 +13,7 @@ import type {
 } from "../types";
 
 type Removable = { remove(): void };
-type WidgetLike = { destroy(): void; container: string | HTMLElement | null };
+type WidgetLike = { destroy(): void; container?: string | HTMLElement | null };
 
 export interface RuntimeCallbacks {
   onIdentify?: (result: IdentifyResult | null) => void;
@@ -76,13 +76,12 @@ export class ArcGISRuntime {
       map,
       viewingMode: "local",
       camera: {
-        position: [camera.longitude, camera.latitude, camera.z],
+        position: pointProperties(camera),
         heading: camera.heading,
         tilt: camera.tilt
       },
       qualityProfile: profileToSceneQuality(this.profile),
       popupEnabled: false,
-      constraints: { collision: { enabled: true } },
       environment: this.environmentFor(this.profile)
     });
 
@@ -254,7 +253,7 @@ export class ArcGISRuntime {
     if (!this.view || this.destroyed) return;
     await this.view.goTo(
       {
-        position: [camera.longitude, camera.latitude, camera.z],
+        position: pointProperties(camera),
         heading: camera.heading,
         tilt: camera.tilt
       },
@@ -350,8 +349,8 @@ export class ArcGISRuntime {
           const point = this.view.toMap({ x: event.x, y: event.y });
           const camera = this.view.camera;
           this.callbacks.onTelemetry?.({
-            latitude: point?.latitude,
-            longitude: point?.longitude,
+            latitude: point?.latitude ?? undefined,
+            longitude: point?.longitude ?? undefined,
             altitude: camera.position.z ?? 0,
             tilt: camera.tilt ?? 0,
             heading: camera.heading ?? 0,
@@ -436,6 +435,15 @@ export class ArcGISRuntime {
       this.layers.delete(id);
     }
   }
+}
+
+function pointProperties(camera: CameraState) {
+  return {
+    longitude: camera.longitude,
+    latitude: camera.latitude,
+    z: camera.z,
+    spatialReference: { wkid: 4326 }
+  };
 }
 
 function clampOpacity(value: number): number {
