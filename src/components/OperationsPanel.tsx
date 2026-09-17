@@ -95,8 +95,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v2</h3>
-        <p>React 19 + TypeScript + ArcGIS 5.1 tabanlı, cihaz gücüne göre kendini ayarlayan CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v3</h3>
+        <p>React 19.3 + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 tabanlı, cihaz kapasitesine göre kendini ayarlayan modern CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -106,6 +106,7 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Performans profili: {performance}</strong><span>GPU kalitesi, gölgeler ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
+      <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
 }
