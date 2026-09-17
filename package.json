@@ -1,6 +1,6 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
   "description": "Ankara odaklı, performans uyarlamalı profesyonel 3B CBS komuta ve koordinasyon platformu.",
@@ -20,6 +20,7 @@
     "check": "npm run validate:services && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
+    "@arcgis/core": "^5.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
