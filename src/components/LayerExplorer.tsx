@@ -29,6 +29,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const filtered = useMemo(() => services.filter((service) => {
     if (kind !== "all" && service.kind !== kind) return false;
@@ -50,16 +51,61 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
     return [...map.entries()];
   }, [filtered]);
 
-  const activeCount = services.filter((service) => service.visible).length;
+  const metrics = useMemo(() => ({
+    active: services.filter((service) => service.visible).length,
+    ready: services.filter((service) => service.status === "ready").length,
+    loading: services.filter((service) => service.status === "loading").length,
+    error: services.filter((service) => service.status === "error").length,
+    favorite: services.filter((service) => service.favorite).length
+  }), [services]);
+
+  const deactivateVisible = async () => {
+    const visible = services.filter((service) => service.visible);
+    if (visible.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      for (const service of visible) await onToggle(service, false);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const retryErrors = async () => {
+    const errors = services.filter((service) => service.status === "error");
+    if (errors.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      for (const service of errors) await onRetry(service);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   return (
     <section className="panel-content layer-explorer" aria-label="Katman kataloğu">
-      <div className="panel-heading">
+      <div className="panel-heading panel-heading-rich">
         <div>
-          <span className="eyebrow">CBS KATALOĞU</span>
+          <span className="eyebrow">CBS OPERASYON KATALOĞU</span>
           <h2>Katmanlar</h2>
+          <p>Ankara 3B sahnesindeki veri servislerini yönetin.</p>
         </div>
-        <div className="metric-badge"><strong>{activeCount}</strong><span>aktif</span></div>
+        <div className="metric-badge"><strong>{metrics.active}</strong><span>aktif</span></div>
+      </div>
+
+      <div className="catalog-overview" aria-label="Katalog özeti">
+        <div className="catalog-stat is-active"><strong>{metrics.active}</strong><span>Aktif</span></div>
+        <div className="catalog-stat is-ready"><strong>{metrics.ready}</strong><span>Hazır</span></div>
+        <div className={`catalog-stat ${metrics.error ? "is-error" : ""}`}><strong>{metrics.error}</strong><span>Hata</span></div>
+        <div className="catalog-stat"><strong>{services.length}</strong><span>Servis</span></div>
+      </div>
+
+      <div className="catalog-actions">
+        <button type="button" className="catalog-action" onClick={() => void deactivateVisible()} disabled={metrics.active === 0 || bulkBusy}>
+          <Icon name="eyeOff" size={14} /> Aktifleri kapat
+        </button>
+        <button type="button" className={`catalog-action ${metrics.error ? "has-error" : ""}`} onClick={() => void retryErrors()} disabled={metrics.error === 0 || bulkBusy}>
+          <Icon name="refresh" size={14} /> Hataları dene
+        </button>
       </div>
 
       <label className="search-field">
@@ -73,10 +119,11 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
           <button key={item.value} type="button" className={`filter-chip ${kind === item.value ? "is-active" : ""}`} onClick={() => setKind(item.value)}>{item.label}</button>
         ))}
       </div>
+
       <div className="toggle-filters">
-        <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> Sadece aktif</label>
-        <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> Favoriler</label>
-        <span>{filtered.length} / {services.length}</span>
+        <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> <span>Sadece aktif</span></label>
+        <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> <span>Favoriler</span></label>
+        <span className="filter-result-count">{filtered.length} / {services.length}</span>
       </div>
 
       <div className="layer-groups">
@@ -88,6 +135,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
               <button
                 type="button"
                 className="group-heading"
+                aria-expanded={!collapsed}
                 onClick={() => setCollapsedGroups((current) => {
                   const next = new Set(current);
                   collapsed ? next.delete(organization) : next.add(organization);
@@ -98,18 +146,21 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                 <span title={organization}>{organization}</span>
                 <em>{items.length}</em>
               </button>
+
               {!collapsed && items.map((service) => (
-                <article key={service.id} className={`layer-card ${service.visible ? "is-active" : ""}`}>
+                <article key={service.id} className={`layer-card ${service.visible ? "is-active" : ""} status-${service.status}`} data-kind={service.kind}>
                   <div className="layer-card-main">
                     <button
                       type="button"
                       className={`visibility-button ${service.visible ? "is-on" : ""}`}
                       onClick={() => void onToggle(service, !service.visible)}
                       aria-label={`${service.displayName} görünürlüğü`}
+                      aria-pressed={service.visible}
                       disabled={service.status === "loading"}
                     >
                       <Icon name={service.visible ? "eye" : "eyeOff"} size={16} />
                     </button>
+
                     <div className="layer-card-title">
                       <strong title={service.displayName}>{service.displayName}</strong>
                       <div className="layer-meta-row">
@@ -118,7 +169,13 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                         <span>{statusLabel(service)}</span>
                       </div>
                     </div>
-                    <button type="button" className={`favorite-button ${service.favorite ? "is-on" : ""}`} onClick={() => onFavorite(service)} aria-label="Favori"><Icon name="star" size={15} /></button>
+
+                    <button type="button" className={`favorite-button ${service.favorite ? "is-on" : ""}`} onClick={() => onFavorite(service)} aria-label="Favori" aria-pressed={service.favorite}><Icon name="star" size={15} /></button>
+                  </div>
+
+                  <div className="layer-owner-line">
+                    <span>{service.owner}</span>
+                    {service.favorite && <em>Favori</em>}
                   </div>
 
                   <div className="layer-actions">
@@ -132,7 +189,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                       <span>{Math.round(service.opacity * 100)}%</span>
                     </div>
                     <button type="button" className="icon-ghost" onClick={() => onZoom(service)} disabled={!service.visible} title="Katmana yaklaş"><Icon name="zoom" size={15} /></button>
-                    <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi"><Icon name="info" size={15} /></button>
+                    <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi" aria-expanded={openInfo === service.id}><Icon name="info" size={15} /></button>
                     {service.status === "error" && <button type="button" className="icon-ghost is-danger" onClick={() => void onRetry(service)} title="Yeniden dene"><Icon name="refresh" size={15} /></button>}
                   </div>
 
