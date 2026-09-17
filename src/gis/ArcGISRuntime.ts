@@ -46,23 +46,31 @@ export class ArcGISRuntime {
   private view: any;
   private readonly layers = new Map<string, any>();
   private activeWidget: any;
+  private searchWidget: any;
+  private navigationWidgets: any[] = [];
   private handles: any[] = [];
   private callbacks: RuntimeCallbacks = {};
   private cameraTimer = 0;
   private telemetryFrame = 0;
   private profile: PerformanceProfile;
+  private destroyed = false;
 
   constructor(profile: PerformanceProfile) {
     this.profile = profile;
   }
 
   async initialize(container: HTMLDivElement, camera = HOME_CAMERA, basemap = "hybrid", callbacks: RuntimeCallbacks = {}): Promise<void> {
+    this.destroyed = false;
     this.callbacks = callbacks;
+    await waitForArcGIS();
+    if (this.destroyed) return;
+
     const [MapModule, SceneViewModule, configModule] = await Promise.all([
       $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/Map.js"),
       $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/views/SceneView.js"),
       $arcgis.import<{ default: any }>("@arcgis/core/config.js")
     ]);
+    if (this.destroyed) return;
 
     configModule.default.request.timeout = 30_000;
     this.map = new MapModule.default({ basemap, ground: "world-elevation" });
@@ -82,13 +90,23 @@ export class ArcGISRuntime {
     });
 
     await this.view.when();
+    if (this.destroyed) {
+      this.view?.destroy?.();
+      this.view = undefined;
+      this.map = undefined;
+      return;
+    }
     this.installViewEvents();
   }
 
   async mountSearch(container: HTMLDivElement): Promise<void> {
-    if (!this.view) return;
+    if (!this.view || this.destroyed) return;
+    this.searchWidget?.destroy?.();
+    this.searchWidget = undefined;
+    container.replaceChildren();
     const module = await $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Search.js");
-    new module.default({
+    if (!this.view || this.destroyed) return;
+    this.searchWidget = new module.default({
       view: this.view,
       container,
       includeDefaultSources: true,
@@ -99,13 +117,17 @@ export class ArcGISRuntime {
   }
 
   async mountNavigation(container: HTMLDivElement): Promise<() => void> {
-    if (!this.view) return () => undefined;
+    if (!this.view || this.destroyed) return () => undefined;
+    this.destroyNavigation();
+    container.replaceChildren();
+
     const [HomeModule, CompassModule, LocateModule, FullscreenModule] = await Promise.all([
       $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Home.js"),
       $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Compass.js"),
       $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Locate.js"),
       $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Fullscreen.js")
     ]);
+    if (!this.view || this.destroyed) return () => undefined;
 
     const widgets = [
       new HomeModule.default({ view: this.view }),
@@ -113,30 +135,43 @@ export class ArcGISRuntime {
       new LocateModule.default({ view: this.view }),
       new FullscreenModule.default({ view: this.view, element: document.documentElement })
     ];
+    this.navigationWidgets = widgets;
+
     for (const widget of widgets) {
       const node = document.createElement("div");
       node.className = "arcgis-nav-slot";
       container.append(node);
       widget.container = node;
     }
-    return () => widgets.forEach((widget) => widget.destroy?.());
+
+    return () => {
+      for (const widget of widgets) widget.destroy?.();
+      if (this.navigationWidgets === widgets) this.navigationWidgets = [];
+      for (const node of [...container.querySelectorAll(".arcgis-nav-slot")]) node.remove();
+    };
   }
 
   async setLayerVisible(service: ServiceDefinition, visible: boolean): Promise<LayerLoadResult> {
+    if (!this.map || !this.view || this.destroyed) return { ok: false, error: "Harita motoru henüz hazır değil." };
     let layer = this.layers.get(service.id);
     if (!layer && visible) {
       try {
         layer = await createLayer(service);
+        if (this.destroyed) {
+          layer.destroy?.();
+          return { ok: false, error: "Harita oturumu kapatıldı." };
+        }
         this.layers.set(service.id, layer);
         this.map.add(layer);
         await layer.load();
-        layer.opacity = service.opacity;
+        if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
+        layer.opacity = clampOpacity(service.opacity);
         layer.visible = true;
         this.pruneLayerCache();
         return { ok: true };
       } catch (error) {
         if (layer) {
-          this.map.remove(layer);
+          this.map?.remove?.(layer);
           layer.destroy?.();
         }
         this.layers.delete(service.id);
@@ -149,13 +184,14 @@ export class ArcGISRuntime {
 
   setOpacity(serviceId: string, opacity: number): void {
     const layer = this.layers.get(serviceId);
-    if (layer) layer.opacity = opacity;
+    if (layer) layer.opacity = clampOpacity(opacity);
   }
 
   async reloadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
+    if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
     const existing = this.layers.get(service.id);
     if (existing) {
-      this.map.remove(existing);
+      this.map?.remove?.(existing);
       existing.destroy?.();
       this.layers.delete(service.id);
     }
@@ -163,6 +199,7 @@ export class ArcGISRuntime {
   }
 
   async zoomToLayer(serviceId: string): Promise<boolean> {
+    if (!this.view || this.destroyed) return false;
     const layer = this.layers.get(serviceId);
     if (!layer) return false;
     try {
@@ -177,20 +214,23 @@ export class ArcGISRuntime {
   }
 
   setBasemap(basemap: string): void {
-    if (this.map) this.map.basemap = basemap;
+    if (this.map && !this.destroyed) this.map.basemap = basemap;
   }
 
   setPerformanceProfile(profile: PerformanceProfile): void {
     this.profile = profile;
-    if (!this.view) return;
+    if (!this.view || this.destroyed) return;
     this.view.qualityProfile = profileToSceneQuality(profile);
     this.view.environment = this.environmentFor(profile);
     this.pruneLayerCache();
   }
 
   async openTool(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<void> {
+    if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
     this.closeTool();
+    container.replaceChildren();
     const module = await $arcgis.import<{ default: ArcGISConstructor }>(toolModules[tool]);
+    if (!this.view || this.destroyed) return;
     const properties: Record<string, any> = { view: this.view, container };
     if (tool === "elevation") properties.profiles = [{ type: "ground" }];
     this.activeWidget = new module.default(properties);
@@ -206,7 +246,7 @@ export class ArcGISRuntime {
   }
 
   async goTo(camera: CameraState): Promise<void> {
-    if (!this.view) return;
+    if (!this.view || this.destroyed) return;
     await this.view.goTo(
       {
         position: [camera.longitude, camera.latitude, camera.z],
@@ -218,7 +258,7 @@ export class ArcGISRuntime {
   }
 
   getCamera(): CameraState {
-    if (!this.view) return HOME_CAMERA;
+    if (!this.view || this.destroyed) return HOME_CAMERA;
     const camera = this.view.camera;
     return {
       longitude: camera.position.longitude ?? HOME_CAMERA.longitude,
@@ -230,7 +270,7 @@ export class ArcGISRuntime {
   }
 
   async takeScreenshot(): Promise<string | undefined> {
-    if (!this.view) return undefined;
+    if (!this.view || this.destroyed) return undefined;
     try {
       const result = await this.view.takeScreenshot({ format: "png", width: Math.min(innerWidth * devicePixelRatio, 2400) });
       return result.dataUrl as string;
@@ -240,21 +280,36 @@ export class ArcGISRuntime {
   }
 
   destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    window.clearTimeout(this.cameraTimer);
+    cancelAnimationFrame(this.telemetryFrame);
     this.closeTool();
+    this.searchWidget?.destroy?.();
+    this.searchWidget = undefined;
+    this.destroyNavigation();
     for (const handle of this.handles) handle?.remove?.();
     this.handles = [];
     for (const layer of this.layers.values()) layer.destroy?.();
     this.layers.clear();
+    this.callbacks = {};
     this.view?.destroy?.();
     this.view = undefined;
     this.map = undefined;
   }
 
+  private destroyNavigation(): void {
+    for (const widget of this.navigationWidgets) widget.destroy?.();
+    this.navigationWidgets = [];
+  }
+
   private installViewEvents(): void {
     this.handles.push(
       this.view.on("click", async (event: any) => {
+        if (this.destroyed) return;
         try {
           const hit = await this.view.hitTest(event);
+          if (this.destroyed) return;
           const graphicHit = hit.results.find((result: any) => result.type === "graphic" && result.graphic);
           if (!graphicHit) {
             this.callbacks.onIdentify?.(null);
@@ -271,15 +326,17 @@ export class ArcGISRuntime {
             attributes
           });
         } catch {
-          this.callbacks.onIdentify?.(null);
+          if (!this.destroyed) this.callbacks.onIdentify?.(null);
         }
       })
     );
 
     this.handles.push(
       this.view.on("pointer-move", (event: any) => {
+        if (this.destroyed || document.hidden) return;
         cancelAnimationFrame(this.telemetryFrame);
         this.telemetryFrame = requestAnimationFrame(() => {
+          if (!this.view || this.destroyed) return;
           const point = this.view.toMap({ x: event.x, y: event.y });
           const camera = this.view.camera;
           this.callbacks.onTelemetry?.({
@@ -296,8 +353,11 @@ export class ArcGISRuntime {
 
     this.handles.push(
       this.view.watch("camera", () => {
+        if (this.destroyed) return;
         window.clearTimeout(this.cameraTimer);
-        this.cameraTimer = window.setTimeout(() => this.callbacks.onCamera?.(this.getCamera()), 350);
+        this.cameraTimer = window.setTimeout(() => {
+          if (!this.destroyed) this.callbacks.onCamera?.(this.getCamera());
+        }, 350);
       })
     );
   }
@@ -316,6 +376,7 @@ export class ArcGISRuntime {
   }
 
   private pruneLayerCache(): void {
+    if (!this.map || this.destroyed) return;
     const maxCached = this.profile === "eco" ? 8 : this.profile === "balanced" ? 14 : 24;
     if (this.layers.size <= maxCached) return;
     const removable = [...this.layers.entries()].filter(([, layer]) => !layer.visible);
@@ -325,6 +386,20 @@ export class ArcGISRuntime {
       this.layers.delete(id);
     }
   }
+}
+
+async function waitForArcGIS(timeoutMs = 15_000): Promise<void> {
+  const startedAt = performance.now();
+  while (typeof $arcgis === "undefined" || typeof $arcgis.import !== "function") {
+    if (performance.now() - startedAt >= timeoutMs) {
+      throw new Error("ArcGIS Maps SDK 5.1 yüklenemedi. js.arcgis.com erişimini, internet bağlantısını veya ağ güvenlik politikasını kontrol edin.");
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+}
+
+function clampOpacity(value: number): number {
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
 }
 
 function readableError(error: unknown): string {
