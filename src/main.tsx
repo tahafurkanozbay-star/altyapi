@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import "@arcgis/core/assets/esri/themes/dark/main.css";
 import "./styles/app.css";
 import "./styles/v3.css";
 
@@ -35,7 +36,9 @@ if (window.__ALTYAPI_BOOT_TIMER__ !== undefined) {
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("./sw.js").catch((error) => {
+    void navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((registration) => {
+      void registration.update();
+    }).catch((error) => {
       console.warn("[Başkent 3B CBS] Service worker kaydedilemedi", error);
     });
   });
