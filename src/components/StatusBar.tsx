@@ -5,26 +5,40 @@ export function StatusBar({ telemetry, services, performance }: { telemetry: Sce
   const active = services.filter((service) => service.visible).length;
   const ready = services.filter((service) => service.status === "ready").length;
   const errors = services.filter((service) => service.status === "error").length;
+  const scale = Number.isFinite(telemetry.scale) && telemetry.scale ? `1:${Math.round(telemetry.scale).toLocaleString("tr-TR")}` : "—";
+
   return (
-    <footer className="status-bar">
-      <span className="status-coordinate">{coordinate(telemetry)}</span>
-      <span>Yükseklik <strong>{Math.round(telemetry.altitude).toLocaleString("tr-TR")} m</strong></span>
-      <span>Eğim <strong>{Math.round(telemetry.tilt)}°</strong></span>
-      <span>Katman <strong>{active}</strong></span>
-      <span>Hazır <strong>{ready}</strong></span>
-      {errors > 0 && <span className="status-error">Hata <strong>{errors}</strong></span>}
-      <span className={`performance-pill performance-${performance}`}><Icon name="speed" size={13} /> {performanceLabel(performance)}</span>
+    <footer className="status-bar" aria-label="Sahne telemetrisi">
+      <div className="status-segment status-coordinate">
+        <span className="status-label">Konum</span>
+        <strong>{coordinate(telemetry)}</strong>
+      </div>
+      <div className="status-segment">
+        <span className="status-label">Kamera</span>
+        <strong>{Math.round(telemetry.altitude).toLocaleString("tr-TR")} m</strong>
+        <span className="status-secondary">{Math.round(telemetry.tilt)}° eğim</span>
+      </div>
+      <div className="status-segment status-scale">
+        <span className="status-label">Ölçek</span>
+        <strong>{scale}</strong>
+      </div>
+      <div className="status-segment status-service-summary">
+        <span><i className="status-indicator is-active" /> <strong>{active}</strong> aktif</span>
+        <span><i className="status-indicator is-ready" /> <strong>{ready}</strong> hazır</span>
+        {errors > 0 && <span className="status-error"><i className="status-indicator is-error" /> <strong>{errors}</strong> hata</span>}
+      </div>
+      <div className={`performance-pill performance-${performance}`}><Icon name="speed" size={13} /><span>{performanceLabel(performance)}</span></div>
     </footer>
   );
 }
 
 function coordinate(telemetry: SceneTelemetry): string {
-  if (!Number.isFinite(telemetry.latitude) || !Number.isFinite(telemetry.longitude)) return "39.9208° N · 32.8542° E";
+  if (!Number.isFinite(telemetry.latitude) || !Number.isFinite(telemetry.longitude)) return "39.92080° N · 32.85420° E";
   return `${telemetry.latitude!.toFixed(5)}° N · ${telemetry.longitude!.toFixed(5)}° E`;
 }
 
 function performanceLabel(profile: PerformanceProfile): string {
   if (profile === "high") return "Yüksek kalite";
-  if (profile === "balanced") return "Dengeli";
+  if (profile === "balanced") return "Dengeli GPU";
   return "Eco GPU";
 }

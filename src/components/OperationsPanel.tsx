@@ -18,7 +18,7 @@ export function OperationsPanel(props: Props) {
     <aside className="operations-panel">
       <div className="operations-heading">
         <div>
-          <span className="eyebrow">OPERASYON</span>
+          <span className="eyebrow">OPERASYON MERKEZİ</span>
           <h2>{panelTitle(props.panel)}</h2>
         </div>
         <button type="button" className="icon-ghost" onClick={props.onClose} aria-label="Paneli kapat"><Icon name="close" /></button>
@@ -48,7 +48,7 @@ function HealthPanel({ services, onRetryErrors }: Props) {
       </div>
       <div className="health-note">
         <Icon name="health" />
-        <div><strong>Canlı servis durumu</strong><span>Durumlar katman gerçekten yüklendiğinde ArcGIS tarafından doğrulanır; yalnızca URL kontrolüne dayanmaz.</span></div>
+        <div><strong>Canlı servis telemetrisi</strong><span>Durumlar gerçek ArcGIS layer yükleme sonucundan üretilir. Böylece yalnızca URL varlığı değil, tarayıcıdan kullanılabilirlik de görünür.</span></div>
       </div>
       {errors.length > 0 ? (
         <>
@@ -73,7 +73,7 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
   return (
     <div className="operations-body">
       <button type="button" className="primary-button full" onClick={onAddBookmark}><Icon name="plus" /> Geçerli görünümü kaydet</button>
-      <p className="section-note">Yer imi; kamera konumu, açı ve o anda açık olan katmanları birlikte saklar.</p>
+      <p className="section-note">Yer imi; kamera konumu, açı ve o anda açık olan katmanları birlikte saklar. Saha incelemeleri arasında aynı operasyon görünümüne hızlıca dönmek için kullanın.</p>
       <div className="bookmark-list">
         {bookmarks.length === 0 && <div className="empty-state"><Icon name="bookmark" size={28} /><strong>Henüz yer imi yok</strong><span>Önemli saha görünüşlerini tek tıkla saklayın.</span></div>}
         {bookmarks.map((bookmark) => (
@@ -95,8 +95,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v3</h3>
-        <p>React 19.3 + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 tabanlı, cihaz kapasitesine göre kendini ayarlayan modern CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v4 · Command Center</h3>
+        <p>React + TypeScript + Vite + ArcGIS tabanlı, servis sağlığını ve 3B analiz araçlarını tek operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -105,7 +105,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="F" label="Tam ekran" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
-      <div className="health-note"><Icon name="speed" /><div><strong>Performans profili: {performance}</strong><span>GPU kalitesi, gölgeler ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
+      <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, analiz aracı, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
