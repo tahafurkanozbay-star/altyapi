@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import type { Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
@@ -25,6 +27,7 @@ export function OperationsPanel(props: Props) {
       </div>
       {props.panel === "health" && <HealthPanel {...props} />}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
+      {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} />}
       {props.panel === "help" && <HelpPanel performance={props.performance} />}
     </aside>
   );
@@ -69,6 +72,60 @@ function HealthPanel({ services, onRetryErrors }: Props) {
   );
 }
 
+function DiagnosticsPanel({ services, performance }: { services: ServiceDefinition[]; performance: PerformanceProfile }) {
+  const capabilities = useMemo(() => collectBrowserCapabilities(), []);
+  const score = capabilityScore(capabilities);
+  const ready = services.filter((service) => service.status === "ready").length;
+  const errors = services.filter((service) => service.status === "error").length;
+
+  const downloadReport = () => {
+    const report = {
+      generatedAt: new Date().toISOString(),
+      application: "Başkent 3B CBS",
+      version: "5.0.0",
+      runtime: "React + TypeScript + Vite + @arcgis/core ESM",
+      performanceProfile: performance,
+      capabilityScore: score,
+      capabilities,
+      services: services.map((service) => ({
+        id: service.id,
+        name: service.displayName,
+        kind: service.kind,
+        status: service.status,
+        visible: service.visible,
+        error: service.error ?? null
+      }))
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `baskent-3b-diagnostics-${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="operations-body help-body">
+      <div className="help-hero">
+        <div className="help-orbit"><span /><span /><span /></div>
+        <h3>{score}/100 · {capabilityLabel(score)}</h3>
+        <p>Tarayıcı, grafik altyapısı ve cihaz kapasitesi ArcGIS 3B çalışma koşulları açısından yerel olarak değerlendirilir.</p>
+      </div>
+      <div className="health-grid">
+        <Metric label="WebGL2" value={capabilities.webgl2 ? 1 : 0} tone={capabilities.webgl2 ? "good" : "bad"} />
+        <Metric label="CPU çekirdeği" value={capabilities.hardwareConcurrency} tone="neutral" />
+        <Metric label="Hazır servis" value={ready} tone="good" />
+        <Metric label="Servis hatası" value={errors} tone={errors > 0 ? "bad" : "neutral"} />
+      </div>
+      <div className="health-note"><Icon name="speed" /><div><strong>Grafik çalışma zamanı</strong><span>WebGL2: {capabilities.webgl2 ? "hazır" : "desteklenmiyor"} · DPR {capabilities.devicePixelRatio.toFixed(1)} · renk gamı {capabilities.colorGamut.toUpperCase()}</span></div></div>
+      <div className="health-note"><Icon name="info" /><div><strong>Cihaz ve ağ</strong><span>{capabilities.deviceMemory ? `${capabilities.deviceMemory} GB tahmini bellek · ` : ""}{capabilities.connectionType ? `${capabilities.connectionType} bağlantı · ` : ""}{capabilities.saveData ? "Veri tasarrufu açık" : "Normal veri modu"}</span></div></div>
+      <div className="health-note"><Icon name={capabilities.secureContext ? "check" : "warning"} /><div><strong>Güvenli bağlam</strong><span>{capabilities.secureContext ? "HTTPS/localhost güvenli bağlamı kullanılabilir." : "Bazı tarayıcı yetenekleri güvenli bağlam olmadığı için sınırlanabilir."}</span></div></div>
+      <button type="button" className="primary-button full" onClick={downloadReport}><Icon name="download" /> Tanılama raporunu indir</button>
+    </div>
+  );
+}
+
 function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookmark }: Props) {
   return (
     <div className="operations-body">
@@ -95,8 +152,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v4 · Command Center</h3>
-        <p>React + TypeScript + Vite + ArcGIS tabanlı, servis sağlığını ve 3B analiz araçlarını tek operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v5 · Native ESM Platform</h3>
+        <p>React + TypeScript + Vite + yerel @arcgis/core ESM tabanlı; CDN global bağımlılığını kaldıran, servis sağlığını ve 3B analiz araçlarını tek operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -106,7 +163,7 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
-      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, analiz aracı, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
@@ -123,5 +180,6 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "health") return "Servis Sağlığı";
   if (panel === "bookmarks") return "Yer İmleri";
+  if (panel === "diagnostics") return "Sistem Tanılama";
   return "Yardım & Kısayollar";
 }
