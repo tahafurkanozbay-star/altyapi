@@ -18,4 +18,19 @@ describe("urlState", () => {
     const params = new URLSearchParams("lon=32&lat=190&z=5000&heading=0&tilt=45");
     expect(decodeShareState(params)).toBeUndefined();
   });
+
+  it("geçersiz kamera açılarını reddeder", () => {
+    expect(decodeShareState(new URLSearchParams("lon=32&lat=39&z=5000&heading=999&tilt=45"))).toBeUndefined();
+    expect(decodeShareState(new URLSearchParams("lon=32&lat=39&z=5000&heading=0&tilt=-5"))).toBeUndefined();
+  });
+
+  it("katman kimliklerini tekilleştirir ve güvenli karakterlerle sınırlar", () => {
+    const params = new URLSearchParams("lon=32&lat=39&z=5000&heading=0&tilt=45&layers=a,a,b,%3Cscript%3E");
+    expect(decodeShareState(params)?.layerIds).toEqual(["a", "b"]);
+  });
+
+  it("geçersiz altlık değerini paylaşım durumundan çıkarır", () => {
+    const params = new URLSearchParams("lon=32&lat=39&z=5000&heading=0&tilt=45&basemap=%3Cscript%3E");
+    expect(decodeShareState(params)?.basemap).toBeUndefined();
+  });
 });

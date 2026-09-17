@@ -3,7 +3,7 @@ import { ArcGISRuntime } from "./gis/ArcGISRuntime";
 import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
-import { loadPreferences, saveBookmarks, saveCamera, savePerformance, savePreferences, saveTheme } from "./lib/storage";
+import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import type {
   AppPreferences,
   Bookmark,
@@ -48,8 +48,10 @@ export default function App() {
   const [telemetry, setTelemetry] = useState<SceneTelemetry>({ altitude: DEFAULT_CAMERA.z, tilt: DEFAULT_CAMERA.tilt, heading: DEFAULT_CAMERA.heading });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
+  const [online, setOnline] = useState(() => navigator.onLine);
 
   const effectivePerformance: PerformanceProfile = preferences.performance === "auto" ? detectPerformanceProfile() : preferences.performance;
+  const initialPerformanceRef = useRef(effectivePerformance);
   const mapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigationRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,7 @@ export default function App() {
   useEffect(() => { servicesRef.current = services; }, [services]);
 
   const pushToast = useCallback((message: string, tone: ToastItem["tone"] = "info") => {
-    const id = crypto.randomUUID();
+    const id = createId();
     setToasts((items) => [...items.slice(-3), { id, message, tone }]);
     window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 4800);
   }, []);
@@ -96,10 +98,29 @@ export default function App() {
   }, [preferences.theme]);
 
   useEffect(() => {
+    const onOnline = () => {
+      setOnline(true);
+      pushToast("Ağ bağlantısı yeniden kuruldu.", "success");
+    };
+    const onOffline = () => {
+      setOnline(false);
+      pushToast("Ağ bağlantısı kesildi. Harita servisleri geçici olarak kullanılamayabilir.", "error");
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [pushToast]);
+
+  useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+
     void (async () => {
       try {
-        const catalog = await loadServiceCatalog();
+        const catalog = await loadServiceCatalog("./services.json", controller.signal);
         if (cancelled || !mapRef.current) return;
         const share = decodeShareState(new URLSearchParams(location.search));
         const favoriteSet = new Set(initialPreferences.favorites);
@@ -119,7 +140,7 @@ export default function App() {
         setServices(restored);
         servicesRef.current = restored;
 
-        const runtime = new ArcGISRuntime(effectivePerformance);
+        const runtime = new ArcGISRuntime(initialPerformanceRef.current);
         runtimeRef.current = runtime;
         await runtime.initialize(
           mapRef.current,
@@ -131,10 +152,17 @@ export default function App() {
             onCamera: (camera) => saveCamera(camera)
           }
         );
-        if (cancelled) return;
+        if (cancelled) {
+          runtime.destroy();
+          return;
+        }
 
         if (searchRef.current) await runtime.mountSearch(searchRef.current);
         if (navigationRef.current) navigationCleanupRef.current = await runtime.mountNavigation(navigationRef.current);
+        if (cancelled) {
+          runtime.destroy();
+          return;
+        }
         setReady(true);
 
         await mapWithConcurrency(restored.filter((service) => service.visible), 2, async (service) => {
@@ -143,8 +171,11 @@ export default function App() {
           const result = await runtime.setLayerVisible(service, true);
           patchService(service.id, result.ok ? { status: "ready", visible: true } : { status: "error", visible: false, error: result.error });
         });
+        if (cancelled) return;
+        persistLayerPreferences(servicesRef.current);
         pushToast(`${restored.length} servis katalogdan yüklendi.`, "success");
       } catch (error) {
+        if (cancelled || controller.signal.aborted) return;
         const message = error instanceof Error ? error.message : "Uygulama başlatılamadı.";
         setBootError(message);
         pushToast(message, "error");
@@ -153,11 +184,14 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      controller.abort();
       navigationCleanupRef.current?.();
-      runtimeRef.current?.destroy();
+      navigationCleanupRef.current = null;
+      const runtime = runtimeRef.current;
       runtimeRef.current = null;
+      runtime?.destroy();
     };
-  }, [effectivePerformance, initialPreferences, patchService, pushToast]);
+  }, [initialPreferences, patchService, persistLayerPreferences, pushToast]);
 
   useEffect(() => {
     runtimeRef.current?.setPerformanceProfile(effectivePerformance);
@@ -194,9 +228,10 @@ export default function App() {
   }, [patchService, persistLayerPreferences, pushToast]);
 
   const setOpacity = useCallback((service: ServiceDefinition, opacity: number) => {
-    runtimeRef.current?.setOpacity(service.id, opacity);
-    patchService(service.id, { opacity });
-    const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, opacity } : item);
+    const safeOpacity = Math.min(1, Math.max(0, opacity));
+    runtimeRef.current?.setOpacity(service.id, safeOpacity);
+    patchService(service.id, { opacity: safeOpacity });
+    const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, opacity: safeOpacity } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
   }, [patchService, persistLayerPreferences]);
@@ -218,13 +253,17 @@ export default function App() {
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
     const result = await runtime.reloadLayer({ ...service, visible: true });
-    patchService(service.id, result.ok ? { visible: true, status: "ready", error: undefined } : { visible: false, status: "error", error: result.error });
+    const patch = result.ok ? { visible: true, status: "ready" as const, error: undefined } : { visible: false, status: "error" as const, error: result.error };
+    patchService(service.id, patch);
+    const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
+    servicesRef.current = next;
+    persistLayerPreferences(next);
     pushToast(result.ok ? `${service.displayName} yeniden bağlandı.` : `${service.displayName} yeniden bağlanamadı.`, result.ok ? "success" : "error");
-  }, [patchService, pushToast]);
+  }, [patchService, persistLayerPreferences, pushToast]);
 
   const retryErrors = useCallback(async () => {
     const errors = servicesRef.current.filter((service) => service.status === "error");
-    for (const service of errors) await retryLayer(service);
+    await mapWithConcurrency(errors, 2, retryLayer);
   }, [retryLayer]);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
@@ -246,13 +285,19 @@ export default function App() {
   }, []);
 
   const changeTheme = useCallback((theme: ThemeMode) => {
-    setPreferences((current) => ({ ...current, theme }));
-    saveTheme(theme);
+    setPreferences((current) => {
+      const next = { ...current, theme };
+      savePreferences(next);
+      return next;
+    });
   }, []);
 
   const changePerformance = useCallback((performance: PerformanceProfile | "auto") => {
-    setPreferences((current) => ({ ...current, performance }));
-    savePerformance(performance);
+    setPreferences((current) => {
+      const next = { ...current, performance };
+      savePreferences(next);
+      return next;
+    });
   }, []);
 
   const shareView = useCallback(async () => {
@@ -293,15 +338,18 @@ export default function App() {
     const name = window.prompt("Yer imi adı", suggested)?.trim();
     if (!name) return;
     const bookmark: Bookmark = {
-      id: crypto.randomUUID(),
+      id: createId(),
       name,
       camera: runtime.getCamera(),
       layerIds: servicesRef.current.filter((service) => service.visible).map((service) => service.id),
       createdAt: new Date().toISOString()
     };
     const bookmarks = [bookmark, ...preferences.bookmarks].slice(0, 40);
-    setPreferences((current) => ({ ...current, bookmarks }));
-    saveBookmarks(bookmarks);
+    setPreferences((current) => {
+      const next = { ...current, bookmarks };
+      savePreferences(next);
+      return next;
+    });
     pushToast("Yer imi kaydedildi.", "success");
   }, [preferences.bookmarks, pushToast]);
 
@@ -316,8 +364,11 @@ export default function App() {
 
   const deleteBookmark = useCallback((bookmark: Bookmark) => {
     const bookmarks = preferences.bookmarks.filter((item) => item.id !== bookmark.id);
-    setPreferences((current) => ({ ...current, bookmarks }));
-    saveBookmarks(bookmarks);
+    setPreferences((current) => {
+      const next = { ...current, bookmarks };
+      savePreferences(next);
+      return next;
+    });
   }, [preferences.bookmarks]);
 
   useEffect(() => {
@@ -332,7 +383,9 @@ export default function App() {
       if (typing) return;
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
       if (event.key.toLowerCase() === "l") selectPanel("layers");
-      if (event.key.toLowerCase() === "f") void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+      if (event.key.toLowerCase() === "f") {
+        void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
+      }
       if (event.key === "Escape") {
         if (activeTool) setActiveTool(null);
         else if (panel) setPanel(null);
@@ -340,7 +393,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeTool, panel, selectPanel]);
+  }, [activeTool, panel, pushToast, selectPanel]);
 
   return (
     <main className="app-shell">
@@ -353,7 +406,7 @@ export default function App() {
           <div className="brand-symbol"><span>3B</span><i /></div>
           <div><strong>Altyapı / Üstyapı Koordinasyon</strong><span>Coğrafi Bilgi Sistemleri · CBS Başkent</span></div>
         </div>
-        <div className="live-chip"><i /> CANLI CBS</div>
+        <div className={`live-chip ${online ? "" : "is-offline"}`} title={online ? "Ağ bağlantısı mevcut" : "Ağ bağlantısı yok"}><i /> {online ? "CANLI CBS" : "ÇEVRİMDIŞI"}</div>
         <div ref={searchRef} className="global-search" />
         <div className="top-actions">
           <select className="compact-select" value={preferences.basemap} onChange={(event) => changeBasemap(event.target.value)} aria-label="Altlık harita">
@@ -426,6 +479,11 @@ function toolTitle(tool: Exclude<ToolId, null>): string {
     slice: "Kesit", lineOfSight: "Görüş Hattı", elevation: "Yükseklik Profili"
   };
   return labels[tool];
+}
+
+function createId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 async function mapWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {

@@ -5,15 +5,17 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   server: {
-    host: "0.0.0.0",
-    port: 4173
+    host: "127.0.0.1",
+    port: 4173,
+    strictPort: true
   },
   preview: {
-    host: "0.0.0.0",
-    port: 4173
+    host: "127.0.0.1",
+    port: 4173,
+    strictPort: true
   },
   build: {
-    target: "es2022",
+    target: "es2023",
     sourcemap: true,
     cssCodeSplit: true,
     reportCompressedSize: true,

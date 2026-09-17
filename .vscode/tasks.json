@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CBS: Vite geliştirme sunucusu",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "CBS: kalite kontrolü",
+      "type": "npm",
+      "script": "check",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "CBS: Live Server için build",
+      "type": "npm",
+      "script": "build",
+      "problemMatcher": ["$tsc"]
+    }
+  ]
+}

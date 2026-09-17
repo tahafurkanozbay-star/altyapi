@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferKind, normalizeService, serviceMatches, slugify } from "../src/lib/catalog";
+import { inferKind, normalizeService, parseServicesDocument, serviceMatches, slugify } from "../src/lib/catalog";
 
 const sample = {
   ustKurumAdi: "ANKARA BÜYÜKŞEHİR BELEDİYESİ",
@@ -23,5 +23,19 @@ describe("catalog", () => {
     expect(service.kind).toBe("FeatureServer");
     expect(serviceMatches(service, "içme")).toBe(true);
     expect(serviceMatches(service, "mapserver")).toBe(false);
+  });
+
+  it("servis kimliğine query-string içindeki gizli değeri taşımaz", () => {
+    const service = normalizeService({ ...sample, tokenUrl: `${sample.tokenUrl}?token=SUPER_SECRET_VALUE` }, 0);
+    expect(service.id).not.toContain("super-secret-value");
+    expect(service.id).not.toContain("token");
+  });
+
+  it("bozuk katalog kayıtlarını erken reddeder", () => {
+    expect(() => parseServicesDocument({ services: [{ ...sample, tokenUrl: "" }] })).toThrow(/tokenUrl/);
+  });
+
+  it("http/https dışındaki servis protokollerini reddeder", () => {
+    expect(() => normalizeService({ ...sample, tokenUrl: "file:///tmp/service" }, 0)).toThrow(/protokol/i);
   });
 });

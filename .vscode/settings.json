@@ -1,0 +1,6 @@
+{
+  "liveServer.settings.root": "/dist",
+  "liveServer.settings.port": 5500,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}

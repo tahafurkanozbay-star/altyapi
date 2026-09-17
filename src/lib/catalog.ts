@@ -1,6 +1,7 @@
-import type { RawServiceDefinition, ServiceDefinition, ServiceKind, ServicesDocument } from "../types";
+import type { RawServiceDefinition, ServiceDefinition, ServiceKind } from "../types";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
+const requiredFields = ["ustKurumAdi", "metaveriSahibiKurumAdi", "cografiVeriKatmanAdi", "servisTuruAdi", "tokenUrl"] as const;
 
 export function slugify(value: string): string {
   return value
@@ -24,18 +25,40 @@ export function inferKind(raw: RawServiceDefinition): ServiceKind {
   throw new Error(`Desteklenmeyen servis türü: ${raw.servisTuruAdi}`);
 }
 
+export function parseServicesDocument(input: unknown): RawServiceDefinition[] {
+  if (!input || typeof input !== "object" || !("services" in input)) {
+    throw new Error("services.json içinde 'services' dizisi bulunamadı.");
+  }
+  const services = (input as { services?: unknown }).services;
+  if (!Array.isArray(services)) throw new Error("services.json içindeki 'services' bir dizi olmalıdır.");
+
+  return services.map((entry, index) => {
+    if (!entry || typeof entry !== "object") throw new Error(`Servis #${index + 1} nesne olmalıdır.`);
+    const record = entry as Record<string, unknown>;
+    for (const field of requiredFields) {
+      if (typeof record[field] !== "string" || !record[field].trim()) {
+        throw new Error(`Servis #${index + 1}: '${field}' eksik veya geçersiz.`);
+      }
+    }
+    return record as unknown as RawServiceDefinition;
+  });
+}
+
 export function normalizeService(raw: RawServiceDefinition, index: number): ServiceDefinition {
   const kind = inferKind(raw);
   const displayName = raw.cografiVeriKatmanAdi.trim();
-  const identity = `${displayName}-${kind}-${raw.tokenUrl}`;
+  const normalizedUrl = normalizeHttpUrl(raw.tokenUrl);
+  const identity = `${raw.ustKurumAdi.trim()}|${displayName}|${kind}|${safeUrlIdentity(normalizedUrl)}|${index}`;
+  const prefix = slugify(displayName).slice(0, 48) || "layer";
   return {
     ...raw,
-    id: `${slugify(identity).slice(0, 90)}-${index + 1}`,
+    id: `${prefix}-${kind.toLowerCase()}-${fnv1a(identity)}`,
     kind,
     displayName,
     organization: raw.ustKurumAdi.trim(),
     owner: raw.metaveriSahibiKurumAdi.trim(),
-    url: raw.tokenUrl.trim(),
+    url: normalizedUrl,
+    tokenUrl: normalizedUrl,
     status: "idle",
     visible: false,
     opacity: kind === "MapServer" || kind === "WMS" ? 0.86 : 1,
@@ -43,12 +66,11 @@ export function normalizeService(raw: RawServiceDefinition, index: number): Serv
   };
 }
 
-export async function loadServiceCatalog(url = "./services.json"): Promise<ServiceDefinition[]> {
-  const response = await fetch(url, { cache: "no-store" });
+export async function loadServiceCatalog(url = "./services.json", signal?: AbortSignal): Promise<ServiceDefinition[]> {
+  const response = await fetch(url, { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Servis kataloğu yüklenemedi (HTTP ${response.status}).`);
-  const document = (await response.json()) as ServicesDocument;
-  if (!Array.isArray(document.services)) throw new Error("services.json içinde 'services' dizisi bulunamadı.");
-  return document.services.map(normalizeService);
+  const document: unknown = await response.json();
+  return parseServicesDocument(document).map(normalizeService);
 }
 
 export function serviceMatches(service: ServiceDefinition, query: string): boolean {
@@ -68,4 +90,26 @@ export function hostLabel(url: string): string {
   } catch {
     return "Geçersiz URL";
   }
+}
+
+function normalizeHttpUrl(value: string): string {
+  const parsed = new URL(value.trim());
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`Desteklenmeyen servis URL protokolü: ${parsed.protocol}`);
+  }
+  return parsed.toString();
+}
+
+function safeUrlIdentity(value: string): string {
+  const parsed = new URL(value);
+  return `${parsed.origin}${parsed.pathname}`;
+}
+
+function fnv1a(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).padStart(7, "0");
 }
