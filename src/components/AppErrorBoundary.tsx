@@ -9,17 +9,17 @@ interface State {
 }
 
 export class AppErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  override state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo): void {
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("[Başkent 3B CBS] React render error", error, info.componentStack);
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (!this.state.error) return this.props.children;
 
     return (
