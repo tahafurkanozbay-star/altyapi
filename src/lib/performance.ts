@@ -7,9 +7,12 @@ export interface PerformanceHints {
   mobile?: boolean;
 }
 
+type NavigatorWithMemory = Navigator & { deviceMemory?: number };
+
 export function detectPerformanceProfile(hints: PerformanceHints = {}): PerformanceProfile {
+  const browser = navigator as NavigatorWithMemory;
   const cores = hints.hardwareConcurrency ?? navigator.hardwareConcurrency ?? 4;
-  const memory = hints.deviceMemory ?? navigator.deviceMemory ?? 4;
+  const memory = hints.deviceMemory ?? browser.deviceMemory ?? 4;
   const reduced = hints.reducedMotion ?? matchMedia("(prefers-reduced-motion: reduce)").matches;
   const mobile = hints.mobile ?? matchMedia("(pointer: coarse) and (max-width: 900px)").matches;
 
