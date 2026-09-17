@@ -1,20 +1,29 @@
 {
-  "name": "baskent-3d-gis",
-  "version": "1.0.0",
+  "name": "altyapi-3d-gis",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara odaklı 3B CBS platformu: ArcGIS Feature/Scene/MapServer ile OGC WMS/WFS servislerini tek bir modern arayüzde birleştirir.",
+  "description": "Ankara odaklı, performans uyarlamalı modern 3B CBS operasyon platformu.",
   "scripts": {
-    "clean": "node scripts/clean.mjs",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-static.mjs",
-    "dev": "npm run build && node scripts/serve.mjs",
-    "typecheck": "tsc -p tsconfig.app.json --noEmit --pretty false",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run",
     "validate:services": "node scripts/validate-services.mjs",
-    "test": "node --test tests/catalog.node.test.mjs",
     "check": "npm run validate:services && npm run typecheck && npm run test && npm run build"
   },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.0",
+    "vitest": "^5.0.1"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -1,14 +1,22 @@
-# Güvenli WMS/WFS servisleri
+# Güvenli Servis Entegrasyonu
 
-Bu depo herkese açık olduğu için kullanıcı tarafından sağlanan, erişim belirteci içeren UCBP WMS/WFS URL'leri repoya yazılmaz. Statik bir web uygulamasına gömülen URL veya token ziyaretçiler tarafından görülebilir.
+Public GitHub deposunda URL içinde credential/token taşıyan WMS/WFS uçları saklanmaz. `public/services.private.example.json` yalnızca proxy URL şablonudur.
 
-`public/services.private.example.json` yalnızca şablondur. Gerçek erişim adreslerini doğrudan GitHub'a, JavaScript'e veya GitHub Pages çıktısına koymayın.
+Önerilen üretim topolojisi:
 
-Üretimde önerilen model:
+```text
+Browser
+  │ HTTPS /geoservices/wms/...
+  ▼
+Kurumsal API Gateway / Proxy
+  ├─ kullanıcı oturumu / yetki
+  ├─ rate limit
+  ├─ audit log
+  ├─ izinli WMS/WFS operasyonları
+  └─ kısa ömürlü servis credential'ı
+  │
+  ▼
+UCBP / Kurum CBS servisi
+```
 
-1. Tarayıcı yalnızca kurumunuza ait aynı-origin bir `/geoservices/*` proxy adresini çağırır.
-2. Proxy gerçek WMS/WFS hedefini ve kısa ömürlü erişim bilgisini sunucu tarafında saklar.
-3. Proxy istek başına yetkilendirme, hız sınırı, audit log ve CORS politikasını uygular.
-4. Gerekirse GetCapabilities yanıtları ve salt-okunur harita istekleri kısa süreli önbelleğe alınır.
-
-Uygulamanın WMS/WFS katman motoru hazırdır; güvenli proxy URL'leri `public/services.json` içine eklendiğinde diğer katmanlarla aynı panelde çalışır.
+Proxy mümkünse `GetCapabilities`, harita tile/image ve salt-okunur feature sorgularını ayrı politikalarla ele almalı; yazma operasyonlarını varsayılan olarak reddetmelidir.

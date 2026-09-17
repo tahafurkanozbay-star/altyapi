@@ -1,28 +1,27 @@
-# Mimari
+# Mimari v2
 
-## Tasarım hedefleri
+## Katmanlar
 
-- 3B CBS kullanımını merkezde tutmak
-- ArcGIS REST ve OGC servislerini aynı katalogdan yönetmek
-- Framework bağımlılığını azaltmak
-- Harita SDK'sını tembel/dinamik yükleyerek ilk uygulama kodunu küçük tutmak
-- Servis kaynaklı hataları uygulamadan izole etmek
+**React UI** yalnızca kullanıcı durumu ve operasyon kabuğunu yönetir. **ArcGISRuntime** harita/SceneView yaşam döngüsünü, widget'ları, hitTest'i ve layer cache'ini tek yerde izole eder. **layerFactory** servis türünü ArcGIS layer sınıfına dönüştürür. **lib/** klasörü ArcGIS'ten bağımsız saf fonksiyonları içerir ve Vitest ile test edilir.
 
 ## Veri akışı
 
-1. `services.json` doğrulanır ve normalize edilir.
-2. Kullanıcı görünürlük tercihi / URL ile paylaşılan katman listesi uygulanır.
-3. Katman yalnızca açıldığında ilgili ArcGIS 5.1 sınıfı `$arcgis.import` ile yüklenir.
-4. Katman `load()` sonucuna göre `ready/error` durumuna geçer.
-5. Harita tıklaması `hitTest` ile öznitelik paneline aktarılır.
-6. Kamera ve görünürlük tercihleri localStorage'da tutulur.
+1. `services.json` yüklenir, servisler normalize edilir ve kararlı kimlik alır.
+2. URL'den paylaşılmış durum varsa kamera/katman/altlık uygulanır; yoksa localStorage tercihleri kullanılır.
+3. SceneView cihaz performans profiline göre başlatılır.
+4. Yalnızca görünür servisler oluşturulur; diğer servisler kullanıcı açana kadar ağ isteği başlatmaz.
+5. Layer `load()` sonucu `ready/error` olarak UI'a yansır.
+6. `hitTest` sonucu React detay paneline güvenli metin verisi olarak aktarılır.
+7. Kamera, tema, performans, katman görünürlüğü/saydamlığı ve yer imleri kalıcı tercihlere yazılır.
 
-## Servis adaptörleri
+## Adaptörler
 
-- FeatureServer → FeatureLayer
-- SceneServer → SceneLayer
-- MapServer → MapImageLayer (alt katman URL'si verilmişse sublayer ID ayrıştırılır)
-- WMS → WMSLayer
-- WFS → WFSLayer
+- FeatureServer → `FeatureLayer`
+- SceneServer → `SceneLayer`
+- MapServer → `MapImageLayer`; `/MapServer/{id}` uçlarında sublayer ID ayrıştırılır
+- WMS → `WMSLayer`
+- WFS → `WFSLayer`
 
-Bu yaklaşım servis kataloğuna yeni kayıt eklemeyi kod değişikliğinden büyük ölçüde bağımsız hale getirir.
+## Arayüz prensibi
+
+Harita tam ekran kalır; operasyon panelleri glass surface olarak overlay edilir. Ana katman paneli sağda, yüksek frekanslı harita araçları solda, geçici ArcGIS widget'ları ayrı araç panelinde bulunur. Mobilde tool rail alt dock'a dönüşür.

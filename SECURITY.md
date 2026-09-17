@@ -1,14 +1,24 @@
 # Security Policy
 
-## Hassas servis URL'leri
+## Gizli bilgi politikası
 
-Bu uygulama istemci tarafında çalışır. `public/services.json` içindeki URL'ler kullanıcı tarayıcına gönderildiği için **gizli kabul edilemez**.
+Bu depo public'tir. Tarayıcıya gönderilen her URL, header ve token son kullanıcı tarafından görülebilir. Bu nedenle uzun ömürlü erişim anahtarı, kişisel API anahtarı, yönetici tokenı veya kurum içi kimlik bilgisi repoya eklenmemelidir.
 
-- Uzun ömürlü erişim anahtarlarını veya yönetici tokenlarını repoya koymayın.
-- Kimlik doğrulama gerekiyorsa kısa ömürlü token üreten sunucu tarafı bir katman/proxy kullanın.
-- Token sızıntısı şüphesinde ilgili tokenı iptal edip yenileyin ve Git geçmişinden de temizleyin.
-- CORS izinlerini mümkün olduğunca yalnızca gerekli origin'lerle sınırlandırın.
+## WMS/WFS ve tokenlı servisler
 
-## Raporlama
+Kimlik doğrulama gerektiren CBS uçları için:
 
-Güvenlik açığı bulursanız herkese açık issue açmadan depo sahibine özel kanaldan iletin.
+1. Tarayıcı yalnızca uygulama origin'indeki `/geoservices/*` proxy uçlarını çağırır.
+2. Proxy gerçek hedef URL/tokenı sunucu tarafında saklar.
+3. Proxy yetkilendirme, oran sınırlama, audit log, CORS ve izinli OGC operasyonlarını uygular.
+4. Tokenlar kısa ömürlü ve en az yetkili olmalıdır.
+5. Şüpheli sızıntıda token hemen iptal/rotate edilir; Git geçmişi de temizlenir.
+
+## İstemci güvenliği
+
+- `services.json` yalnızca HTTPS URL kabul eder.
+- Service worker harici CBS servislerini cache'lemez.
+- Kullanıcı öznitelikleri React text rendering ile gösterilir; HTML olarak enjekte edilmez.
+- URL paylaşım durumu sayısal koordinat aralığı doğrulamasından geçer.
+
+Güvenlik açığını public issue yerine depo sahibine özel kanaldan bildirin.

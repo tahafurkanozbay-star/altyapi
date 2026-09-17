@@ -6,6 +6,7 @@ Kısa açıklama:
 
 - [ ] `npm run check` başarılı
 - [ ] Yeni gizli anahtar/token eklenmedi
-- [ ] Masaüstü görünümü kontrol edildi
-- [ ] Mobil görünüm kontrol edildi
+- [ ] 3B harita masaüstünde kontrol edildi
+- [ ] Mobil responsive görünüm kontrol edildi
 - [ ] Servis/CORS etkisi değerlendirildi
+- [ ] Performans profilleri gözden geçirildi

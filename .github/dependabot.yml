@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-runtime:
+        patterns:
+          - "react"
+          - "react-dom"
+      tooling:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "typescript"
+          - "vitest"
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

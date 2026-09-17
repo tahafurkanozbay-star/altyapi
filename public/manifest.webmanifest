@@ -1,0 +1,20 @@
+{
+  "name": "Başkent 3B CBS Operasyon Platformu",
+  "short_name": "Başkent 3B CBS",
+  "description": "3B altyapı ve üstyapı koordinasyon platformu",
+  "lang": "tr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071523",
+  "theme_color": "#0877dd",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

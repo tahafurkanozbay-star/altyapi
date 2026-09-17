@@ -1,4 +1,4 @@
-import type { ServiceDefinition } from "../types.js";
+import type { ServiceDefinition } from "../types";
 
 type ArcGISConstructor = new (properties: Record<string, unknown>) => any;
 
@@ -23,11 +23,23 @@ async function loadCtor(kind: ServiceDefinition["kind"]): Promise<ArcGISConstruc
 
 export async function createLayer(service: ServiceDefinition): Promise<any> {
   const LayerCtor = await loadCtor(service.kind);
-  const common = { title: service.displayName, visible: service.visible, opacity: service.opacity };
+  const common = {
+    id: `svc-${service.id}`,
+    title: service.displayName,
+    visible: service.visible,
+    opacity: service.opacity,
+    listMode: "show"
+  };
 
   switch (service.kind) {
     case "FeatureServer":
-      return new LayerCtor({ ...common, url: service.url, outFields: ["*"], popupEnabled: true });
+      return new LayerCtor({
+        ...common,
+        url: service.url,
+        outFields: ["*"],
+        popupEnabled: true,
+        featureReduction: undefined
+      });
     case "SceneServer":
       return new LayerCtor({ ...common, url: service.url, popupEnabled: true });
     case "MapServer": {
@@ -39,6 +51,7 @@ export async function createLayer(service: ServiceDefinition): Promise<any> {
       });
     }
     case "WMS":
+      return new LayerCtor({ ...common, url: service.url, imageFormat: "image/png" });
     case "WFS":
       return new LayerCtor({ ...common, url: service.url });
   }

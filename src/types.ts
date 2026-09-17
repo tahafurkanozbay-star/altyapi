@@ -1,5 +1,9 @@
 export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "SceneServer";
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
+export type ThemeMode = "dark" | "light" | "system";
+export type PerformanceProfile = "high" | "balanced" | "eco";
+export type PanelId = "layers" | "health" | "bookmarks" | "help" | null;
+export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
   ustKurumAdi: string;
@@ -24,17 +28,54 @@ export interface ServiceDefinition extends RawServiceDefinition {
   error?: string;
   visible: boolean;
   opacity: number;
+  favorite: boolean;
 }
 
-export interface LayerRuntime {
-  service: ServiceDefinition;
-  layer: any;
-}
-
-export interface ViewSnapshot {
+export interface CameraState {
   longitude: number;
   latitude: number;
   z: number;
   heading: number;
   tilt: number;
+}
+
+export interface Bookmark {
+  id: string;
+  name: string;
+  camera: CameraState;
+  layerIds: string[];
+  createdAt: string;
+}
+
+export interface AppPreferences {
+  basemap: string;
+  theme: ThemeMode;
+  performance: PerformanceProfile | "auto";
+  layerVisibility: Record<string, boolean>;
+  layerOpacity: Record<string, number>;
+  favorites: string[];
+  camera?: CameraState;
+  bookmarks: Bookmark[];
+}
+
+export interface IdentifyResult {
+  title: string;
+  subtitle?: string;
+  attributes: Array<{ key: string; value: string }>;
+}
+
+export interface SceneTelemetry {
+  latitude?: number;
+  longitude?: number;
+  altitude: number;
+  tilt: number;
+  heading: number;
+  scale?: number;
+}
+
+export interface ToolDefinition {
+  id: Exclude<ToolId, null>;
+  label: string;
+  icon: string;
+  keywords: string[];
 }

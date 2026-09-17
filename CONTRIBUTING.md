@@ -1,8 +1,9 @@
 # Katkı Rehberi
 
-1. Node.js 22.12+ kullanın.
-2. `npm install` çalıştırın.
-3. Değişiklikten önce ve sonra `npm run check` çalıştırın.
-4. Yeni servis türü ekliyorsanız `src/services/layerFactory.ts` ve doğrulama scriptini birlikte güncelleyin.
-5. Harita performansını korumak için ağır katmanları varsayılan olarak kapalı tutun.
-6. Gizli token veya kişisel veri commit etmeyin.
+- Node.js 22.12+ kullanın.
+- Değişiklikten önce `npm install`, gönderimden önce `npm run check` çalıştırın.
+- Harita SDK'sı için `ArcGISRuntime` dışındaki bileşenlerde doğrudan ArcGIS instance yönetmeyin.
+- Yeni servis türü eklenirse katalog tipi, `layerFactory`, servis doğrulama scripti ve testleri birlikte güncellenmelidir.
+- Ağır 3B katmanları varsayılan olarak açmayın; progressive/lazy load ilkesini koruyun.
+- Token veya kurum içi credential commit etmeyin.
+- Yeni UI davranışları klavye erişimini ve mobil görünümü bozmayacak şekilde geliştirilmelidir.
