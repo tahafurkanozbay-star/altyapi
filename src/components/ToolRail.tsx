@@ -24,34 +24,59 @@ interface Props {
 
 export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onScreenshot, onCommand }: Props) {
   return (
-    <nav className="tool-rail" aria-label="Harita araçları">
-      <ToolButton icon="layers" label="Katmanlar" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
-      <ToolButton icon="health" label="Servis sağlığı" active={activePanel === "health"} onClick={() => onPanel("health")} />
-      <ToolButton icon="bookmark" label="Yer imleri" active={activePanel === "bookmarks"} onClick={() => onPanel("bookmarks")} />
-      <div className="tool-separator" />
-      <ToolButton icon="home" label="Başlangıç görünümü" onClick={onHome} />
-      {mapTools.map((tool) => (
-        <ToolButton
-          key={tool.id}
-          icon={tool.icon as IconName}
-          label={tool.label}
-          active={activeTool === tool.id}
-          onClick={() => onTool(tool.id)}
-        />
-      ))}
-      <div className="tool-separator" />
-      <ToolButton icon="camera" label="Ekran görüntüsü" onClick={onScreenshot} />
-      <ToolButton icon="command" label="Komut paleti" onClick={onCommand} />
-      <ToolButton icon="help" label="Yardım" active={activePanel === "help"} onClick={() => onPanel("help")} />
+    <nav className="tool-rail" aria-label="CBS komuta araçları">
+      <div className="tool-rail-mark" aria-hidden="true"><span>3B</span></div>
+
+      <div className="tool-group" aria-label="Çalışma alanı">
+        <span className="tool-group-label">Çalışma alanı</span>
+        <ToolButton icon="layers" label="Katman kataloğu" shortcut="L" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
+        <ToolButton icon="health" label="Servis sağlığı" active={activePanel === "health"} onClick={() => onPanel("health")} />
+        <ToolButton icon="bookmark" label="Yer imleri" active={activePanel === "bookmarks"} onClick={() => onPanel("bookmarks")} />
+      </div>
+
+      <div className="tool-group" aria-label="Navigasyon">
+        <span className="tool-group-label">Navigasyon</span>
+        <ToolButton icon="home" label="Ankara başlangıç görünümü" shortcut="H" onClick={onHome} />
+      </div>
+
+      <div className="tool-group tool-group-analysis" aria-label="3B analiz araçları">
+        <span className="tool-group-label">3B analiz</span>
+        {mapTools.map((tool) => (
+          <ToolButton
+            key={tool.id}
+            icon={tool.icon as IconName}
+            label={tool.label}
+            active={activeTool === tool.id}
+            onClick={() => onTool(tool.id)}
+          />
+        ))}
+      </div>
+
+      <div className="tool-group tool-group-bottom" aria-label="Oturum araçları">
+        <span className="tool-group-label">Oturum</span>
+        <ToolButton icon="camera" label="Harita ekran görüntüsü" onClick={onScreenshot} />
+        <ToolButton icon="command" label="Komut paleti" shortcut="⌘K" onClick={onCommand} />
+        <ToolButton icon="help" label="Yardım ve kısayollar" active={activePanel === "help"} onClick={() => onPanel("help")} />
+      </div>
     </nav>
   );
 }
 
-function ToolButton({ icon, label, active, onClick }: { icon: IconName; label: string; active?: boolean; onClick: () => void }) {
+function ToolButton({ icon, label, shortcut, active, onClick }: { icon: IconName; label: string; shortcut?: string; active?: boolean; onClick: () => void }) {
   return (
-    <button type="button" className={`tool-button ${active ? "is-active" : ""}`} onClick={onClick} aria-label={label} title={label}>
-      <Icon name={icon} size={19} />
-      <span className="tool-tooltip">{label}</span>
+    <button
+      type="button"
+      className={`tool-button ${active ? "is-active" : ""}`}
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active ?? false}
+      title={label}
+    >
+      <Icon name={icon} size={18} />
+      <span className="tool-tooltip">
+        <strong>{label}</strong>
+        {shortcut && <kbd>{shortcut}</kbd>}
+      </span>
     </button>
   );
 }
