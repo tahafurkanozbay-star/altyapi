@@ -17,8 +17,7 @@ function mapServerParts(url: string): { root: string; sublayerId?: number } {
 }
 
 async function loadCtor(kind: ServiceDefinition["kind"]): Promise<ArcGISConstructor> {
-  const module = await $arcgis.import<{ default: ArcGISConstructor }>(moduleByKind[kind]);
-  return module.default;
+  return $arcgis.import<ArcGISConstructor>(moduleByKind[kind]);
 }
 
 export async function createLayer(service: ServiceDefinition): Promise<any> {
