@@ -32,6 +32,7 @@ export function CommandPalette({ open, services, onClose, onLayer, onTool, onPan
     { id: "home", label: "Başlangıç görünümüne dön", subtitle: "Harita", icon: "home", keywords: "home başlangıç ankara", run: onHome },
     { id: "layers", label: "Katman kataloğunu aç", subtitle: "Panel", icon: "layers", keywords: "katman servis katalog", run: () => onPanel("layers") },
     { id: "health", label: "Servis sağlığını aç", subtitle: "Panel", icon: "health", keywords: "servis sağlık hata durum", run: () => onPanel("health") },
+    { id: "diagnostics", label: "Sistem tanılamayı aç", subtitle: "Platform", icon: "speed", keywords: "webgl gpu cihaz sistem tanılama performans", run: () => onPanel("diagnostics") },
     { id: "bookmarks", label: "Yer imlerini aç", subtitle: "Panel", icon: "bookmark", keywords: "yer imi bookmark", run: () => onPanel("bookmarks") },
     { id: "shot", label: "Ekran görüntüsü al", subtitle: "Harita", icon: "camera", keywords: "ekran screenshot png indir", run: onScreenshot },
     ...mapTools.map((tool) => ({
