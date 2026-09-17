@@ -1,38 +1,36 @@
 # 3B CBS Başkent
 
-Ankara odaklı, modern ve üretime hazır bir **3B Altyapı / Üstyapı Koordinasyon Web Uygulaması**. Proje; ArcGIS **FeatureServer, SceneServer, MapServer** servisleriyle OGC **WMS/WFS** servislerini tek bir 3B sahnede birleştirir.
-
-Arayüz, sağlanan referans ekranın operasyonel mantığını koruyup daha çağdaş, erişilebilir ve mobil uyumlu hale getirilmiştir.
+Ankara odaklı, modern ve üretime hazır bir **3B Altyapı / Üstyapı Koordinasyon Web Uygulaması**. Proje ArcGIS **FeatureServer, SceneServer, MapServer** servisleriyle OGC **WMS/WFS** servislerini tek bir 3B sahnede birleştirir.
 
 ## Teknoloji
 
-- TypeScript (strict)
-- Native ES Modules + TypeScript 5.9 (framework ve runtime bağımlılığı yok)
-- ArcGIS Maps SDK for JavaScript 5.1 (CDN + `$arcgis.import` ile tree-friendly dinamik yükleme)
+- TypeScript 5.9 (strict)
+- Native ES Modules
+- ArcGIS Maps SDK for JavaScript 5.1
 - Framework bağımsız, düşük katmanlı mimari
-- GitHub Actions CI + GitHub Pages dağıtımı
-- Node testleri ve servis şema doğrulaması
+- GitHub Actions CI + GitHub Pages
+- Node tabanlı test ve servis şema doğrulaması
 
-ArcGIS SDK uygulama paketine gömülmez; 5.1 CDN üzerinden ihtiyaç duyulan modüller dinamik alınır. TypeScript doğrudan modern ES2022 modüllerine derlenir. Böylece uygulama küçük kalır, CBS katmanları servis bazında tembel yüklenir ve gereksiz framework yükü oluşmaz.
+ArcGIS SDK uygulama paketine gömülmez; 5.1 CDN üzerinden gereken modüller dinamik yüklenir. TypeScript modern ES2022 modüllerine derlenir. Böylece uygulama küçük kalır ve CBS katmanları gerektiğinde yüklenir.
 
 ## Özellikler
 
-- 3B yerel sahne, uydu/hibrit/topografik altlık seçenekleri ve dünya yükseklik modeli
-- `public/services.json` içindeki servisleri türlerine göre otomatik yükleme
+- 3B yerel sahne, dünya yükseklik modeli ve çoklu altlık haritalar
+- `public/services.json` servis kataloğunu otomatik okuma
 - FeatureServer, SceneServer, MapServer, WMS ve WFS desteği
-- Katman arama, kurum bazlı gruplama, görünürlük, saydamlık, bağlantı durumu ve katmana yaklaşma
+- Katman arama, kurum bazlı gruplama, görünürlük, saydamlık ve bağlantı durumu
+- Katmana yaklaşma, yeniden deneme ve hata raporlama
 - 3B mesafe/alan ölçümü, gün ışığı, kesit, görüş hattı, lejant ve altlık galerisi
 - Adres/yer arama, Home, pusula ve tam ekran kontrolleri
 - Harita tıklamasında öznitelik paneli
-- Kamera, altlık ve katman tercihlerinin tarayıcıda saklanması
-- Kamera + aktif katmanların URL ile paylaşılması
-- Responsive tasarım, klavye kısayolları ve `prefers-reduced-motion` desteği
-- Servis hataları için görünür durum, kullanıcı bildirimi ve yeniden deneme
+- Kamera, altlık ve katman tercihlerinin localStorage'da saklanması
+- Kamera + aktif katmanlarla paylaşılabilir URL
+- Responsive tasarım, klavye kısayolları ve reduced-motion desteği
 - GitHub Pages için otomatik deployment workflow'u
 
 ## Kurulum
 
-Gereksinim: Node.js 22.12+.
+Node.js 22.12+ gerekir.
 
 ```bash
 npm install
@@ -49,12 +47,13 @@ npm run check
 
 ```bash
 npm run build
-npm run dev
 ```
+
+Derlenen statik site `dist/` içine yazılır.
 
 ## Servis kataloğu
 
-Herkese açık belediye servisleri `public/services.json` dosyasına alınmıştır. Erişim belirteci içeren WMS/WFS adresleri güvenlik nedeniyle public depoya yazılmaz; güvenli proxy şablonu `public/services.private.example.json` ve `docs/SECURE_SERVICES.md` altında açıklanır. Şema:
+Şema:
 
 ```json
 {
@@ -70,15 +69,15 @@ Herkese açık belediye servisleri `public/services.json` dosyasına alınmışt
 }
 ```
 
-> **Güvenlik notu:** `tokenUrl` alanındaki URL'ler tarayıcı tarafından doğrudan kullanılacağı için GitHub Pages gibi statik bir yayında ziyaretçiler tarafından görülebilir. Bu nedenle erişim belirteci içeren adresler public yapılandırmadan çıkarılmıştır. Ayrıntı için `docs/SECURE_SERVICES.md` dosyasına bakın.
+> **Güvenlik:** Statik uygulamadaki URL ve tokenlar ziyaretçiler tarafından görülebilir. Uzun ömürlü veya gizli erişim bilgilerini repoya koymayın. Bu depoda kullanıcı tarafından sağlanan token içeren UCBP WMS/WFS URL'leri yayınlanmamıştır. Üretimde güvenli proxy kullanın; ayrıntılar `docs/SECURE_SERVICES.md` dosyasındadır.
 
-## CORS ve servis uyumluluğu
+## CORS
 
-WMS/WFS servisleri tarayıcıdan çağrıldığı için servis sunucusunda CORS izni bulunmalıdır. ArcGIS REST servislerinde de HTTPS ve tarayıcı erişimi beklenir. Uygulama yükleme hatalarını katman kartında gösterir ve yeniden deneme sunar.
+WMS/WFS ve ArcGIS REST servisleri tarayıcıdan çağrıldığı için hedef servislerin CORS politikasının uygulama origin'ine izin vermesi gerekir. Servis kaynaklı yükleme hataları katman kartında görünür ve yeniden denenebilir.
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml` hazırdır. Depo ayarlarında **Settings → Pages → Source: GitHub Actions** seçildiğinde `main` dalına yapılan push sonrası dağıtım otomatik çalışır.
+`.github/workflows/pages.yml` hazırdır. Depo ayarlarında **Settings → Pages → Source: GitHub Actions** seçildiğinde `main` dalına yapılan push sonrası derleme ve dağıtım otomatik çalışır.
 
 ## Kısayollar
 
@@ -87,7 +86,7 @@ WMS/WFS servisleri tarayıcıdan çağrıldığı için servis sunucusunda CORS 
 - `F`: tam ekran
 - `Esc`: açık analiz aracını kapat
 
-## Yapı
+## Mimari
 
 ```text
 src/
@@ -96,13 +95,15 @@ src/
   utils/          DOM ve localStorage yardımcıları
   main.ts         3B sahne ve uygulama orkestrasyonu
 public/
-  services.json   sağlanan servis kataloğu
+  services.json   açık servis kataloğu
 scripts/
   validate-services.mjs
 .github/workflows/
   ci.yml
   pages.yml
 ```
+
+Daha ayrıntılı mimari ve operasyon notları `docs/` klasöründedir.
 
 ## Lisans
 
