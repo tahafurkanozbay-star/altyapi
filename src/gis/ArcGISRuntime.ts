@@ -10,6 +10,7 @@ import type {
 } from "../types";
 
 type ArcGISConstructor = new (properties: Record<string, any>) => any;
+type ArcGISConfig = { request: { timeout: number } };
 
 export interface RuntimeCallbacks {
   onIdentify?: (result: IdentifyResult | null) => void;
@@ -65,16 +66,16 @@ export class ArcGISRuntime {
     await waitForArcGIS();
     if (this.destroyed) return;
 
-    const [MapModule, SceneViewModule, configModule] = await Promise.all([
-      $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/Map.js"),
-      $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/views/SceneView.js"),
-      $arcgis.import<{ default: any }>("@arcgis/core/config.js")
+    const [MapCtor, SceneViewCtor, config] = await Promise.all([
+      $arcgis.import<ArcGISConstructor>("@arcgis/core/Map.js"),
+      $arcgis.import<ArcGISConstructor>("@arcgis/core/views/SceneView.js"),
+      $arcgis.import<ArcGISConfig>("@arcgis/core/config.js")
     ]);
     if (this.destroyed) return;
 
-    configModule.default.request.timeout = 30_000;
-    this.map = new MapModule.default({ basemap, ground: "world-elevation" });
-    this.view = new SceneViewModule.default({
+    config.request.timeout = 30_000;
+    this.map = new MapCtor({ basemap, ground: "world-elevation" });
+    this.view = new SceneViewCtor({
       container,
       map: this.map,
       viewingMode: "local",
@@ -104,9 +105,9 @@ export class ArcGISRuntime {
     this.searchWidget?.destroy?.();
     this.searchWidget = undefined;
     container.replaceChildren();
-    const module = await $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Search.js");
+    const SearchCtor = await $arcgis.import<ArcGISConstructor>("@arcgis/core/widgets/Search.js");
     if (!this.view || this.destroyed) return;
-    this.searchWidget = new module.default({
+    this.searchWidget = new SearchCtor({
       view: this.view,
       container,
       includeDefaultSources: true,
@@ -121,19 +122,19 @@ export class ArcGISRuntime {
     this.destroyNavigation();
     container.replaceChildren();
 
-    const [HomeModule, CompassModule, LocateModule, FullscreenModule] = await Promise.all([
-      $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Home.js"),
-      $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Compass.js"),
-      $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Locate.js"),
-      $arcgis.import<{ default: ArcGISConstructor }>("@arcgis/core/widgets/Fullscreen.js")
+    const [HomeCtor, CompassCtor, LocateCtor, FullscreenCtor] = await Promise.all([
+      $arcgis.import<ArcGISConstructor>("@arcgis/core/widgets/Home.js"),
+      $arcgis.import<ArcGISConstructor>("@arcgis/core/widgets/Compass.js"),
+      $arcgis.import<ArcGISConstructor>("@arcgis/core/widgets/Locate.js"),
+      $arcgis.import<ArcGISConstructor>("@arcgis/core/widgets/Fullscreen.js")
     ]);
     if (!this.view || this.destroyed) return () => undefined;
 
     const widgets = [
-      new HomeModule.default({ view: this.view }),
-      new CompassModule.default({ view: this.view }),
-      new LocateModule.default({ view: this.view }),
-      new FullscreenModule.default({ view: this.view, element: document.documentElement })
+      new HomeCtor({ view: this.view }),
+      new CompassCtor({ view: this.view }),
+      new LocateCtor({ view: this.view }),
+      new FullscreenCtor({ view: this.view, element: document.documentElement })
     ];
     this.navigationWidgets = widgets;
 
@@ -229,11 +230,11 @@ export class ArcGISRuntime {
     if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
     this.closeTool();
     container.replaceChildren();
-    const module = await $arcgis.import<{ default: ArcGISConstructor }>(toolModules[tool]);
+    const WidgetCtor = await $arcgis.import<ArcGISConstructor>(toolModules[tool]);
     if (!this.view || this.destroyed) return;
     const properties: Record<string, any> = { view: this.view, container };
     if (tool === "elevation") properties.profiles = [{ type: "ground" }];
-    this.activeWidget = new module.default(properties);
+    this.activeWidget = new WidgetCtor(properties);
   }
 
   closeTool(): void {
