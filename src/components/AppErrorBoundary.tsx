@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { clearPreferences } from "../lib/storage";
 
 interface Props {
   children: ReactNode;
@@ -35,7 +36,7 @@ export class AppErrorBoundary extends Component<Props, State> {
             type="button"
             className="primary-button"
             onClick={() => {
-              localStorage.removeItem("altyapi:preferences:v2");
+              clearPreferences();
               window.location.reload();
             }}
           >
