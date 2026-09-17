@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara odaklı, performans uyarlamalı modern 3B CBS operasyon platformu.",
+  "description": "Ankara odaklı, performans uyarlamalı profesyonel 3B CBS komuta ve koordinasyon platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
