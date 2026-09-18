@@ -3,9 +3,11 @@ import { ArcGISRuntime } from "./gis/ArcGISRuntime";
 import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
-import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
+import { clearPreferences, loadPreferences, saveCamera, savePreferences } from "./lib/storage";
+import { parseWorkspace, serializeWorkspace } from "./lib/workspace";
 import type {
   AppPreferences,
+  AttributeQueryOptions,
   AttributeTableResult,
   Bookmark,
   CameraState,
@@ -25,6 +27,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
+const APP_VERSION = "8.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -279,10 +282,46 @@ export default function App() {
     await mapWithConcurrency(errors, 2, retryLayer);
   }, [retryLayer]);
 
-  const queryAttributes = useCallback(async (service: ServiceDefinition, limit: number): Promise<AttributeTableResult> => {
+  const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
     if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
-    return runtime.queryAttributes(service, limit);
+    return runtime.queryAttributes(service, options);
+  }, []);
+
+  const exportWorkspace = useCallback(() => {
+    const runtime = runtimeRef.current;
+    const snapshot: AppPreferences = {
+      ...preferences,
+      theme: "light",
+      camera: runtime?.getCamera() ?? preferences.camera,
+      layerVisibility: Object.fromEntries(servicesRef.current.map((service) => [service.id, service.visible])),
+      layerOpacity: Object.fromEntries(servicesRef.current.map((service) => [service.id, service.opacity])),
+      favorites: servicesRef.current.filter((service) => service.favorite).map((service) => service.id)
+    };
+    const blob = new Blob([serializeWorkspace(snapshot, APP_VERSION)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `baskent-3b-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    pushToast("Çalışma alanı JSON olarak dışa aktarıldı.", "success");
+  }, [preferences, pushToast]);
+
+  const importWorkspace = useCallback(async (file: File) => {
+    const text = await file.text();
+    const workspace = parseWorkspace(text);
+    savePreferences(workspace.preferences);
+    history.replaceState(null, "", location.pathname);
+    pushToast(`Çalışma alanı doğrulandı (v${workspace.applicationVersion}). Yeniden yükleniyor…`, "success");
+    window.setTimeout(() => location.reload(), 650);
+  }, [pushToast]);
+
+  const resetWorkspace = useCallback(() => {
+    if (!window.confirm("Yerel çalışma alanı, favoriler ve yer imleri sıfırlansın mı?")) return;
+    clearPreferences();
+    history.replaceState(null, "", location.pathname);
+    location.reload();
   }, []);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
@@ -395,6 +434,7 @@ export default function App() {
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
       if (event.key.toLowerCase() === "l") selectPanel("layers");
       if (event.key.toLowerCase() === "d") selectPanel("data");
+      if (event.key.toLowerCase() === "w") selectPanel("workspace");
       if (event.key.toLowerCase() === "m") setFocusMode((value) => !value);
       if (event.key.toLowerCase() === "f") {
         void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
@@ -465,6 +505,9 @@ export default function App() {
             onGoBookmark={(bookmark) => void goBookmark(bookmark)}
             onDeleteBookmark={deleteBookmark}
             onQueryAttributes={queryAttributes}
+            onExportWorkspace={exportWorkspace}
+            onImportWorkspace={importWorkspace}
+            onResetWorkspace={resetWorkspace}
           />
         )}
       </div>
