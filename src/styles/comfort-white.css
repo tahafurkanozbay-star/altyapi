@@ -851,4 +851,72 @@
     }
   }
 
+
+  /* v8 · Portable workspace package */
+  .workspace-panel-body {
+    display: grid;
+    align-content: start;
+    gap: 12px;
+  }
+
+  .workspace-hero {
+    padding-top: 82px;
+  }
+
+  .workspace-hero-icon {
+    position: absolute;
+    top: 15px;
+    left: 16px;
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #cfe0ea;
+    border-radius: 15px;
+    background: #eaf3fb;
+    color: #1677d2;
+  }
+
+  .workspace-actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .workspace-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .workspace-import-button {
+    min-height: 38px;
+    justify-content: center;
+  }
+
+  .workspace-message {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 11px;
+    border: 1px solid #dfe8ed;
+    border-radius: 11px;
+    font-size: 9.5px;
+  }
+
+  .workspace-message.is-success {
+    border-color: #c8e5d6;
+    background: #f2faf6;
+    color: #14734e;
+  }
+
+  .workspace-message.is-error {
+    border-color: #f0cbd1;
+    background: #fff7f8;
+    color: #b84053;
+  }
+
 }
