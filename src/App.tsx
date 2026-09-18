@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArcGISRuntime } from "./gis/ArcGISRuntime";
 import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
@@ -6,6 +6,7 @@ import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import type {
   AppPreferences,
+  AttributeQueryOptions,
   AttributeTableResult,
   Bookmark,
   CameraState,
@@ -279,10 +280,10 @@ export default function App() {
     await mapWithConcurrency(errors, 2, retryLayer);
   }, [retryLayer]);
 
-  const queryAttributes = useCallback(async (service: ServiceDefinition, limit: number): Promise<AttributeTableResult> => {
+  const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
     if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
-    return runtime.queryAttributes(service, limit);
+    return runtime.queryAttributes(service, options);
   }, []);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
@@ -447,26 +448,28 @@ export default function App() {
       />
 
       <div className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`}>
-        {panel === "layers" && (
-          <aside className="main-panel">
-            <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)}><Icon name="close" /></button>
-            <LayerExplorer services={services} onToggle={toggleLayer} onOpacity={setOpacity} onFavorite={toggleFavorite} onZoom={(service) => void zoomLayer(service)} onRetry={retryLayer} />
-          </aside>
-        )}
-        {panel && panel !== "layers" && (
-          <OperationsPanel
-            panel={panel}
-            services={services}
-            bookmarks={preferences.bookmarks}
-            performance={effectivePerformance}
-            onClose={() => setPanel(null)}
-            onRetryErrors={retryErrors}
-            onAddBookmark={addBookmark}
-            onGoBookmark={(bookmark) => void goBookmark(bookmark)}
-            onDeleteBookmark={deleteBookmark}
-            onQueryAttributes={queryAttributes}
-          />
-        )}
+        <ViewTransition name="workspace-panel">
+          {panel === "layers" ? (
+            <aside className="main-panel" key="layers">
+              <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)}><Icon name="close" /></button>
+              <LayerExplorer services={services} onToggle={toggleLayer} onOpacity={setOpacity} onFavorite={toggleFavorite} onZoom={(service) => void zoomLayer(service)} onRetry={retryLayer} />
+            </aside>
+          ) : panel ? (
+            <OperationsPanel
+              key={panel}
+              panel={panel}
+              services={services}
+              bookmarks={preferences.bookmarks}
+              performance={effectivePerformance}
+              onClose={() => setPanel(null)}
+              onRetryErrors={retryErrors}
+              onAddBookmark={addBookmark}
+              onGoBookmark={(bookmark) => void goBookmark(bookmark)}
+              onDeleteBookmark={deleteBookmark}
+              onQueryAttributes={queryAttributes}
+            />
+          ) : null}
+        </ViewTransition>
       </div>
 
       {activeTool && (
