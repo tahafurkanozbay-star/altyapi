@@ -1,5 +1,7 @@
 export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "SceneServer";
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
+export type ServiceAvailability = "verified" | "degraded" | "unavailable" | "unknown";
+export type ServiceAccess = "public-browser" | "network-restricted" | "server-error" | "unknown";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
 export type PanelId = "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
@@ -31,6 +33,14 @@ export interface ServiceDefinition extends RawServiceDefinition {
   favorite: boolean;
   latencyMs?: number;
   lastLoadedAt?: string;
+  availability: ServiceAvailability;
+  access: ServiceAccess;
+  browserCompatible?: boolean | null;
+  verificationReason?: string;
+  verifiedAt?: string;
+  failureCount: number;
+  lastFailureAt?: string;
+  cooldownUntil?: string;
 }
 
 export interface CameraState {
@@ -156,6 +166,28 @@ export interface ServiceHealthSummary {
   active: number;
   averageLatencyMs?: number;
   p95LatencyMs?: number;
+  verified: number;
+  degraded: number;
+  unavailable: number;
+  unknown: number;
+  coolingDown: number;
+}
+
+export interface ServiceVerificationEntry {
+  index: number;
+  name: string;
+  kind: ServiceKind;
+  availability: ServiceAvailability;
+  access: ServiceAccess;
+  browserCompatible?: boolean | null;
+  reason?: string;
+}
+
+export interface ServiceHealthSnapshot {
+  schemaVersion: 1;
+  generatedAt: string;
+  source: string;
+  services: ServiceVerificationEntry[];
 }
 
 
