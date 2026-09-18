@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
-import type { AttributeTableResult } from "../types";
 import { DataWorkbench } from "./DataWorkbench";
-import type { Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
+import type { AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -100,7 +99,7 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "5.0.0",
+      version: "6.0.0",
       runtime: "React + TypeScript + Vite + @arcgis/core ESM",
       performanceProfile: performance,
       capabilityScore: score,
