@@ -1,5 +1,8 @@
 import { useMemo } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
+import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
+import type { AttributeTableResult } from "../types";
+import { DataWorkbench } from "./DataWorkbench";
 import type { Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
@@ -13,6 +16,7 @@ interface Props {
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
   onDeleteBookmark: (bookmark: Bookmark) => void;
+  onQueryAttributes: (service: ServiceDefinition, limit: number) => Promise<AttributeTableResult>;
 }
 
 export function OperationsPanel(props: Props) {
@@ -26,6 +30,7 @@ export function OperationsPanel(props: Props) {
         <button type="button" className="icon-ghost" onClick={props.onClose} aria-label="Paneli kapat"><Icon name="close" /></button>
       </div>
       {props.panel === "health" && <HealthPanel {...props} />}
+      {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
       {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} />}
       {props.panel === "help" && <HelpPanel performance={props.performance} />}
@@ -34,13 +39,12 @@ export function OperationsPanel(props: Props) {
 }
 
 function HealthPanel({ services, onRetryErrors }: Props) {
-  const counts = {
-    ready: services.filter((service) => service.status === "ready").length,
-    loading: services.filter((service) => service.status === "loading").length,
-    error: services.filter((service) => service.status === "error").length,
-    idle: services.filter((service) => service.status === "idle").length
-  };
+  const counts = summarizeServiceHealth(services);
   const errors = services.filter((service) => service.status === "error");
+  const measured = services
+    .filter((service) => Number.isFinite(service.latencyMs))
+    .sort((a, b) => (b.latencyMs ?? 0) - (a.latencyMs ?? 0))
+    .slice(0, 5);
   return (
     <div className="operations-body">
       <div className="health-grid">
@@ -53,6 +57,20 @@ function HealthPanel({ services, onRetryErrors }: Props) {
         <Icon name="health" />
         <div><strong>Canlı servis telemetrisi</strong><span>Durumlar gerçek ArcGIS layer yükleme sonucundan üretilir. Böylece yalnızca URL varlığı değil, tarayıcıdan kullanılabilirlik de görünür.</span></div>
       </div>
+      <div className="health-latency-grid">
+        <div><span>Ortalama katman açılışı</span><strong>{counts.averageLatencyMs !== undefined ? `${counts.averageLatencyMs} ms` : "—"}</strong></div>
+        <div><span>P95 açılış süresi</span><strong>{counts.p95LatencyMs !== undefined ? `${counts.p95LatencyMs} ms` : "—"}</strong></div>
+      </div>
+      {measured.length > 0 && (
+        <div className="latency-list" aria-label="Servis gecikme ölçümleri">
+          {measured.map((service) => (
+            <div key={service.id}>
+              <span><strong>{service.displayName}</strong><small>{latencyLabel(service.latencyMs)}</small></span>
+              <em>{service.latencyMs} ms</em>
+            </div>
+          ))}
+        </div>
+      )}
       {errors.length > 0 ? (
         <>
           <button type="button" className="primary-button full" onClick={() => void onRetryErrors()}><Icon name="refresh" /> Hatalı servisleri yeniden dene</button>
@@ -152,18 +170,19 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v5 · Native ESM Platform</h3>
-        <p>React + TypeScript + Vite + yerel @arcgis/core ESM tabanlı; CDN global bağımlılığını kaldıran, servis sağlığını ve 3B analiz araçlarını tek operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v6 · Data Operations Platform</h3>
+        <p>Native @arcgis/core ESM, tip güvenli servis telemetrisi ve öznitelik veri atölyesini tek profesyonel 3B operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
         <Shortcut keyName="L" label="Katman paneli" />
+        <Shortcut keyName="D" label="Veri atölyesi" />
         <Shortcut keyName="H" label="Başlangıç görünümü" />
         <Shortcut keyName="F" label="Tam ekran" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
-      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, öznitelik tablosu, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
@@ -179,6 +198,7 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "health") return "Servis Sağlığı";
+  if (panel === "data") return "Veri Atölyesi";
   if (panel === "bookmarks") return "Yer İmleri";
   if (panel === "diagnostics") return "Sistem Tanılama";
   return "Yardım & Kısayollar";

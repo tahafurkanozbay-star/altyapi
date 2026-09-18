@@ -2,7 +2,7 @@ export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "Scene
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
-export type PanelId = "layers" | "health" | "bookmarks" | "diagnostics" | "help" | null;
+export type PanelId = "layers" | "data" | "health" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
@@ -94,4 +94,35 @@ export interface BrowserCapabilities {
   colorGamut: "srgb" | "p3" | "rec2020";
   connectionType?: string;
   saveData?: boolean;
+}
+
+
+export type AttributeValue = string | number | boolean | null;
+export type AttributeRow = Record<string, AttributeValue>;
+
+export interface AttributeField {
+  name: string;
+  alias: string;
+  type?: string;
+}
+
+export interface AttributeTableResult {
+  serviceId: string;
+  serviceName: string;
+  fields: AttributeField[];
+  rows: AttributeRow[];
+  total: number;
+  truncated: boolean;
+  objectIdField?: string;
+  fetchedAt: string;
+}
+
+export interface ServiceHealthSummary {
+  ready: number;
+  loading: number;
+  error: number;
+  idle: number;
+  active: number;
+  averageLatencyMs?: number;
+  p95LatencyMs?: number;
 }

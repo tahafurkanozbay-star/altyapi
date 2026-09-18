@@ -1,10 +1,10 @@
+import { summarizeServiceHealth } from "../lib/serviceMetrics";
 import type { PerformanceProfile, SceneTelemetry, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
 export function StatusBar({ telemetry, services, performance }: { telemetry: SceneTelemetry; services: ServiceDefinition[]; performance: PerformanceProfile }) {
-  const active = services.filter((service) => service.visible).length;
-  const ready = services.filter((service) => service.status === "ready").length;
-  const errors = services.filter((service) => service.status === "error").length;
+  const health = summarizeServiceHealth(services);
+  const { active, ready, error: errors } = health;
   const scale = Number.isFinite(telemetry.scale) && telemetry.scale ? `1:${Math.round(telemetry.scale).toLocaleString("tr-TR")}` : "—";
 
   return (
@@ -26,6 +26,7 @@ export function StatusBar({ telemetry, services, performance }: { telemetry: Sce
         <span><i className="status-indicator is-active" /> <strong>{active}</strong> aktif</span>
         <span><i className="status-indicator is-ready" /> <strong>{ready}</strong> hazır</span>
         {errors > 0 && <span className="status-error"><i className="status-indicator is-error" /> <strong>{errors}</strong> hata</span>}
+        {health.averageLatencyMs !== undefined && <span className="status-latency"><Icon name="speed" size={12} /> <strong>{health.averageLatencyMs}</strong> ms</span>}
       </div>
       <div className={`performance-pill performance-${performance}`}><Icon name="speed" size={13} /><span>{performanceLabel(performance)}</span></div>
     </footer>
