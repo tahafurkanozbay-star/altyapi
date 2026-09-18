@@ -1,35 +1,39 @@
-# Başkent 3B CBS · Native ESM Command Center v5
+# Başkent 3B CBS · Data Operations Platform v6
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini tek bir modern 3B çalışma alanında yönetir.
 
-## v5 platform dönüşümü
+## v6 platform yaklaşımı
 
-v5 ile proje yalnızca görsel olarak değil, çalışma zamanı mimarisi bakımından da yenilendi. ArcGIS artık `window.$arcgis` ve harici CDN bootstrap'ı üzerinden değil, npm'den gelen **native ESM `@arcgis/core`** modülleri üzerinden tip güvenli ve gerektiğinde dinamik olarak yüklenir.
+v6, v5'te tamamlanan native ESM dönüşümünün üzerine veri operasyonu ve gözlemlenebilirlik katmanı ekler. Amaç yalnızca haritayı göstermek değil; servislerin davranışını ölçmek, sorgulanabilir katmanların özniteliklerini incelemek ve operasyon ekibine güvenli bir veri çalışma yüzeyi sağlamaktır.
 
-- `js.arcgis.com` JavaScript bootstrap bağımlılığı kaldırıldı
-- ArcGIS sınıfları native ESM modülleriyle yüklenir ve TypeScript doğrudan SDK tiplerini kullanır
-- katman adaptörleri servis türüne göre lazy-load edilir
-- 3B analiz araçları yalnız açıldıklarında indirilir
-- WebGL2, CPU, bellek, ağ, DPR ve güvenli bağlam için **Sistem Tanılama** merkezi eklendi
-- kullanıcı tek tıkla gizli URL/token içermeyen yerel tanılama raporu indirebilir
-- service worker v5 ile shell cache stratejisi ve güncelleme davranışı güçlendirildi
-- CDN global deklarasyonları ve CDN semantiğine özel regresyon kodu kaldırıldı
+- ArcGIS çalışma zamanı npm üzerinden **native ESM `@arcgis/core`**
+- strict TypeScript 7 ve gerçek ArcGIS SDK tipleri
+- servis türüne göre lazy-loaded layer modülleri
+- analiz araçlarında dinamik import ve daha düşük başlangıç maliyeti
+- FeatureServer / SceneServer için **Öznitelik Veri Atölyesi**
+- kayıt limiti, istemci tarafı arama, sütun seçimi ve UTF-8 CSV dışa aktarma
+- servis açılış süresi telemetrisi, ortalama ve P95 ölçümleri
+- katman kartlarında son ölçüm ve gecikme görünürlüğü
+- WebGL2 / CPU / bellek / ağ / DPR / secure-context tanılama merkezi
+- güvenli, token içermeyen yerel tanılama raporu
+- gelişmiş service worker yaşam döngüsü ve same-origin shell cache
+- Node 22 + Node 24 kalite matrisi, CodeQL ve GitHub Pages dağıtımı
 
 ## Teknoloji
 
 - **React 19.3**
-- **TypeScript 7.0** — strict tip güvenliği ve `noUncheckedIndexedAccess`
+- **TypeScript 7.0**
 - **Vite 8.3**
 - **Vitest 5**
 - **ArcGIS Maps SDK for JavaScript 5.1 / `@arcgis/core` ESM**
-- GitHub Actions — Node 22/24 CI, CodeQL ve GitHub Pages
-- same-origin PWA/service-worker altyapısı
+- GitHub Actions — CI, CodeQL ve GitHub Pages
+- PWA/service-worker altyapısı
 
-Tarayıcı uygulamasının ana dili bilinçli olarak TypeScript'tir. Başka bir programlama diline sırf değişiklik olsun diye geçmek yerine, önceki dinamik/global ArcGIS entegrasyonu gerçek ESM modül mimarisine dönüştürülerek daha güçlü derleme zamanı tip güvenliği ve daha az runtime belirsizliği sağlanmıştır.
+Tarayıcı uygulamasının ana dili bilinçli olarak TypeScript'tir. Projeyi sırf farklı olsun diye daha zayıf bir dile taşımak yerine, TypeScript tarafı gerçek ArcGIS SDK kontratlarıyla sıkılaştırılmıştır. Bu yaklaşım; IDE desteği, refactor güvenliği, tree-shaking, modül bölme ve runtime hata yüzeyini azaltma açısından bu proje için daha uygundur.
 
 ## Yerel geliştirme
 
-Bu proje statik HTML projesi değildir. VS Code **Live Server** proje kökündeki `.tsx` kaynaklarını derleyemez.
+Bu proje düz HTML uygulaması değildir. VS Code **Live Server** proje kökündeki `.tsx` kaynaklarını derlemez.
 
 ```bash
 npm install
@@ -49,7 +53,7 @@ npm run build
 npm run preview
 ```
 
-Live Server kullanmak zorundaysanız önce `npm run build` çalıştırın ve yalnız `dist/` çıktısını servis edin.
+Live Server kullanmak zorundaysanız önce `npm run build` çalıştırın ve yalnızca `dist/` klasörünü servis edin.
 
 ## Kalite kapısı
 
@@ -57,55 +61,140 @@ Live Server kullanmak zorundaysanız önce `npm run build` çalıştırın ve ya
 npm run check
 ```
 
-Bu komut servis kataloğu doğrulaması, strict TypeScript, Vitest, production build ve `dist/` smoke doğrulamasını birlikte çalıştırır.
+Bu komut:
 
-## Başlıca yetenekler
+1. servis kataloğu şema / HTTPS / tekrar doğrulaması
+2. strict TypeScript derleme kontrolü
+3. Vitest regresyon testleri
+4. production build
+5. `dist/` smoke doğrulaması
 
-- Ankara merkezli 3B sahne ve dünya yükseklik modeli
-- cihaz kapasitesine göre `high / balanced / eco` kalite profilleri
+çalıştırır.
+
+## Operasyon özellikleri
+
+### 3B sahne
+
+- Ankara merkezli SceneView
+- dünya yükseklik modeli
+- high / balanced / eco cihaz profilleri
 - FeatureServer, SceneServer, MapServer, WMS ve WFS adaptörleri
 - katman arama, kurum gruplama, servis türü filtresi ve favoriler
-- görünürlük, saydamlık, katmana yaklaşma ve yeniden bağlanma
-- canlı servis sağlık paneli
-- WebGL2 / cihaz / ağ sistem tanılama merkezi
-- 3B mesafe ve alan ölçümü
-- Daylight, Slice, Line of Sight ve Elevation Profile
-- lejant ve altlık galerisi
-- yer/adres arama, Home, pusula, konum ve tam ekran kontrolleri
-- harita tıklamasında öznitelik inceleme
-- kamera + aktif katman + altlık durumunu URL ile paylaşma
-- kamera / katman yer imleri
-- `Ctrl/Cmd + K` komut paleti
+- görünürlük, saydamlık, yakınlaşma ve yeniden bağlanma
+- Home, pusula, konum ve tam ekran
+- kamera + katman + altlık durumunu URL ile paylaşma
+- kamera ve aktif katmanları birlikte saklayan yer imleri
 - PNG harita ekran görüntüsü
-- tema, performans ve katman tercihlerinin kalıcı saklanması
-- React Error Boundary ve başlangıç tanılama ekranları
-- responsive masaüstü / tablet / mobil Command Center arayüzü
+
+### Öznitelik Veri Atölyesi
+
+FeatureServer ve SceneServer katmanları salt-okunur olarak sorgulanabilir.
+
+- 50 / 100 / 250 / 500 kayıt limiti
+- geometri indirmeden düşük maliyetli öznitelik sorgusu
+- servis alan adları ve alias bilgileri
+- sütun görünürlüğü seçimi
+- yüklenen kayıtlarda gecikmesiz istemci tarafı arama
+- Türkçe sayı / boolean gösterimi
+- UTF-8 BOM içeren CSV dışa aktarma
+- toplam kayıt ile yüklenen kayıt farkını gösteren örnekleme uyarısı
+
+Bu çalışma alanı veri düzenlemez ve sunucuya yazma işlemi yapmaz.
+
+### 3B analiz
+
+- 3B mesafe
+- 3B alan
+- Daylight
+- Slice
+- Line of Sight
+- Elevation Profile
+- Legend
+- Basemap Gallery
+
+Araç modülleri ihtiyaç halinde dinamik olarak yüklenir.
+
+### Servis sağlığı
+
+Katman yükleme işlemleri gerçek runtime sonucundan telemetri üretir.
+
+- hazır / yükleniyor / hata / beklemede
+- katman açılış süresi
+- ortalama servis gecikmesi
+- P95 servis gecikmesi
+- en yavaş servislerin görünümü
+- son başarılı / başarısız ölçüm zamanı
+- hatalı servisleri toplu yeniden deneme
+
+### Sistem tanılama
+
+- WebGL2
+- CPU logical core sayısı
+- tahmini cihaz belleği
+- device pixel ratio
+- bağlantı tipi ve veri tasarrufu
+- color gamut
+- secure-context durumu
+- performans skoru
+- güvenli JSON tanılama raporu
+
+Tanılama raporu servis URL/token değerlerini içermez.
+
+## Kısayollar
+
+- `Ctrl/Cmd + K` — komut paleti
+- `L` — katman kataloğu
+- `D` — veri atölyesi
+- `H` — Ankara başlangıç görünümü
+- `F` — tam ekran
+- `Esc` — açık araç veya paneli kapat
 
 ## Güvenlik
 
-Public bundle içine gerçek gizli token eklenmez. Token içeren WMS/WFS uçları için sunucu tarafı same-origin proxy/token broker kullanılmalıdır. Servis kimlikleri URL query-string/token değerlerini DOM, localStorage veya paylaşım bağlantılarına taşımayacak şekilde türetilir.
+Public istemci bundle'ına gerçek gizli token eklenmez. Token gerektiren WMS/WFS servisleri için sunucu tarafı same-origin proxy / token broker kullanılmalıdır. Servis kimlikleri URL query-string ve token değerlerini DOM, localStorage veya paylaşım bağlantılarına taşımayacak şekilde türetilir.
 
-Ayrıntılar: [`SECURITY.md`](SECURITY.md), [`docs/SECURE_SERVICES.md`](docs/SECURE_SERVICES.md), [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+Öznitelik veri atölyesi de yalnızca katalogda istemciye açılmış servisleri kullanır; kimlik bilgisi veya gizli token üretmez.
+
+Ayrıntılar:
+
+- [SECURITY.md](SECURITY.md)
+- [docs/SECURE_SERVICES.md](docs/SECURE_SERVICES.md)
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
 ## Mimari
 
 ```text
 src/
-  components/       React komuta yüzeyleri ve operasyon panelleri
-  gis/              typed @arcgis/core ESM runtime + lazy layer factory
-  lib/              katalog, performans, URL state, storage
-  platform/         tarayıcı / WebGL / cihaz tanılama katmanı
-  styles/           Command Center tasarım sistemi
-  App.tsx            uygulama orkestrasyonu
-public/
-  services.json
-  manifest.webmanifest
-  sw.js
-scripts/
-  validate-services.mjs
-  verify-build.mjs
+  components/
+    DataWorkbench.tsx     salt-okunur öznitelik çalışma alanı
+    LayerExplorer.tsx     servis kataloğu
+    OperationsPanel.tsx   sağlık / veri / tanılama / yer imi panelleri
+  gis/
+    ArcGISRuntime.ts      SceneView, sorgu ve operasyon runtime
+    layerFactory.ts       lazy ArcGIS / OGC layer adaptörleri
+  lib/
+    attributeTable.ts     tablo, CSV ve filtre yardımcıları
+    serviceMetrics.ts     servis sağlık ve latency ölçümleri
+    catalog.ts
+    performance.ts
+    storage.ts
+    urlState.ts
+  platform/
+    capabilities.ts       cihaz ve tarayıcı tanılama
+  styles/
+    app.css               responsive command-center tasarım sistemi
 tests/
-  katalog / layer factory / URL state / storage / performans
+  attributeTable.test.ts
+  serviceMetrics.test.ts
+  layerFactory.test.ts
+  catalog.test.ts
+  performance.test.ts
+  storage.test.ts
+  urlState.test.ts
 ```
+
+## Sürüm
+
+Current application version: **6.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans ve kullanım koşulları ayrıca geçerlidir.
