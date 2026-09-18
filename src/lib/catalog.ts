@@ -62,7 +62,10 @@ export function normalizeService(raw: RawServiceDefinition, index: number): Serv
     status: "idle",
     visible: false,
     opacity: kind === "MapServer" || kind === "WMS" ? 0.86 : 1,
-    favorite: false
+    favorite: false,
+    availability: "unknown",
+    access: "unknown",
+    failureCount: 0
   };
 }
 
