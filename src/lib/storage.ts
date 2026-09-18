@@ -1,13 +1,13 @@
 import type { AppPreferences, Bookmark, CameraState, PerformanceProfile, ThemeMode } from "../types";
 
-export const STORAGE_KEY = "altyapi:preferences:v3";
-const LEGACY_STORAGE_KEY = "altyapi:preferences:v2";
+export const STORAGE_KEY = "altyapi:preferences:v4";
+const LEGACY_STORAGE_KEYS = ["altyapi:preferences:v3", "altyapi:preferences:v2"] as const;
 const MAX_BOOKMARKS = 40;
 const MAX_LAYER_KEYS = 500;
 
 const defaults: AppPreferences = {
   basemap: "hybrid",
-  theme: "dark",
+  theme: "light",
   performance: "auto",
   layerVisibility: {},
   layerOpacity: {},
@@ -16,12 +16,15 @@ const defaults: AppPreferences = {
 };
 
 export function loadPreferences(): AppPreferences {
-  const raw = safeGet(STORAGE_KEY) ?? safeGet(LEGACY_STORAGE_KEY);
+  const current = safeGet(STORAGE_KEY);
+  const legacy = current ? null : firstLegacyValue();
+  const raw = current ?? legacy?.value;
   if (!raw) return cloneDefaults();
   try {
     const parsed: unknown = JSON.parse(raw);
     const sanitized = sanitizePreferences(parsed);
-    if (!safeGet(STORAGE_KEY)) safeSet(STORAGE_KEY, JSON.stringify(sanitized));
+    if (legacy) sanitized.theme = "light";
+    if (!current) safeSet(STORAGE_KEY, JSON.stringify(sanitized));
     return sanitized;
   } catch {
     return cloneDefaults();
@@ -76,7 +79,7 @@ export function saveBookmarks(bookmarks: Bookmark[]): void {
 
 export function clearPreferences(): void {
   safeRemove(STORAGE_KEY);
-  safeRemove(LEGACY_STORAGE_KEY);
+  for (const key of LEGACY_STORAGE_KEYS) safeRemove(key);
 }
 
 function cloneDefaults(): AppPreferences {
@@ -167,6 +170,14 @@ function finiteNumber(value: unknown): number | undefined {
 
 function isSafeId(value: string): boolean {
   return value.length > 0 && value.length <= 160 && /^[a-z0-9_-]+$/i.test(value);
+}
+
+function firstLegacyValue(): { key: string; value: string } | null {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    const value = safeGet(key);
+    if (value) return { key, value };
+  }
+  return null;
 }
 
 function safeGet(key: string): string | null {
