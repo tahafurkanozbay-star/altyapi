@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { DataWorkbench } from "./DataWorkbench";
@@ -16,6 +16,8 @@ interface Props {
   onGoBookmark: (bookmark: Bookmark) => void;
   onDeleteBookmark: (bookmark: Bookmark) => void;
   onQueryAttributes: (service: ServiceDefinition, options: AttributeQueryOptions) => Promise<AttributeTableResult>;
+  onExportWorkspace: () => void;
+  onImportWorkspace: (value: unknown) => Promise<void>;
 }
 
 export function OperationsPanel(props: Props) {
@@ -30,6 +32,7 @@ export function OperationsPanel(props: Props) {
       </div>
       {props.panel === "health" && <HealthPanel {...props} />}
       {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
+      {props.panel === "workspace" && <WorkspacePanel {...props} />}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
       {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} />}
       {props.panel === "help" && <HelpPanel performance={props.performance} />}
@@ -99,8 +102,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "7.0.0",
-      runtime: "React 19.3 + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + @arcgis/core ESM",
+      version: "8.0.0",
+      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + @arcgis/core ESM",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -143,6 +146,64 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
   );
 }
 
+function WorkspacePanel({ onExportWorkspace, onImportWorkspace }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const importFile = async (file?: File) => {
+    if (!file || busy) return;
+    setBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      if (file.size > 1_000_000) throw new Error("Çalışma alanı dosyası 1 MB sınırını aşıyor.");
+      const text = await file.text();
+      const parsed: unknown = JSON.parse(text);
+      await onImportWorkspace(parsed);
+      setMessage("Çalışma alanı başarıyla uygulandı.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Çalışma alanı içe aktarılamadı.");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="operations-body workspace-panel-body">
+      <div className="help-hero workspace-hero">
+        <div className="workspace-hero-icon"><Icon name="archive" size={26} /></div>
+        <h3>Taşınabilir çalışma alanı</h3>
+        <p>Kamera, altlık, görünürlük, saydamlık, favoriler ve yer imlerini tek bir güvenli JSON paketiyle yedekleyin veya başka bir tarayıcıya taşıyın.</p>
+      </div>
+
+      <div className="workspace-actions">
+        <button type="button" className="primary-button full" onClick={onExportWorkspace}>
+          <Icon name="download" /> Çalışma alanını dışa aktar
+        </button>
+        <input
+          ref={inputRef}
+          className="workspace-file-input"
+          type="file"
+          accept="application/json,.json"
+          onChange={(event) => void importFile(event.target.files?.[0])}
+        />
+        <button type="button" className="catalog-action workspace-import-button" disabled={busy} onClick={() => inputRef.current?.click()}>
+          <Icon name="archive" size={15} /> {busy ? "Uygulanıyor…" : "JSON paketini içe aktar"}
+        </button>
+      </div>
+
+      {message && <div className="workspace-message is-success"><Icon name="check" /><span>{message}</span></div>}
+      {error && <div className="workspace-message is-error"><Icon name="warning" /><span>{error}</span></div>}
+
+      <div className="health-note"><Icon name="check" /><div><strong>Güvenli içe aktarma</strong><span>Paket yalnız mevcut katalogdaki servis kimliklerini kabul eder. Bilinmeyen katmanlar ve geçersiz değerler otomatik olarak atılır.</span></div></div>
+      <div className="health-note"><Icon name="info" /><div><strong>Gizli bilgi içermez</strong><span>Çalışma alanı paketine servis tokenı veya katalog URL'si yazılmaz; yalnız görünüm ve kullanıcı çalışma tercihleri taşınır.</span></div></div>
+    </div>
+  );
+}
+
 function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookmark }: Props) {
   return (
     <div className="operations-body">
@@ -175,14 +236,14 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
         <Shortcut keyName="L" label="Katman paneli" />
-        <Shortcut keyName="D" label="Veri atölyesi" />
+        <Shortcut keyName="D" label="Sorgu stüdyosu" />
         <Shortcut keyName="H" label="Başlangıç görünümü" />
         <Shortcut keyName="F" label="Tam ekran" />
         <Shortcut keyName="M" label="Harita odak modu" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
-      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, öznitelik tablosu, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, sunucu sorgusu, çalışma alanı paketi, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
@@ -198,7 +259,8 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "health") return "Servis Sağlığı";
-  if (panel === "data") return "Veri Atölyesi";
+  if (panel === "data") return "Sorgu Stüdyosu";
+  if (panel === "workspace") return "Çalışma Alanı Paketi";
   if (panel === "bookmarks") return "Yer İmleri";
   if (panel === "diagnostics") return "Sistem Tanılama";
   return "Yardım & Kısayollar";
