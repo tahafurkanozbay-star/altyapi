@@ -1,3 +1,4 @@
+import { isServiceCoolingDown } from "./serviceHealth";
 import type { ServiceDefinition, ServiceHealthSummary } from "../types";
 
 export function summarizeServiceHealth(services: ServiceDefinition[]): ServiceHealthSummary {
@@ -13,7 +14,12 @@ export function summarizeServiceHealth(services: ServiceDefinition[]): ServiceHe
     idle: services.filter((service) => service.status === "idle").length,
     active: services.filter((service) => service.visible).length,
     averageLatencyMs: latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : undefined,
-    p95LatencyMs: latencies.length ? percentile(latencies, 0.95) : undefined
+    p95LatencyMs: latencies.length ? percentile(latencies, 0.95) : undefined,
+    verified: services.filter((service) => service.availability === "verified").length,
+    degraded: services.filter((service) => service.availability === "degraded").length,
+    unavailable: services.filter((service) => service.availability === "unavailable").length,
+    unknown: services.filter((service) => service.availability === "unknown").length,
+    coolingDown: services.filter((service) => isServiceCoolingDown(service)).length
   };
 }
 
