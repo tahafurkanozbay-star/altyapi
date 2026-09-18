@@ -1,23 +1,22 @@
-# Başkent 3B CBS · Comfort White Operations Platform v7
+# Başkent 3B CBS · Query Studio Platform v8
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
 
-## v7: Comfort White + ArcGIS Web Components
+## v8: Query Studio + Portable Workspace
 
-v7 iki büyük hedefi birlikte ele alır: **daha sakin, beyaz ve kurumsal bir görsel dil** ile **ArcGIS 5.1'in güncel component-first mimarisine geçiş**.
+v8, v7'deki Comfort White ve ArcGIS Web Components mimarisini korurken kurumsal veri operasyonlarını ileri taşır.
 
-- varsayılan ve kalıcı **Comfort White** arayüz
-- düşük kontrastlı gölgeler, daha geniş boşluklar ve daha okunaklı tipografi
-- açık renkli ArcGIS core teması ve Calcite uyumlu beyaz Web Component yüzeyleri
-- eski kullanıcı tercihlerinde kayıtlı koyu tema için v4 preference migration
-- `M` kısayoluyla harita odak modu
-- React 19.3 custom-element desteğiyle `@arcgis/map-components` doğrudan kullanımı
-- deprecated ArcGIS Widget sınıfları yerine Search, Home, Compass, Locate, Fullscreen ve 3B analiz araçlarında **Web Components**
-- native ESM `@arcgis/core` katman/runtime mimarisi korunur
-- FeatureServer / SceneServer için Öznitelik Veri Atölyesi
-- servis açılış süresi, ortalama ve P95 gecikme telemetrisi
-- WebGL2 / cihaz / ağ / DPR / secure-context tanılama
-- Node 22 + Node 24 CI, Vitest, CodeQL ve GitHub Pages
+- FeatureServer / SceneServer için **güvenli sunucu tarafı sorgu stüdyosu**
+- alan tipine duyarlı filtre operatörleri
+- string literal escaping ve yalnız servis şemasındaki alan adlarını kabul eden query builder
+- sunucu tarafı sıralama ve gerçek sayfalama
+- eşleşen toplam kayıt, sayfa aralığı ve aktif WHERE / ORDER BY görünümü
+- mevcut sayfa üzerinde hızlı istemci araması ve CSV dışa aktarma
+- **taşınabilir çalışma alanı paketleri**: kamera, altlık, görünürlük, saydamlık, favoriler ve yer imleri
+- içe aktarmada yalnız mevcut katalogdaki servis kimliklerini kabul eden sanitizasyon
+- gizli token / servis URL'si taşımayan JSON çalışma alanı formatı
+- React 19.3 **ViewTransition** ile panel geçişleri
+- v7 Comfort White tasarım sistemi ve ArcGIS 5.1 Web Components korunur
 
 ## Güncel teknoloji
 
@@ -150,7 +149,8 @@ Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 
 - `Ctrl/Cmd + K` — komut paleti
 - `L` — katman kataloğu
-- `D` — veri atölyesi
+- `D` — sorgu stüdyosu
+- `W` — çalışma alanı paketi
 - `H` — Ankara başlangıç görünümü
 - `M` — harita odak modu
 - `F` — tam ekran
@@ -166,6 +166,6 @@ Public bundle içine gizli token eklenmez. Token gerektiren WMS/WFS servisleri i
 
 ## Sürüm
 
-Current application version: **7.0.0**
+Current application version: **8.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
