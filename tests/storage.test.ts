@@ -14,7 +14,7 @@ describe("storage preferences", () => {
     });
 
     expect(result.basemap).toBe("hybrid");
-    expect(result.theme).toBe("dark");
+    expect(result.theme).toBe("light");
     expect(result.performance).toBe("auto");
     expect(result.layerVisibility).toEqual({ "safe-layer": true });
     expect(result.layerOpacity).toEqual({ "safe-layer": 1, other: 0 });
