@@ -76,11 +76,26 @@ async function textRequest(url, accept = "*/*") {
 }
 
 function safeError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  return message
+  const base = error instanceof Error ? error.message : String(error);
+  const code = typeof error === "object" && error && "cause" in error && error.cause && typeof error.cause === "object" && "code" in error.cause
+    ? String(error.cause.code)
+    : "";
+  const message = code ? `${base} (${code})` : base;
+  return redact(message).slice(0, 180);
+}
+
+function bodyHint(text) {
+  return redact(String(text ?? ""))
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160) || "yanıt gövdesi boş";
+}
+
+function redact(value) {
+  return value
     .replace(/https?:\/\/\S+/gi, "[url]")
-    .replace(/[A-Za-z0-9_-]{50,}/g, "[redacted]")
-    .slice(0, 180);
+    .replace(/[A-Za-z0-9_-]{48,}/g, "[redacted]");
 }
 
 function wmsLayerName(xml) {
@@ -110,7 +125,7 @@ async function probeWms(service) {
   const caps = await textRequest(capsUrl, "application/xml,text/xml,*/*");
   const capsValid = caps.ok && !isServiceException(caps.text) && /WMS_Capabilities|WMT_MS_Capabilities/i.test(caps.text);
   if (!capsValid) {
-    return { status: "FAIL", stage: "GetCapabilities", http: caps.http, metadataMs: caps.durationMs, note: `WMS capabilities geçersiz veya servis hatası` };
+    return { status: "FAIL", stage: "GetCapabilities", http: caps.http, metadataMs: caps.durationMs, note: `WMS capabilities geçersiz: HTTP ${caps.http} · ${bodyHint(caps.text)}` };
   }
 
   const layer = wmsLayerName(caps.text);
@@ -143,7 +158,7 @@ async function probeWfs(service) {
   const caps = await textRequest(capsUrl, "application/xml,text/xml,*/*");
   const capsValid = caps.ok && !isServiceException(caps.text) && /WFS_Capabilities/i.test(caps.text);
   if (!capsValid) {
-    return { status: "FAIL", stage: "GetCapabilities", http: caps.http, metadataMs: caps.durationMs, note: "WFS capabilities geçersiz veya servis hatası" };
+    return { status: "FAIL", stage: "GetCapabilities", http: caps.http, metadataMs: caps.durationMs, note: `WFS capabilities geçersiz: HTTP ${caps.http} · ${bodyHint(caps.text)}` };
   }
 
   const typeName = wfsTypeName(caps.text);
