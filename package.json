@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "7.0.0",
+  "version": "8.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara odaklı, comfort-white arayüzlü, ArcGIS 5.1 Web Components ve native ESM tabanlı profesyonel 3B CBS operasyon platformu.",
+  "description": "Ankara odaklı, Comfort White arayüzlü, ArcGIS 5.1 Web Components, güvenli sunucu sorgu stüdyosu ve taşınabilir çalışma alanı paketleri içeren profesyonel 3B CBS operasyon platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
