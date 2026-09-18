@@ -8,14 +8,14 @@ permissions:
   contents: read
 
 jobs:
-  probe-fallbacks:
+  browser-cors:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Probe protocol and direct-server fallbacks
-        run: node scripts/probe-fallbacks.mjs
+      - name: Verify browser-origin CORS for confirmed services
+        run: node scripts/probe-browser-cors.mjs
