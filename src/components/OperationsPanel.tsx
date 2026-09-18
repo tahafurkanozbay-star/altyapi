@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { DataWorkbench } from "./DataWorkbench";
-import type { AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
+import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
   onDeleteBookmark: (bookmark: Bookmark) => void;
-  onQueryAttributes: (service: ServiceDefinition, limit: number) => Promise<AttributeTableResult>;
+  onQueryAttributes: (service: ServiceDefinition, options: AttributeQueryOptions) => Promise<AttributeTableResult>;
 }
 
 export function OperationsPanel(props: Props) {
@@ -169,8 +169,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v7 · Comfort White Platform</h3>
-        <p>React 19.3, ArcGIS 5.1 Web Components ve native @arcgis/core ESM ile çalışan; göz konforuna odaklı beyaz arayüz, servis telemetrisi ve öznitelik veri atölyesini birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v8 · Query Studio Platform</h3>
+        <p>React 19.3 View Transitions, ArcGIS 5.1 Web Components ve native @arcgis/core ESM ile çalışan; beyaz arayüz, sunucu tarafı öznitelik sorguları, sayfalama ve servis telemetrisini birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
