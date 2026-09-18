@@ -77,10 +77,12 @@ export function workspaceSnapshotToJson(snapshot: WorkspaceSnapshot): string {
 
 function filterBooleanRecord(value: unknown, allowed: ReadonlySet<string>): Record<string, boolean> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .filter(([key, entry]) => allowed.has(key) && typeof entry === "boolean")
-  );
+  const output: Record<string, boolean> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (!allowed.has(key) || typeof entry !== "boolean") continue;
+    output[key] = entry;
+  }
+  return output;
 }
 
 function filterNumberRecord(value: unknown, allowed: ReadonlySet<string>): Record<string, number> {
