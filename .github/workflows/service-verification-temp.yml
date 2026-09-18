@@ -8,32 +8,14 @@ permissions:
   contents: read
 
 jobs:
-  probe:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+  probe-fallbacks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Probe all services
-        run: node scripts/probe-services.mjs
-      - name: Print sanitized report
-        if: always()
-        shell: bash
-        run: |
-          if [ -f service-probe-report.json ]; then
-            node -e 'const r=require("./service-probe-report.json"); console.log(JSON.stringify({checkedAt:r.checkedAt,total:r.total,pass:r.pass,partial:r.partial,fail:r.fail,results:r.results},null,2))'
-          fi
-      - name: Upload sanitized report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: service-probe-report-${{ runner.os }}
-          path: service-probe-report.json
-          if-no-files-found: ignore
+      - name: Probe protocol and direct-server fallbacks
+        run: node scripts/probe-fallbacks.mjs
