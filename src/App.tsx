@@ -4,6 +4,7 @@ import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
+import { createWorkspaceSnapshot, parseWorkspaceSnapshot, workspaceSnapshotToJson } from "./lib/workspace";
 import type {
   AppPreferences,
   AttributeQueryOptions,
@@ -26,6 +27,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
+const APP_VERSION = "8.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -286,6 +288,105 @@ export default function App() {
     return runtime.queryAttributes(service, options);
   }, []);
 
+  const exportWorkspace = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) {
+      pushToast("Çalışma alanı dışa aktarılamadı: harita motoru hazır değil.", "error");
+      return;
+    }
+
+    const currentServices = servicesRef.current;
+    const snapshot = createWorkspaceSnapshot({
+      applicationVersion: APP_VERSION,
+      camera: runtime.getCamera(),
+      basemap: preferences.basemap,
+      layerVisibility: Object.fromEntries(currentServices.map((service) => [service.id, service.visible])),
+      layerOpacity: Object.fromEntries(currentServices.map((service) => [service.id, service.opacity])),
+      favorites: currentServices.filter((service) => service.favorite).map((service) => service.id),
+      bookmarks: preferences.bookmarks
+    });
+    const blob = new Blob([workspaceSnapshotToJson(snapshot)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `baskent-3b-workspace-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    pushToast("Çalışma alanı paketi hazırlandı.", "success");
+  }, [preferences.basemap, preferences.bookmarks, pushToast]);
+
+  const importWorkspace = useCallback(async (value: unknown) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
+
+    const currentServices = servicesRef.current;
+    const allowedIds = new Set(currentServices.map((service) => service.id));
+    const snapshot = parseWorkspaceSnapshot(value, allowedIds);
+    const favorites = new Set(snapshot.favorites);
+    const outcomes = new Map<string, Awaited<ReturnType<ArcGISRuntime["setLayerVisible"]>>>();
+
+    await mapWithConcurrency(currentServices, 2, async (service) => {
+      const desiredVisible = snapshot.layerVisibility[service.id] ?? false;
+      const desiredOpacity = snapshot.layerOpacity[service.id] ?? service.opacity;
+      runtime.setOpacity(service.id, desiredOpacity);
+      if (service.visible !== desiredVisible) {
+        outcomes.set(
+          service.id,
+          await runtime.setLayerVisible({ ...service, visible: desiredVisible, opacity: desiredOpacity }, desiredVisible)
+        );
+      }
+    });
+
+    const now = new Date().toISOString();
+    const nextServices = currentServices.map((service) => {
+      const desiredVisible = snapshot.layerVisibility[service.id] ?? false;
+      const opacity = snapshot.layerOpacity[service.id] ?? service.opacity;
+      const outcome = outcomes.get(service.id);
+      if (outcome && !outcome.ok) {
+        return {
+          ...service,
+          visible: false,
+          opacity,
+          favorite: favorites.has(service.id),
+          status: "error" as const,
+          error: outcome.error,
+          latencyMs: outcome.durationMs,
+          lastLoadedAt: now
+        };
+      }
+      return {
+        ...service,
+        visible: desiredVisible,
+        opacity,
+        favorite: favorites.has(service.id),
+        status: desiredVisible ? "ready" as const : service.status === "error" ? "idle" as const : service.status,
+        error: desiredVisible ? undefined : service.error,
+        ...(outcome?.durationMs !== undefined ? { latencyMs: outcome.durationMs, lastLoadedAt: now } : {})
+      };
+    });
+
+    setServices(nextServices);
+    servicesRef.current = nextServices;
+    runtime.setBasemap(snapshot.basemap);
+    await runtime.goTo(snapshot.camera);
+
+    setPreferences((current) => {
+      const next: AppPreferences = {
+        ...current,
+        basemap: snapshot.basemap,
+        layerVisibility: Object.fromEntries(nextServices.map((service) => [service.id, service.visible])),
+        layerOpacity: Object.fromEntries(nextServices.map((service) => [service.id, service.opacity])),
+        favorites: nextServices.filter((service) => service.favorite).map((service) => service.id),
+        camera: snapshot.camera,
+        bookmarks: snapshot.bookmarks
+      };
+      savePreferences(next);
+      return next;
+    });
+
+    pushToast("Çalışma alanı paketi uygulandı.", "success");
+  }, [pushToast]);
+
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
     setPanel((current) => current === nextPanel ? null : nextPanel);
     setMobilePanelsVisible(true);
@@ -396,6 +497,7 @@ export default function App() {
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
       if (event.key.toLowerCase() === "l") selectPanel("layers");
       if (event.key.toLowerCase() === "d") selectPanel("data");
+      if (event.key.toLowerCase() === "w") selectPanel("workspace");
       if (event.key.toLowerCase() === "m") setFocusMode((value) => !value);
       if (event.key.toLowerCase() === "f") {
         void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
@@ -467,6 +569,8 @@ export default function App() {
               onGoBookmark={(bookmark) => void goBookmark(bookmark)}
               onDeleteBookmark={deleteBookmark}
               onQueryAttributes={queryAttributes}
+              onExportWorkspace={exportWorkspace}
+              onImportWorkspace={importWorkspace}
             />
           ) : null}
         </ViewTransition>
