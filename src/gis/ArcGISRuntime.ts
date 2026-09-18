@@ -4,7 +4,9 @@ import type SceneView from "@arcgis/core/views/SceneView.js";
 import { createLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { normalizeAttributeValue } from "../lib/attributeTable";
+import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
 import type {
+  AttributeQueryOptions,
   AttributeTableResult,
   CameraState,
   IdentifyResult,
@@ -219,13 +221,16 @@ export class ArcGISRuntime {
     return this.setLayerVisible(service, true);
   }
 
-  async queryAttributes(service: ServiceDefinition, limit = 100): Promise<AttributeTableResult> {
+  async queryAttributes(
+    service: ServiceDefinition,
+    options: AttributeQueryOptions = { limit: 100, offset: 0 }
+  ): Promise<AttributeTableResult> {
     if (this.destroyed) throw new Error("Harita oturumu kapatıldı.");
     if (service.kind !== "FeatureServer" && service.kind !== "SceneServer") {
       throw new Error("Öznitelik tablosu yalnız FeatureServer ve SceneServer katmanlarında destekleniyor.");
     }
 
-    const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)));
+    const safeOptions = sanitizeQueryOptions(options);
     let layer = this.layers.get(service.id);
     let temporary = false;
 
@@ -243,6 +248,7 @@ export class ArcGISRuntime {
         returnGeometry?: boolean;
         num?: number;
         start?: number;
+        orderByFields?: string[];
       };
       queryFeatures?: (query: unknown) => Promise<{ features?: Array<{ attributes?: Record<string, unknown> }> }>;
       queryFeatureCount?: (query: unknown) => Promise<number>;
@@ -254,37 +260,51 @@ export class ArcGISRuntime {
         throw new Error("Bu katman tarayıcı üzerinden öznitelik sorgusunu desteklemiyor.");
       }
 
-      const query = queryable.createQuery();
-      query.where = "1=1";
-      query.outFields = ["*"];
-      query.returnGeometry = false;
-      query.start = 0;
-      query.num = safeLimit;
-
-      const [featureSet, total] = await Promise.all([
-        queryable.queryFeatures(query),
-        queryable.queryFeatureCount ? queryable.queryFeatureCount({ ...query, num: undefined, start: undefined }) : Promise.resolve(undefined)
-      ]);
-
       const fields = (queryable.fields ?? [])
         .filter((field) => Boolean(field.name))
         .map((field) => ({ name: field.name, alias: field.alias || field.name, type: field.type }));
+
+      const where = buildWhereClause(safeOptions.filter, fields);
+      const orderBy = buildOrderBy(safeOptions.orderBy, fields);
+      const query = queryable.createQuery();
+      query.where = where;
+      query.outFields = ["*"];
+      query.returnGeometry = false;
+      query.start = safeOptions.offset;
+      query.num = safeOptions.limit;
+      if (orderBy) query.orderByFields = [orderBy];
+
+      const countQuery = queryable.createQuery();
+      countQuery.where = where;
+      countQuery.returnGeometry = false;
+
+      const [featureSet, total] = await Promise.all([
+        queryable.queryFeatures(query),
+        queryable.queryFeatureCount ? queryable.queryFeatureCount(countQuery) : Promise.resolve(undefined)
+      ]);
 
       const rows = (featureSet.features ?? []).map((feature) =>
         Object.fromEntries(
           Object.entries(feature.attributes ?? {}).map(([key, value]) => [key, normalizeAttributeValue(value)])
         )
       );
+      const resolvedTotal = total ?? safeOptions.offset + rows.length;
 
       return {
         serviceId: service.id,
         serviceName: service.displayName,
         fields,
         rows,
-        total: total ?? rows.length,
-        truncated: (total ?? rows.length) > rows.length,
+        total: resolvedTotal,
+        truncated: resolvedTotal > rows.length,
         objectIdField: queryable.objectIdField,
-        fetchedAt: new Date().toISOString()
+        fetchedAt: new Date().toISOString(),
+        offset: safeOptions.offset,
+        limit: safeOptions.limit,
+        hasPrevious: safeOptions.offset > 0,
+        hasNext: safeOptions.offset + rows.length < resolvedTotal,
+        where,
+        orderBy
       };
     } finally {
       if (temporary) layer.destroy();
