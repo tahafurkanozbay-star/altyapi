@@ -1,57 +1,54 @@
+import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
 
-type ArcGISConstructor = new (properties: Record<string, unknown>) => any;
-
-const moduleByKind: Record<ServiceDefinition["kind"], string> = {
-  FeatureServer: "@arcgis/core/layers/FeatureLayer.js",
-  SceneServer: "@arcgis/core/layers/SceneLayer.js",
-  MapServer: "@arcgis/core/layers/MapImageLayer.js",
-  WMS: "@arcgis/core/layers/WMSLayer.js",
-  WFS: "@arcgis/core/layers/WFSLayer.js"
-};
-
-function mapServerParts(url: string): { root: string; sublayerId?: number } {
+export function parseMapServerUrl(url: string): { root: string; sublayerId?: number } {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
   if (!match) return { root: url };
-  return { root: match[1]!, sublayerId: match[2] === undefined ? undefined : Number(match[2]) };
+  return {
+    root: match[1]!,
+    sublayerId: match[2] === undefined ? undefined : Number(match[2])
+  };
 }
 
-async function loadCtor(kind: ServiceDefinition["kind"]): Promise<ArcGISConstructor> {
-  return $arcgis.import<ArcGISConstructor>(moduleByKind[kind]);
-}
-
-export async function createLayer(service: ServiceDefinition): Promise<any> {
-  const LayerCtor = await loadCtor(service.kind);
+export async function createLayer(service: ServiceDefinition): Promise<Layer> {
   const common = {
     id: `svc-${service.id}`,
     title: service.displayName,
     visible: service.visible,
     opacity: service.opacity,
-    listMode: "show"
+    listMode: "show" as const
   };
 
   switch (service.kind) {
-    case "FeatureServer":
-      return new LayerCtor({
+    case "FeatureServer": {
+      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer.js");
+      return new FeatureLayer({
         ...common,
         url: service.url,
         outFields: ["*"],
-        popupEnabled: true,
-        featureReduction: undefined
+        popupEnabled: true
       });
-    case "SceneServer":
-      return new LayerCtor({ ...common, url: service.url, popupEnabled: true });
+    }
+    case "SceneServer": {
+      const { default: SceneLayer } = await import("@arcgis/core/layers/SceneLayer.js");
+      return new SceneLayer({ ...common, url: service.url, popupEnabled: true });
+    }
     case "MapServer": {
-      const { root, sublayerId } = mapServerParts(service.url);
-      return new LayerCtor({
+      const { default: MapImageLayer } = await import("@arcgis/core/layers/MapImageLayer.js");
+      const { root, sublayerId } = parseMapServerUrl(service.url);
+      return new MapImageLayer({
         ...common,
         url: root,
         sublayers: sublayerId === undefined ? undefined : [{ id: sublayerId, visible: true }]
       });
     }
-    case "WMS":
-      return new LayerCtor({ ...common, url: service.url, imageFormat: "image/png" });
-    case "WFS":
-      return new LayerCtor({ ...common, url: service.url });
+    case "WMS": {
+      const { default: WMSLayer } = await import("@arcgis/core/layers/WMSLayer.js");
+      return new WMSLayer({ ...common, url: service.url, imageFormat: "image/png" });
+    }
+    case "WFS": {
+      const { default: WFSLayer } = await import("@arcgis/core/layers/WFSLayer.js");
+      return new WFSLayer({ ...common, url: service.url });
+    }
   }
 }

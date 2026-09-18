@@ -2,7 +2,7 @@ export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "Scene
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
-export type PanelId = "layers" | "health" | "bookmarks" | "help" | null;
+export type PanelId = "layers" | "health" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
@@ -29,6 +29,8 @@ export interface ServiceDefinition extends RawServiceDefinition {
   visible: boolean;
   opacity: number;
   favorite: boolean;
+  latencyMs?: number;
+  lastLoadedAt?: string;
 }
 
 export interface CameraState {
@@ -78,4 +80,18 @@ export interface ToolDefinition {
   label: string;
   icon: string;
   keywords: string[];
+}
+
+export interface BrowserCapabilities {
+  webgl2: boolean;
+  secureContext: boolean;
+  online: boolean;
+  hardwareConcurrency: number;
+  deviceMemory?: number;
+  maxTouchPoints: number;
+  devicePixelRatio: number;
+  reducedMotion: boolean;
+  colorGamut: "srgb" | "p3" | "rec2020";
+  connectionType?: string;
+  saveData?: boolean;
 }
