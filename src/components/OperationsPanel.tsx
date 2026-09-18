@@ -99,8 +99,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "6.0.0",
-      runtime: "React + TypeScript + Vite + @arcgis/core ESM",
+      version: "7.0.0",
+      runtime: "React 19.3 + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + @arcgis/core ESM",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -169,8 +169,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v6 · Data Operations Platform</h3>
-        <p>Native @arcgis/core ESM, tip güvenli servis telemetrisi ve öznitelik veri atölyesini tek profesyonel 3B operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v7 · Comfort White Platform</h3>
+        <p>React 19.3, ArcGIS 5.1 Web Components ve native @arcgis/core ESM ile çalışan; göz konforuna odaklı beyaz arayüz, servis telemetrisi ve öznitelik veri atölyesini birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -178,10 +178,11 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="D" label="Veri atölyesi" />
         <Shortcut keyName="H" label="Başlangıç görünümü" />
         <Shortcut keyName="F" label="Tam ekran" />
+        <Shortcut keyName="M" label="Harita odak modu" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
-      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, öznitelik tablosu, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, öznitelik tablosu, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
