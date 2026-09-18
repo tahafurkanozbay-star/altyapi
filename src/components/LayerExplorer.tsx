@@ -1,5 +1,6 @@
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
+import { latencyLabel } from "../lib/serviceMetrics";
 import type { ServiceDefinition, ServiceKind } from "../types";
 import { Icon } from "./Icon";
 
@@ -167,6 +168,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                         <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{service.kind === "SceneServer" ? "3B SCENE" : service.kind}</span>
                         <span className={`status-dot status-${service.status}`} />
                         <span>{statusLabel(service)}</span>
+                        {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
                       </div>
                     </div>
 
@@ -199,6 +201,8 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                         <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
                         <div><dt>Servis</dt><dd>{hostLabel(service.url)}</dd></div>
                         <div><dt>Durum</dt><dd>{service.error ?? statusLabel(service)}</dd></div>
+                        <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
+                        <div><dt>Son ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
                       </dl>
                     </div>
                   )}
