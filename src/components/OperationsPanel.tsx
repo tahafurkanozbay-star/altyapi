@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
-import { DataWorkbench } from "./DataWorkbench";
 import type { AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
+
+const DataWorkbench = lazy(() => import("./DataWorkbench").then((module) => ({ default: module.DataWorkbench })));
+const WorkspacePanel = lazy(() => import("./WorkspacePanel").then((module) => ({ default: module.WorkspacePanel })));
 
 interface Props {
   panel: Exclude<PanelId, null | "layers">;
@@ -15,7 +17,10 @@ interface Props {
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
   onDeleteBookmark: (bookmark: Bookmark) => void;
-  onQueryAttributes: (service: ServiceDefinition, limit: number) => Promise<AttributeTableResult>;
+  onQueryAttributes: (service: ServiceDefinition, options: import("../types").AttributeQueryOptions) => Promise<AttributeTableResult>;
+  onExportWorkspace: () => void;
+  onImportWorkspace: (file: File) => Promise<void>;
+  onResetWorkspace: () => void;
 }
 
 export function OperationsPanel(props: Props) {
@@ -29,7 +34,16 @@ export function OperationsPanel(props: Props) {
         <button type="button" className="icon-ghost" onClick={props.onClose} aria-label="Paneli kapat"><Icon name="close" /></button>
       </div>
       {props.panel === "health" && <HealthPanel {...props} />}
-      {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
+      {props.panel === "data" && (
+        <Suspense fallback={<PanelLoading label="Veri atölyesi yükleniyor…" />}>
+          <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />
+        </Suspense>
+      )}
+      {props.panel === "workspace" && (
+        <Suspense fallback={<PanelLoading label="Çalışma alanı hazırlanıyor…" />}>
+          <WorkspacePanel onExport={props.onExportWorkspace} onImport={props.onImportWorkspace} onReset={props.onResetWorkspace} />
+        </Suspense>
+      )}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
       {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} />}
       {props.panel === "help" && <HelpPanel performance={props.performance} />}
@@ -99,7 +113,7 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "7.0.0",
+      version: "8.0.0",
       runtime: "React 19.3 + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + @arcgis/core ESM",
       performanceProfile: performance,
       capabilityScore: score,
@@ -169,20 +183,21 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v7 · Comfort White Platform</h3>
-        <p>React 19.3, ArcGIS 5.1 Web Components ve native @arcgis/core ESM ile çalışan; göz konforuna odaklı beyaz arayüz, servis telemetrisi ve öznitelik veri atölyesini birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v8 · Resilient Workspace Platform</h3>
+        <p>React 19.3, strict TypeScript, ArcGIS Web Components ve native @arcgis/core ESM üzerinde çalışan; gelişmiş sunucu sorguları, taşınabilir çalışma alanı, göz konforlu beyaz arayüz ve servis telemetrisini birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
         <Shortcut keyName="L" label="Katman paneli" />
         <Shortcut keyName="D" label="Veri atölyesi" />
+        <Shortcut keyName="W" label="Çalışma alanı yöneticisi" />
         <Shortcut keyName="H" label="Başlangıç görünümü" />
         <Shortcut keyName="F" label="Tam ekran" />
         <Shortcut keyName="M" label="Harita odak modu" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
-      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, öznitelik tablosu, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, gelişmiş öznitelik sorgusu, çalışma alanı yedekleme, analiz araçları, sistem tanılama ve servis sağlığına sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
@@ -199,7 +214,18 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "health") return "Servis Sağlığı";
   if (panel === "data") return "Veri Atölyesi";
+  if (panel === "workspace") return "Çalışma Alanı";
   if (panel === "bookmarks") return "Yer İmleri";
   if (panel === "diagnostics") return "Sistem Tanılama";
   return "Yardım & Kısayollar";
+}
+
+
+function PanelLoading({ label }: { label: string }) {
+  return (
+    <div className="operations-body panel-loading" role="status" aria-live="polite">
+      <span className="panel-loading-spinner" />
+      <strong>{label}</strong>
+    </div>
+  );
 }

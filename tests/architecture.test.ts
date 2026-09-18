@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v7 architecture guardrails", () => {
+describe("v8 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -16,6 +16,7 @@ describe("v7 architecture guardrails", () => {
 
     expect(entry).toContain('@arcgis/core/assets/esri/themes/light/main.css');
     expect(entry).toContain('./styles/comfort-white.css');
+    expect(entry).toContain('./styles/workspace-query.css');
     expect(storage).toContain('theme: "light"');
     expect(comfort).toContain("--comfort-white: #ffffff");
   });

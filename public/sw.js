@@ -1,4 +1,4 @@
-const CACHE = "altyapi-shell-v7";
+const CACHE = "altyapi-shell-v8";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {
