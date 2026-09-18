@@ -115,6 +115,11 @@ export interface AttributeTableResult {
   truncated: boolean;
   objectIdField?: string;
   fetchedAt: string;
+  offset?: number;
+  limit?: number;
+  hasMore?: boolean;
+  where?: string;
+  orderBy?: string;
 }
 
 export interface ServiceHealthSummary {
@@ -125,4 +130,39 @@ export interface ServiceHealthSummary {
   active: number;
   averageLatencyMs?: number;
   p95LatencyMs?: number;
+}
+
+
+export type QueryOperator =
+  | "eq"
+  | "ne"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "contains"
+  | "startsWith"
+  | "isNull"
+  | "isNotNull";
+
+export interface AttributeFilter {
+  field: string;
+  operator: QueryOperator;
+  value?: string;
+}
+
+export interface AttributeQueryOptions {
+  limit: number;
+  offset?: number;
+  filter?: AttributeFilter;
+  orderByField?: string;
+  order?: "asc" | "desc";
+}
+
+export interface WorkspaceDocument {
+  schema: "baskent-3b-workspace";
+  version: 1;
+  exportedAt: string;
+  applicationVersion: string;
+  preferences: AppPreferences;
 }
