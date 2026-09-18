@@ -1,7 +1,7 @@
 {
   "name": "Başkent 3B CBS Operasyon Platformu",
   "short_name": "Başkent 3B CBS",
-  "description": "3B altyapı ve üstyapı koordinasyon platformu",
+  "description": "3B altyapı / üstyapı koordinasyon, öznitelik veri atölyesi ve servis telemetrisi platformu",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
