@@ -251,17 +251,14 @@ export class ArcGISRuntime {
 
   async goTo(camera: CameraState): Promise<void> {
     if (!this.view || this.destroyed) return;
-    const { default: Point } = await import("@arcgis/core/geometry/Point.js");
+    const { default: Camera } = await import("@arcgis/core/Camera.js");
     if (!this.view || this.destroyed) return;
-    const position = new Point(pointProperties(camera));
-    await this.view.goTo(
-      {
-        position,
-        heading: camera.heading,
-        tilt: camera.tilt
-      },
-      { duration: 950, easing: "ease-in-out" }
-    );
+    const target = new Camera({
+      position: pointProperties(camera),
+      heading: camera.heading,
+      tilt: camera.tilt
+    });
+    await this.view.goTo(target, { duration: 950, easing: "ease-in-out" });
   }
 
   getCamera(): CameraState {
