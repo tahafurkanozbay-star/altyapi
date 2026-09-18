@@ -15,7 +15,17 @@ import type {
 } from "../types";
 
 type Removable = { remove(): void };
-type WidgetLike = { destroy(): void; container?: string | HTMLElement | null };
+type ArcGISComponentElement = HTMLElement & {
+  view?: SceneView;
+  element?: HTMLElement;
+  profiles?: Array<{ type: "ground" }>;
+  includeDefaultSources?: boolean;
+  locationEnabled?: boolean;
+  popupEnabled?: boolean;
+  resultGraphicEnabled?: boolean;
+  componentOnReady?: () => Promise<unknown>;
+  destroy?: () => Promise<void>;
+};
 
 export interface RuntimeCallbacks {
   onIdentify?: (result: IdentifyResult | null) => void;
@@ -41,9 +51,9 @@ export class ArcGISRuntime {
   private map?: ArcGISMap;
   private view?: SceneView;
   private readonly layers = new Map<string, Layer>();
-  private activeWidget?: WidgetLike;
-  private searchWidget?: WidgetLike;
-  private navigationWidgets: WidgetLike[] = [];
+  private activeWidget?: ArcGISComponentElement;
+  private searchWidget?: ArcGISComponentElement;
+  private navigationWidgets: ArcGISComponentElement[] = [];
   private handles: Removable[] = [];
   private callbacks: RuntimeCallbacks = {};
   private cameraTimer = 0;
@@ -101,20 +111,23 @@ export class ArcGISRuntime {
 
   async mountSearch(container: HTMLDivElement): Promise<void> {
     if (!this.view || this.destroyed) return;
-    this.searchWidget?.destroy();
+    this.disposeComponent(this.searchWidget);
     this.searchWidget = undefined;
     container.replaceChildren();
 
-    const { default: Search } = await import("@arcgis/core/widgets/Search.js");
+    await import("@arcgis/map-components/components/arcgis-search");
     if (!this.view || this.destroyed) return;
-    this.searchWidget = new Search({
-      view: this.view,
-      container,
-      includeDefaultSources: true,
-      locationEnabled: false,
-      popupEnabled: false,
-      resultGraphicEnabled: true
-    });
+
+    const search = document.createElement("arcgis-search") as ArcGISComponentElement;
+    search.view = this.view;
+    search.includeDefaultSources = true;
+    search.locationEnabled = false;
+    search.popupEnabled = false;
+    search.resultGraphicEnabled = true;
+    search.className = "arcgis-search-component";
+    container.append(search);
+    await search.componentOnReady?.();
+    this.searchWidget = search;
   }
 
   async mountNavigation(container: HTMLDivElement): Promise<() => void> {
@@ -122,33 +135,31 @@ export class ArcGISRuntime {
     this.destroyNavigation();
     container.replaceChildren();
 
-    const [homeModule, compassModule, locateModule, fullscreenModule] = await Promise.all([
-      import("@arcgis/core/widgets/Home.js"),
-      import("@arcgis/core/widgets/Compass.js"),
-      import("@arcgis/core/widgets/Locate.js"),
-      import("@arcgis/core/widgets/Fullscreen.js")
+    await Promise.all([
+      import("@arcgis/map-components/components/arcgis-home"),
+      import("@arcgis/map-components/components/arcgis-compass"),
+      import("@arcgis/map-components/components/arcgis-locate"),
+      import("@arcgis/map-components/components/arcgis-fullscreen")
     ]);
     if (!this.view || this.destroyed) return () => undefined;
 
-    const widgets: WidgetLike[] = [
-      new homeModule.default({ view: this.view }),
-      new compassModule.default({ view: this.view }),
-      new locateModule.default({ view: this.view }),
-      new fullscreenModule.default({ view: this.view, element: document.documentElement })
+    const widgets = [
+      this.createConnectedComponent("arcgis-home"),
+      this.createConnectedComponent("arcgis-compass"),
+      this.createConnectedComponent("arcgis-locate"),
+      this.createConnectedComponent("arcgis-fullscreen", { element: document.documentElement })
     ];
     this.navigationWidgets = widgets;
 
     for (const widget of widgets) {
-      const node = document.createElement("div");
-      node.className = "arcgis-nav-slot";
-      container.append(node);
-      widget.container = node;
+      widget.classList.add("arcgis-nav-component");
+      container.append(widget);
     }
 
     return () => {
-      for (const widget of widgets) widget.destroy();
+      for (const widget of widgets) this.disposeComponent(widget);
       if (this.navigationWidgets === widgets) this.navigationWidgets = [];
-      for (const node of [...container.querySelectorAll(".arcgis-nav-slot")]) node.remove();
+      container.replaceChildren();
     };
   }
 
@@ -315,7 +326,7 @@ export class ArcGISRuntime {
   }
 
   closeTool(): void {
-    this.activeWidget?.destroy();
+    this.disposeComponent(this.activeWidget);
     this.activeWidget = undefined;
   }
 
@@ -366,7 +377,7 @@ export class ArcGISRuntime {
     window.clearTimeout(this.cameraTimer);
     cancelAnimationFrame(this.telemetryFrame);
     this.closeTool();
-    this.searchWidget?.destroy();
+    this.disposeComponent(this.searchWidget);
     this.searchWidget = undefined;
     this.destroyNavigation();
     for (const handle of this.handles) handle.remove();
@@ -380,8 +391,22 @@ export class ArcGISRuntime {
   }
 
   private destroyNavigation(): void {
-    for (const widget of this.navigationWidgets) widget.destroy();
+    for (const widget of this.navigationWidgets) this.disposeComponent(widget);
     this.navigationWidgets = [];
+  }
+
+  private createConnectedComponent(tagName: string, properties: Partial<ArcGISComponentElement> = {}): ArcGISComponentElement {
+    if (!this.view) throw new Error("Harita motoru hazır değil.");
+    const element = document.createElement(tagName) as ArcGISComponentElement;
+    element.view = this.view;
+    Object.assign(element, properties);
+    return element;
+  }
+
+  private disposeComponent(component?: ArcGISComponentElement): void {
+    if (!component) return;
+    component.remove();
+    if (component.destroy) void component.destroy().catch(() => undefined);
   }
 
   private installViewEvents(): void {
@@ -445,44 +470,30 @@ export class ArcGISRuntime {
     );
   }
 
-  private async createToolWidget(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<WidgetLike> {
+  private async createToolWidget(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<ArcGISComponentElement> {
     if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
-    const view = this.view;
 
-    switch (tool) {
-      case "legend": {
-        const { default: Legend } = await import("@arcgis/core/widgets/Legend.js");
-        return new Legend({ view, container });
-      }
-      case "basemap": {
-        const { default: BasemapGallery } = await import("@arcgis/core/widgets/BasemapGallery.js");
-        return new BasemapGallery({ view, container });
-      }
-      case "distance": {
-        const { default: DirectLineMeasurement3D } = await import("@arcgis/core/widgets/DirectLineMeasurement3D.js");
-        return new DirectLineMeasurement3D({ view, container });
-      }
-      case "area": {
-        const { default: AreaMeasurement3D } = await import("@arcgis/core/widgets/AreaMeasurement3D.js");
-        return new AreaMeasurement3D({ view, container });
-      }
-      case "daylight": {
-        const { default: Daylight } = await import("@arcgis/core/widgets/Daylight.js");
-        return new Daylight({ view, container });
-      }
-      case "slice": {
-        const { default: Slice } = await import("@arcgis/core/widgets/Slice.js");
-        return new Slice({ view, container });
-      }
-      case "lineOfSight": {
-        const { default: LineOfSight } = await import("@arcgis/core/widgets/LineOfSight.js");
-        return new LineOfSight({ view, container });
-      }
-      case "elevation": {
-        const { default: ElevationProfile } = await import("@arcgis/core/widgets/ElevationProfile.js");
-        return new ElevationProfile({ view, container, profiles: [{ type: "ground" }] });
-      }
-    }
+    const definitions: Record<Exclude<ToolId, null>, { module: string; tag: string }> = {
+      legend: { module: "@arcgis/map-components/components/arcgis-legend", tag: "arcgis-legend" },
+      basemap: { module: "@arcgis/map-components/components/arcgis-basemap-gallery", tag: "arcgis-basemap-gallery" },
+      distance: { module: "@arcgis/map-components/components/arcgis-direct-line-measurement-3d", tag: "arcgis-direct-line-measurement-3d" },
+      area: { module: "@arcgis/map-components/components/arcgis-area-measurement-3d", tag: "arcgis-area-measurement-3d" },
+      daylight: { module: "@arcgis/map-components/components/arcgis-daylight", tag: "arcgis-daylight" },
+      slice: { module: "@arcgis/map-components/components/arcgis-slice", tag: "arcgis-slice" },
+      lineOfSight: { module: "@arcgis/map-components/components/arcgis-line-of-sight", tag: "arcgis-line-of-sight" },
+      elevation: { module: "@arcgis/map-components/components/arcgis-elevation-profile", tag: "arcgis-elevation-profile" }
+    };
+
+    const definition = definitions[tool];
+    await import(/* @vite-ignore */ definition.module);
+    if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
+
+    const component = this.createConnectedComponent(definition.tag);
+    if (tool === "elevation") component.profiles = [{ type: "ground" }];
+    component.classList.add("arcgis-tool-component");
+    container.append(component);
+    await component.componentOnReady?.();
+    return component;
   }
 
   private environmentFor(profile: PerformanceProfile) {
