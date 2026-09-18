@@ -106,6 +106,31 @@ export interface AttributeField {
   type?: string;
 }
 
+export type AttributeFilterOperator =
+  | "equals"
+  | "notEquals"
+  | "contains"
+  | "startsWith"
+  | "greaterThan"
+  | "greaterThanOrEqual"
+  | "lessThan"
+  | "lessThanOrEqual"
+  | "isNull"
+  | "isNotNull";
+
+export interface AttributeFilter {
+  field: string;
+  operator: AttributeFilterOperator;
+  value?: string;
+}
+
+export interface AttributeQueryOptions {
+  limit: number;
+  offset: number;
+  filter?: AttributeFilter;
+  orderBy?: { field: string; direction: "asc" | "desc" };
+}
+
 export interface AttributeTableResult {
   serviceId: string;
   serviceName: string;
@@ -115,6 +140,12 @@ export interface AttributeTableResult {
   truncated: boolean;
   objectIdField?: string;
   fetchedAt: string;
+  offset: number;
+  limit: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  where: string;
+  orderBy?: string;
 }
 
 export interface ServiceHealthSummary {
