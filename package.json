@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "7.0.0",
+  "version": "8.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara odaklı, comfort-white arayüzlü, ArcGIS 5.1 Web Components ve native ESM tabanlı profesyonel 3B CBS operasyon platformu.",
+  "description": "Ankara odaklı, comfort-white, gelişmiş sunucu sorguları, taşınabilir çalışma alanı, ArcGIS Web Components ve browser E2E kalite kapıları içeren profesyonel 3B CBS operasyon platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
@@ -17,7 +17,9 @@
     "test:watch": "vitest",
     "validate:services": "node scripts/validate-services.mjs",
     "verify:build": "node scripts/verify-build.mjs",
-    "check": "npm run validate:services && npm run typecheck && npm run test && npm run build"
+    "check": "npm run validate:services && npm run typecheck && npm run test && npm run build",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@arcgis/core": "^5.1.24",
@@ -33,7 +35,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1",
-    "@types/node": "^24.10.0"
+    "@types/node": "^24.10.0",
+    "@playwright/test": "^1.55.0"
   },
   "engines": {
     "node": ">=22.12.0"
