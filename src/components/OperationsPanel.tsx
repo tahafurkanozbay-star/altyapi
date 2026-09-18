@@ -237,6 +237,7 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="⌘ K" label="Komut paleti" />
         <Shortcut keyName="L" label="Katman paneli" />
         <Shortcut keyName="D" label="Sorgu stüdyosu" />
+        <Shortcut keyName="W" label="Çalışma alanı paketi" />
         <Shortcut keyName="H" label="Başlangıç görünümü" />
         <Shortcut keyName="F" label="Tam ekran" />
         <Shortcut keyName="M" label="Harita odak modu" />
