@@ -1,41 +1,53 @@
-# Başkent 3B CBS · Comfort White Operations Platform v7
+# Başkent 3B CBS · Resilient Workspace Platform v8
 
-Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
+Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini göz konforlu beyaz bir çalışma alanında yönetir; gelişmiş öznitelik sorguları, servis telemetrisi ve taşınabilir kullanıcı çalışma alanları sunar.
 
-## v7: Comfort White + ArcGIS Web Components
+## v8 platform yaklaşımı
 
-v7 iki büyük hedefi birlikte ele alır: **daha sakin, beyaz ve kurumsal bir görsel dil** ile **ArcGIS 5.1'in güncel component-first mimarisine geçiş**.
+v8'in odağı yalnız yeni ekran eklemek değil, uygulamayı **daha dayanıklı, taşınabilir ve doğrulanabilir** hale getirmektir.
 
-- varsayılan ve kalıcı **Comfort White** arayüz
-- düşük kontrastlı gölgeler, daha geniş boşluklar ve daha okunaklı tipografi
-- açık renkli ArcGIS core teması ve Calcite uyumlu beyaz Web Component yüzeyleri
-- eski kullanıcı tercihlerinde kayıtlı koyu tema için v4 preference migration
-- `M` kısayoluyla harita odak modu
-- React 19.3 custom-element desteğiyle `@arcgis/map-components` doğrudan kullanımı
-- deprecated ArcGIS Widget sınıfları yerine Search, Home, Compass, Locate, Fullscreen ve 3B analiz araçlarında **Web Components**
-- native ESM `@arcgis/core` katman/runtime mimarisi korunur
-- FeatureServer / SceneServer için Öznitelik Veri Atölyesi
-- servis açılış süresi, ortalama ve P95 gecikme telemetrisi
-- WebGL2 / cihaz / ağ / DPR / secure-context tanılama
-- Node 22 + Node 24 CI, Vitest, CodeQL ve GitHub Pages
+- Comfort White kurumsal arayüz
+- React 19 + strict TypeScript
+- ArcGIS 5.1 Web Components
+- native ESM `@arcgis/core`
+- FeatureServer / SceneServer için güvenli sunucu tarafı filtreleme ve sıralama
+- sayfalı öznitelik sorguları
+- yerel hızlı arama + UTF-8 CSV
+- sürümlü çalışma alanı JSON dışa/içe aktarma
+- favori, saydamlık, kamera, altlık, katman görünürlüğü ve yer imlerinin taşınması
+- servis açılış süresi, ortalama ve P95 telemetri
+- browser-level Playwright E2E kalite kapısı
+- Node 22 / Node 24 CI + Vitest + CodeQL + Pages
 
-## Güncel teknoloji
+## Teknoloji
 
 - **React 19.3**
-- **TypeScript 7.0.2**
+- **TypeScript 7**
 - **Vite 8.3**
-- **Vitest 5.0.1**
-- **ArcGIS Maps SDK for JavaScript 5.1.24**
-- **@arcgis/map-components 5.1.24**
-- **Calcite Components 5.1.2**
-- GitHub Actions — CI, CodeQL ve GitHub Pages
-- same-origin PWA / service worker
+- **Vitest 5**
+- **Playwright**
+- **ArcGIS Maps SDK for JavaScript 5.1 / `@arcgis/core`**
+- **`@arcgis/map-components`**
+- **Calcite Components**
+- GitHub Actions
+- PWA / Service Worker
 
-Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile sırf değişiklik olsun diye taşımak; ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. v7'de yapılan gerçek dil/mimari modernizasyonu, dinamik/deprecated Widget API katmanını standart tabanlı Web Components + strict TypeScript kontratlarına taşımaktır.
+### Neden başka bir programlama diline taşınmadı?
+
+Tarayıcı tabanlı ArcGIS uygulamasını Rust, Java veya C# ile baştan yazmak bu proje için gerçek bir modernizasyon sağlamaz. ArcGIS web ekosistemi TypeScript/JavaScript ve Web Components merkezlidir. Bu nedenle v8'de “dil modernizasyonu” şu şekilde yapılmıştır:
+
+- `strict` TypeScript kontratları
+- raw SQL benzeri serbest sorgu yerine tipli sorgu modeli
+- deprecated ArcGIS Widget sınıfları yerine standart Web Components
+- domain yardımcılarını React bileşenlerinden ayırma
+- lazy-loaded operasyon panelleri
+- unit + browser E2E testleri
+
+Bu yaklaşım runtime hata yüzeyini ve bakım maliyetini düşürürken ArcGIS ile doğal entegrasyonu korur.
 
 ## Yerel geliştirme
 
-Bu proje düz HTML sitesi değildir. VS Code Live Server proje kökündeki `.tsx` kaynaklarını derleyemez.
+Bu proje düz HTML sitesi değildir. VS Code Live Server proje kökündeki `.tsx` dosyalarını derleyemez.
 
 ```bash
 npm install
@@ -55,48 +67,119 @@ npm run build
 npm run preview
 ```
 
-Live Server zorunluysa önce `npm run build` çalıştırın ve yalnız `dist/` klasörünü servis edin.
+Live Server kullanılacaksa önce `npm run build` çalıştırılmalı ve yalnız `dist/` klasörü servis edilmelidir.
 
-## Kalite kapısı
+## Kalite komutları
 
 ```bash
 npm run check
+npm run test:e2e
 ```
 
-Bu komut sırasıyla servis kataloğu doğrulaması, strict TypeScript, Vitest regresyon testleri, production build ve `dist/` smoke doğrulamasını çalıştırır.
+`npm run check` servis kataloğu doğrulaması, strict TypeScript, Vitest, production build ve dist smoke kontrolünü çalıştırır.
 
-## 3B operasyon yetenekleri
+`npm run test:e2e` production preview üzerinde Chromium tabanlı tarayıcı testlerini çalıştırır. E2E paketi özellikle geçmişte görülen **beyaz ekran / JavaScript boot regresyonlarını** yakalamak için eklenmiştir.
 
-- Ankara merkezli SceneView + world elevation
-- adaptive high / balanced / eco kalite profilleri
-- FeatureServer, SceneServer, MapServer, WMS ve WFS adaptörleri
-- katman arama, kurum gruplama, servis türü filtresi ve favoriler
-- görünürlük, saydamlık, zoom, retry
-- Search / Home / Compass / Locate / Fullscreen ArcGIS Web Components
-- kamera + katman + altlık paylaşım URL'si
-- kamera ve aktif katmanları saklayan yer imleri
-- PNG ekran görüntüsü
-- **M: harita odak modu**
+## Comfort White çalışma alanı
 
-## Öznitelik Veri Atölyesi
+- açık gri `#f4f7f9` ana tuval
+- beyaz panel ve kart yüzeyleri
+- düşük kontrastlı gölgeler
+- daha rahat tipografi ve panel boşlukları
+- `prefers-reduced-motion`
+- `prefers-contrast: more`
+- güçlü `:focus-visible`
+- mobilde solid-white yüzeyler
+- ArcGIS / Calcite bileşenlerinde aynı açık renk token sistemi
+
+`M` tuşu veya üst bardaki odak düğmesi panel yüzeylerini geri çekerek 3B sahneye daha fazla alan ayırır.
+
+## Gelişmiş Öznitelik Veri Atölyesi
 
 FeatureServer ve SceneServer katmanları salt-okunur sorgulanabilir.
 
-- 50 / 100 / 250 / 500 kayıt limiti
-- geometri indirmeden öznitelik sorgusu
-- alan alias bilgileri
+### Sunucu sorgusu
+
+- 50 / 100 / 250 / 500 kayıt sayfa boyutu
+- güvenli alan whitelist'i
+- eşittir / eşit değildir
+- büyük / büyük-eşit / küçük / küçük-eşit
+- içerir / ile başlar
+- NULL / NOT NULL
+- sayısal alanlarda sayı doğrulama
+- string literal kaçışlama
+- LIKE wildcard kaçışlama
+- alan bazlı ASC / DESC sıralama
+- gerçek sunucu toplam kayıt sayısı
+- önceki / sonraki sayfa
+- sorgu özeti
+
+Kullanıcı doğrudan ham SQL yazamaz. Filtre alanı servis şemasından seçilir ve sorgu ifadesi tipli modelden üretilir.
+
+### İstemci görünümü
+
+- yüklenen sayfada anlık arama
 - sütun görünürlüğü seçimi
-- istemci tarafı arama
-- Türkçe sayı / boolean gösterimi
+- Türkçe sayı / boolean formatı
 - UTF-8 BOM CSV dışa aktarma
-- toplam/yüklenen kayıt farkı uyarısı
+- sticky tablo başlığı
+- responsive tablo
 
-Veri atölyesi sunucuya yazma veya edit işlemi yapmaz.
+Öznitelik sorguları geometri indirmez ve sunucuya edit/yazma işlemi yapmaz.
 
-## 3B analiz araçları
+## Çalışma Alanı Yöneticisi
 
-v7 ile bu yüzeyler deprecated Widget sınıflarından ArcGIS Web Components'e taşınır:
+`W` kısayolu ile açılır.
 
+### Dışa aktarılanlar
+
+- altlık harita
+- performans profili
+- kamera
+- katman görünürlüğü
+- katman saydamlığı
+- favoriler
+- yer imleri
+
+Çıktı sürümlü `baskent-3b-workspace` JSON belgesidir.
+
+### İçe aktarma güvenliği
+
+- en fazla 1 MB belge
+- şema + sürüm kontrolü
+- preference sanitizasyonu
+- güvenli katman ID kontrolü
+- kamera sınır doğrulaması
+- opacity clamp
+- Comfort White tema zorlaması
+- token / servis URL query bilgisinin belgeye eklenmemesi
+
+## 3B CBS yetenekleri
+
+- Ankara merkezli SceneView
+- world elevation
+- high / balanced / eco kalite profilleri
+- FeatureServer
+- SceneServer
+- MapServer
+- WMS
+- WFS
+- katman arama ve kurum gruplama
+- favoriler
+- visibility / opacity / zoom / retry
+- kamera + katman + altlık paylaşım URL'si
+- yer imleri
+- PNG ekran görüntüsü
+
+## ArcGIS Web Components
+
+Kullanıcıya dönük ArcGIS araçları component-first mimari kullanır:
+
+- Search
+- Home
+- Compass
+- Locate
+- Fullscreen
 - Legend
 - Basemap Gallery
 - Direct Line Measurement 3D
@@ -106,51 +189,51 @@ v7 ile bu yüzeyler deprecated Widget sınıflarından ArcGIS Web Components'e t
 - Line of Sight
 - Elevation Profile
 
-Bileşenler ihtiyaç halinde lazy import edilir.
+Analiz bileşenleri gerektiğinde lazy import edilir.
 
 ## Servis gözlemlenebilirliği
 
-- ready / loading / error / idle durumu
+- ready / loading / error / idle
 - katman açılış süresi
 - ortalama latency
 - P95 latency
 - en yavaş servislerin listesi
 - son ölçüm zamanı
 - toplu retry
+- status dock latency sinyali
 
 ## Sistem tanılama
 
 - WebGL2
 - CPU logical core
-- tahmini bellek
+- tahmini cihaz belleği
 - DPR
-- bağlantı tipi / save-data
+- bağlantı tipi
+- save-data
 - color gamut
 - secure-context
 - performans skoru
 - URL/token içermeyen JSON tanılama raporu
 
-## Comfort White tasarım ilkeleri
+## Browser E2E kalite kapısı
 
-- saf beyaz yerine çok hafif gri çalışma tuvali
-- solid beyaz kart/panel yüzeyleri
-- düşük alfa gölgeleri
-- açık gri sınırlar
-- mavi vurgu yalnız aktif/etkileşimli öğelerde
-- 8–11 px eski yoğun yardımcı metinlerin kritik bölümlerinde daha okunaklı ölçek
-- yüksek kontrast talebi için `prefers-contrast: more`
-- animasyon hassasiyeti için `prefers-reduced-motion`
-- focus-visible klavye halkaları
-- mobilde solid white yüzeyler
-- ArcGIS / Calcite bileşenlerinde aynı açık renk tokenları
+GitHub Actions'taki **Browser E2E** workflow'u production build'i gerçek Chromium ortamında açar ve şunları doğrular:
 
-Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
+- uygulama shell'i boş/beyaz ekran yerine render oluyor
+- React boot marker oluşuyor
+- Comfort White light color-scheme etkin
+- komut paleti açılıyor
+- çalışma alanı paneli açılıyor
+- mobil görünümde veri atölyesi erişilebilir
+
+Başarısız E2E çalışmasında Playwright report, trace/screenshot/video artifact'ları saklanır.
 
 ## Kısayollar
 
 - `Ctrl/Cmd + K` — komut paleti
 - `L` — katman kataloğu
 - `D` — veri atölyesi
+- `W` — çalışma alanı yöneticisi
 - `H` — Ankara başlangıç görünümü
 - `M` — harita odak modu
 - `F` — tam ekran
@@ -158,14 +241,19 @@ Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 
 ## Güvenlik
 
-Public bundle içine gizli token eklenmez. Token gerektiren WMS/WFS servisleri için sunucu tarafı same-origin proxy / token broker kullanılmalıdır. Öznitelik veri atölyesi de yalnız istemciye açık katalog servislerini kullanır.
+Public bundle içine gizli token eklenmez. Token gerektiren WMS/WFS servisleri için server-side same-origin proxy / token broker gerekir.
+
+Workspace export ve tanılama çıktıları token içermez. Sorgu oluşturucu ham kullanıcı SQL'i kabul etmez.
+
+Ayrıntılar:
 
 - [SECURITY.md](SECURITY.md)
 - [docs/SECURE_SERVICES.md](docs/SECURE_SERVICES.md)
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 
 ## Sürüm
 
-Current application version: **7.0.0**
+Current application version: **8.0.0**
 
-MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
+MIT lisansı. Harita ve veri servislerinin kendi lisans / kullanım koşulları ayrıca geçerlidir.
