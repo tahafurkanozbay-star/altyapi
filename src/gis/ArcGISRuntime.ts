@@ -473,22 +473,44 @@ export class ArcGISRuntime {
   private async createToolWidget(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<ArcGISComponentElement> {
     if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
 
-    const definitions: Record<Exclude<ToolId, null>, { module: string; tag: string }> = {
-      legend: { module: "@arcgis/map-components/components/arcgis-legend", tag: "arcgis-legend" },
-      basemap: { module: "@arcgis/map-components/components/arcgis-basemap-gallery", tag: "arcgis-basemap-gallery" },
-      distance: { module: "@arcgis/map-components/components/arcgis-direct-line-measurement-3d", tag: "arcgis-direct-line-measurement-3d" },
-      area: { module: "@arcgis/map-components/components/arcgis-area-measurement-3d", tag: "arcgis-area-measurement-3d" },
-      daylight: { module: "@arcgis/map-components/components/arcgis-daylight", tag: "arcgis-daylight" },
-      slice: { module: "@arcgis/map-components/components/arcgis-slice", tag: "arcgis-slice" },
-      lineOfSight: { module: "@arcgis/map-components/components/arcgis-line-of-sight", tag: "arcgis-line-of-sight" },
-      elevation: { module: "@arcgis/map-components/components/arcgis-elevation-profile", tag: "arcgis-elevation-profile" }
-    };
+    let tagName: string;
+    switch (tool) {
+      case "legend":
+        await import("@arcgis/map-components/components/arcgis-legend");
+        tagName = "arcgis-legend";
+        break;
+      case "basemap":
+        await import("@arcgis/map-components/components/arcgis-basemap-gallery");
+        tagName = "arcgis-basemap-gallery";
+        break;
+      case "distance":
+        await import("@arcgis/map-components/components/arcgis-direct-line-measurement-3d");
+        tagName = "arcgis-direct-line-measurement-3d";
+        break;
+      case "area":
+        await import("@arcgis/map-components/components/arcgis-area-measurement-3d");
+        tagName = "arcgis-area-measurement-3d";
+        break;
+      case "daylight":
+        await import("@arcgis/map-components/components/arcgis-daylight");
+        tagName = "arcgis-daylight";
+        break;
+      case "slice":
+        await import("@arcgis/map-components/components/arcgis-slice");
+        tagName = "arcgis-slice";
+        break;
+      case "lineOfSight":
+        await import("@arcgis/map-components/components/arcgis-line-of-sight");
+        tagName = "arcgis-line-of-sight";
+        break;
+      case "elevation":
+        await import("@arcgis/map-components/components/arcgis-elevation-profile");
+        tagName = "arcgis-elevation-profile";
+        break;
+    }
 
-    const definition = definitions[tool];
-    await import(/* @vite-ignore */ definition.module);
     if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
-
-    const component = this.createConnectedComponent(definition.tag);
+    const component = this.createConnectedComponent(tagName);
     if (tool === "elevation") component.profiles = [{ type: "ground" }];
     component.classList.add("arcgis-tool-component");
     container.append(component);
