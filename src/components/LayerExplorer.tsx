@@ -1,7 +1,8 @@
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
-import type { ServiceDefinition, ServiceKind } from "../types";
+import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
+import type { ServiceAvailability, ServiceDefinition, ServiceKind } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -28,6 +29,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
   const [kind, setKind] = useState<ServiceKind | "all">("all");
   const [activeOnly, setActiveOnly] = useState(false);
   const [favoriteOnly, setFavoriteOnly] = useState(false);
+  const [availability, setAvailability] = useState<ServiceAvailability | "all">("all");
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -36,8 +38,9 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
     if (kind !== "all" && service.kind !== kind) return false;
     if (activeOnly && !service.visible) return false;
     if (favoriteOnly && !service.favorite) return false;
+    if (availability !== "all" && service.availability !== availability) return false;
     return serviceMatches(service, deferredQuery);
-  }), [services, kind, activeOnly, favoriteOnly, deferredQuery]);
+  }), [services, kind, activeOnly, favoriteOnly, availability, deferredQuery]);
 
   const groups = useMemo(() => {
     const map = new Map<string, ServiceDefinition[]>();
@@ -57,7 +60,11 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
     ready: services.filter((service) => service.status === "ready").length,
     loading: services.filter((service) => service.status === "loading").length,
     error: services.filter((service) => service.status === "error").length,
-    favorite: services.filter((service) => service.favorite).length
+    favorite: services.filter((service) => service.favorite).length,
+    verified: services.filter((service) => service.availability === "verified").length,
+    degraded: services.filter((service) => service.availability === "degraded").length,
+    unavailable: services.filter((service) => service.availability === "unavailable").length,
+    cooling: services.filter((service) => isServiceCoolingDown(service)).length
   }), [services]);
 
   const deactivateVisible = async () => {
@@ -93,10 +100,11 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
         <div className="metric-badge"><strong>{metrics.active}</strong><span>aktif</span></div>
       </div>
 
-      <div className="catalog-overview" aria-label="Katalog özeti">
+      <div className="catalog-overview catalog-overview-v9" aria-label="Katalog özeti">
         <div className="catalog-stat is-active"><strong>{metrics.active}</strong><span>Aktif</span></div>
-        <div className="catalog-stat is-ready"><strong>{metrics.ready}</strong><span>Hazır</span></div>
-        <div className={`catalog-stat ${metrics.error ? "is-error" : ""}`}><strong>{metrics.error}</strong><span>Hata</span></div>
+        <div className="catalog-stat is-ready"><strong>{metrics.verified}</strong><span>Doğrulandı</span></div>
+        <div className={`catalog-stat ${metrics.degraded ? "is-warn" : ""}`}><strong>{metrics.degraded}</strong><span>Kısıtlı</span></div>
+        <div className={`catalog-stat ${metrics.unavailable ? "is-error" : ""}`}><strong>{metrics.unavailable}</strong><span>Ulaşılamıyor</span></div>
         <div className="catalog-stat"><strong>{services.length}</strong><span>Servis</span></div>
       </div>
 
@@ -121,9 +129,29 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
         ))}
       </div>
 
+      <div className="availability-filter" role="group" aria-label="Doğrulama durumu filtresi">
+        {([
+          ["all", "Tüm durumlar"],
+          ["verified", "Doğrulandı"],
+          ["degraded", "Kısıtlı"],
+          ["unavailable", "Ulaşılamıyor"],
+          ["unknown", "Doğrulanmadı"]
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={`availability-chip availability-${value} ${availability === value ? "is-active" : ""}`}
+            onClick={() => setAvailability(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="toggle-filters">
         <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> <span>Sadece aktif</span></label>
         <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> <span>Favoriler</span></label>
+        {metrics.cooling > 0 && <span className="filter-circuit-count">{metrics.cooling} devre kesici</span>}
         <span className="filter-result-count">{filtered.length} / {services.length}</span>
       </div>
 
@@ -149,7 +177,12 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
               </button>
 
               {!collapsed && items.map((service) => (
-                <article key={service.id} className={`layer-card ${service.visible ? "is-active" : ""} status-${service.status}`} data-kind={service.kind}>
+                <article
+                  key={service.id}
+                  className={`layer-card ${service.visible ? "is-active" : ""} status-${service.status} availability-${service.availability}`}
+                  data-kind={service.kind}
+                  data-availability={service.availability}
+                >
                   <div className="layer-card-main">
                     <button
                       type="button"
@@ -168,6 +201,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                         <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{service.kind === "SceneServer" ? "3B SCENE" : service.kind}</span>
                         <span className={`status-dot status-${service.status}`} />
                         <span>{statusLabel(service)}</span>
+                        <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
                         {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
                       </div>
                     </div>
@@ -200,9 +234,14 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                       <dl>
                         <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
                         <div><dt>Servis</dt><dd>{hostLabel(service.url)}</dd></div>
-                        <div><dt>Durum</dt><dd>{service.error ?? statusLabel(service)}</dd></div>
+                        <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service)}</dd></div>
+                        <div><dt>Doğrulama</dt><dd>{availabilityLabel(service)}</dd></div>
+                        <div><dt>Erişim profili</dt><dd>{accessLabel(service)}</dd></div>
+                        <div><dt>Doğrulama notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
+                        <div><dt>Doğrulama zamanı</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                        <div><dt>Devre kesici</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Açık"}</dd></div>
                         <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
-                        <div><dt>Son ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                        <div><dt>Son canlı ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
                       </dl>
                     </div>
                   )}
@@ -219,6 +258,16 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
 function statusLabel(service: ServiceDefinition): string {
   if (service.status === "loading") return "Bağlanıyor";
   if (service.status === "ready") return "Hazır";
-  if (service.status === "error") return "Hata";
+  if (service.status === "error") {
+    const remaining = cooldownRemaining(service);
+    return remaining ? `Beklemede · ${remaining}` : "Hata";
+  }
   return service.visible ? "Bekliyor" : "Kapalı";
+}
+
+function accessLabel(service: ServiceDefinition): string {
+  if (service.access === "public-browser") return "Tarayıcıdan doğrulandı";
+  if (service.access === "network-restricted") return "Ağ / kurum erişimi gerekebilir";
+  if (service.access === "server-error") return "Sunucu protokol hatası";
+  return "Bilinmiyor";
 }
