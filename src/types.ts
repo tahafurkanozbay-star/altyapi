@@ -2,7 +2,7 @@ export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "Scene
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
-export type PanelId = "layers" | "data" | "health" | "bookmarks" | "diagnostics" | "help" | null;
+export type PanelId = "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
