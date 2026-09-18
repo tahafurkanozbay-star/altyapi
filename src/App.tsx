@@ -6,6 +6,7 @@ import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import type {
   AppPreferences,
+  AttributeTableResult,
   Bookmark,
   CameraState,
   IdentifyResult,
@@ -169,7 +170,12 @@ export default function App() {
           if (cancelled) return;
           patchService(service.id, { status: "loading" });
           const result = await runtime.setLayerVisible(service, true);
-          patchService(service.id, result.ok ? { status: "ready", visible: true } : { status: "error", visible: false, error: result.error });
+          patchService(
+            service.id,
+            result.ok
+              ? { status: "ready", visible: true, latencyMs: result.durationMs, lastLoadedAt: new Date().toISOString(), error: undefined }
+              : { status: "error", visible: false, latencyMs: result.durationMs, lastLoadedAt: new Date().toISOString(), error: result.error }
+          );
         });
         if (cancelled) return;
         persistLayerPreferences(servicesRef.current);
@@ -217,10 +223,21 @@ export default function App() {
 
     const result = await runtime.setLayerVisible({ ...service, visible }, visible);
     if (!result.ok) {
-      patchService(service.id, { visible: false, status: "error", error: result.error });
+      patchService(service.id, {
+        visible: false,
+        status: "error",
+        error: result.error,
+        latencyMs: result.durationMs,
+        lastLoadedAt: new Date().toISOString()
+      });
       pushToast(`${service.displayName}: ${result.error ?? "Servis yüklenemedi."}`, "error");
     } else {
-      patchService(service.id, { visible, status: visible ? "ready" : service.status === "error" ? "error" : service.status, error: undefined });
+      patchService(service.id, {
+        visible,
+        status: visible ? "ready" : service.status === "error" ? "error" : service.status,
+        error: undefined,
+        ...(visible ? { latencyMs: result.durationMs, lastLoadedAt: new Date().toISOString() } : {})
+      });
     }
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, visible: result.ok ? visible : false } : item);
     servicesRef.current = next;
@@ -253,7 +270,10 @@ export default function App() {
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
     const result = await runtime.reloadLayer({ ...service, visible: true });
-    const patch = result.ok ? { visible: true, status: "ready" as const, error: undefined } : { visible: false, status: "error" as const, error: result.error };
+    const measuredAt = new Date().toISOString();
+    const patch = result.ok
+      ? { visible: true, status: "ready" as const, error: undefined, latencyMs: result.durationMs, lastLoadedAt: measuredAt }
+      : { visible: false, status: "error" as const, error: result.error, latencyMs: result.durationMs, lastLoadedAt: measuredAt };
     patchService(service.id, patch);
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
@@ -265,6 +285,12 @@ export default function App() {
     const errors = servicesRef.current.filter((service) => service.status === "error");
     await mapWithConcurrency(errors, 2, retryLayer);
   }, [retryLayer]);
+
+  const queryAttributes = useCallback(async (service: ServiceDefinition, limit: number): Promise<AttributeTableResult> => {
+    const runtime = runtimeRef.current;
+    if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
+    return runtime.queryAttributes(service, limit);
+  }, []);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
     setPanel((current) => current === nextPanel ? null : nextPanel);
@@ -383,6 +409,7 @@ export default function App() {
       if (typing) return;
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
       if (event.key.toLowerCase() === "l") selectPanel("layers");
+      if (event.key.toLowerCase() === "d") selectPanel("data");
       if (event.key.toLowerCase() === "f") {
         void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
       }
@@ -451,6 +478,7 @@ export default function App() {
             onAddBookmark={addBookmark}
             onGoBookmark={(bookmark) => void goBookmark(bookmark)}
             onDeleteBookmark={deleteBookmark}
+            onQueryAttributes={queryAttributes}
           />
         )}
       </div>
