@@ -170,18 +170,19 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v5 · Native ESM Platform</h3>
-        <p>React + TypeScript + Vite + yerel @arcgis/core ESM tabanlı; CDN global bağımlılığını kaldıran, servis sağlığını ve 3B analiz araçlarını tek operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v6 · Data Operations Platform</h3>
+        <p>Native @arcgis/core ESM, tip güvenli servis telemetrisi ve öznitelik veri atölyesini tek profesyonel 3B operasyon yüzeyinde birleştiren Ankara CBS istemcisi.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
         <Shortcut keyName="L" label="Katman paneli" />
+        <Shortcut keyName="D" label="Veri atölyesi" />
         <Shortcut keyName="H" label="Başlangıç görünümü" />
         <Shortcut keyName="F" label="Tam ekran" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
-      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
+      <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, öznitelik tablosu, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
