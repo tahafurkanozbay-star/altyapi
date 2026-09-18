@@ -1,14 +1,14 @@
 {
   "name": "Başkent 3B CBS Operasyon Platformu",
   "short_name": "Başkent 3B CBS",
-  "description": "3B altyapı / üstyapı koordinasyon, öznitelik veri atölyesi ve servis telemetrisi platformu",
+  "description": "Göz konforuna odaklı beyaz arayüzlü 3B altyapı / üstyapı koordinasyon, öznitelik veri atölyesi ve servis telemetrisi platformu",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#071523",
-  "theme_color": "#0877dd",
+  "background_color": "#f4f7f9",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "./favicon.svg",

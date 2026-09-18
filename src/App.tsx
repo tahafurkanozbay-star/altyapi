@@ -14,7 +14,6 @@ import type {
   PerformanceProfile,
   SceneTelemetry,
   ServiceDefinition,
-  ThemeMode,
   ToolId
 } from "./types";
 import { LayerExplorer } from "./components/LayerExplorer";
@@ -50,6 +49,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [focusMode, setFocusMode] = useState(false);
 
   const effectivePerformance: PerformanceProfile = preferences.performance === "auto" ? detectPerformanceProfile() : preferences.performance;
   const initialPerformanceRef = useRef(effectivePerformance);
@@ -88,15 +88,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const mode = preferences.theme === "system" ? (media.matches ? "dark" : "light") : preferences.theme;
-      document.documentElement.dataset.theme = mode;
-    };
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [preferences.theme]);
+    document.documentElement.dataset.theme = "light";
+  }, []);
 
   useEffect(() => {
     const onOnline = () => {
@@ -310,14 +303,6 @@ export default function App() {
     });
   }, []);
 
-  const changeTheme = useCallback((theme: ThemeMode) => {
-    setPreferences((current) => {
-      const next = { ...current, theme };
-      savePreferences(next);
-      return next;
-    });
-  }, []);
-
   const changePerformance = useCallback((performance: PerformanceProfile | "auto") => {
     setPreferences((current) => {
       const next = { ...current, performance };
@@ -410,6 +395,7 @@ export default function App() {
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
       if (event.key.toLowerCase() === "l") selectPanel("layers");
       if (event.key.toLowerCase() === "d") selectPanel("data");
+      if (event.key.toLowerCase() === "m") setFocusMode((value) => !value);
       if (event.key.toLowerCase() === "f") {
         void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
       }
@@ -423,7 +409,7 @@ export default function App() {
   }, [activeTool, panel, pushToast, selectPanel]);
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${focusMode ? "is-focus-mode" : ""}`}>
       <div ref={mapRef} className="map-view" aria-label="3B harita" />
       <div className="map-vignette" aria-hidden="true" />
 
@@ -442,7 +428,7 @@ export default function App() {
           <select className="compact-select performance-select" value={preferences.performance} onChange={(event) => changePerformance(event.target.value as PerformanceProfile | "auto")} aria-label="Performans profili">
             <option value="auto">Otomatik GPU</option><option value="high">Yüksek</option><option value="balanced">Dengeli</option><option value="eco">Eco</option>
           </select>
-          <button type="button" className="top-icon-button" onClick={() => changeTheme(preferences.theme === "dark" ? "light" : "dark")} title="Tema"><Icon name="theme" /></button>
+          <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Harita odak modu" aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
           <button type="button" className="top-icon-button" onClick={() => setCommandOpen(true)} title="Komut paleti"><Icon name="command" /><kbd>⌘K</kbd></button>
           <button type="button" className="primary-button share-button" onClick={() => void shareView()}><Icon name="share" /> Paylaş</button>
         </div>

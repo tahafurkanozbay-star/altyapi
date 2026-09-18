@@ -1,39 +1,41 @@
-# Başkent 3B CBS · Data Operations Platform v6
+# Başkent 3B CBS · Comfort White Operations Platform v7
 
-Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini tek bir modern 3B çalışma alanında yönetir.
+Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
 
-## v6 platform yaklaşımı
+## v7: Comfort White + ArcGIS Web Components
 
-v6, v5'te tamamlanan native ESM dönüşümünün üzerine veri operasyonu ve gözlemlenebilirlik katmanı ekler. Amaç yalnızca haritayı göstermek değil; servislerin davranışını ölçmek, sorgulanabilir katmanların özniteliklerini incelemek ve operasyon ekibine güvenli bir veri çalışma yüzeyi sağlamaktır.
+v7 iki büyük hedefi birlikte ele alır: **daha sakin, beyaz ve kurumsal bir görsel dil** ile **ArcGIS 5.1'in güncel component-first mimarisine geçiş**.
 
-- ArcGIS çalışma zamanı npm üzerinden **native ESM `@arcgis/core`**
-- strict TypeScript 7 ve gerçek ArcGIS SDK tipleri
-- servis türüne göre lazy-loaded layer modülleri
-- analiz araçlarında dinamik import ve daha düşük başlangıç maliyeti
-- FeatureServer / SceneServer için **Öznitelik Veri Atölyesi**
-- kayıt limiti, istemci tarafı arama, sütun seçimi ve UTF-8 CSV dışa aktarma
-- servis açılış süresi telemetrisi, ortalama ve P95 ölçümleri
-- katman kartlarında son ölçüm ve gecikme görünürlüğü
-- WebGL2 / CPU / bellek / ağ / DPR / secure-context tanılama merkezi
-- güvenli, token içermeyen yerel tanılama raporu
-- gelişmiş service worker yaşam döngüsü ve same-origin shell cache
-- Node 22 + Node 24 kalite matrisi, CodeQL ve GitHub Pages dağıtımı
+- varsayılan ve kalıcı **Comfort White** arayüz
+- düşük kontrastlı gölgeler, daha geniş boşluklar ve daha okunaklı tipografi
+- açık renkli ArcGIS core teması ve Calcite uyumlu beyaz Web Component yüzeyleri
+- eski kullanıcı tercihlerinde kayıtlı koyu tema için v4 preference migration
+- `M` kısayoluyla harita odak modu
+- React 19.3 custom-element desteğiyle `@arcgis/map-components` doğrudan kullanımı
+- deprecated ArcGIS Widget sınıfları yerine Search, Home, Compass, Locate, Fullscreen ve 3B analiz araçlarında **Web Components**
+- native ESM `@arcgis/core` katman/runtime mimarisi korunur
+- FeatureServer / SceneServer için Öznitelik Veri Atölyesi
+- servis açılış süresi, ortalama ve P95 gecikme telemetrisi
+- WebGL2 / cihaz / ağ / DPR / secure-context tanılama
+- Node 22 + Node 24 CI, Vitest, CodeQL ve GitHub Pages
 
-## Teknoloji
+## Güncel teknoloji
 
 - **React 19.3**
-- **TypeScript 7.0**
+- **TypeScript 7.0.2**
 - **Vite 8.3**
-- **Vitest 5**
-- **ArcGIS Maps SDK for JavaScript 5.1 / `@arcgis/core` ESM**
+- **Vitest 5.0.1**
+- **ArcGIS Maps SDK for JavaScript 5.1.24**
+- **@arcgis/map-components 5.1.24**
+- **Calcite Components 5.1.2**
 - GitHub Actions — CI, CodeQL ve GitHub Pages
-- PWA/service-worker altyapısı
+- same-origin PWA / service worker
 
-Tarayıcı uygulamasının ana dili bilinçli olarak TypeScript'tir. Projeyi sırf farklı olsun diye daha zayıf bir dile taşımak yerine, TypeScript tarafı gerçek ArcGIS SDK kontratlarıyla sıkılaştırılmıştır. Bu yaklaşım; IDE desteği, refactor güvenliği, tree-shaking, modül bölme ve runtime hata yüzeyini azaltma açısından bu proje için daha uygundur.
+Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile sırf değişiklik olsun diye taşımak; ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. v7'de yapılan gerçek dil/mimari modernizasyonu, dinamik/deprecated Widget API katmanını standart tabanlı Web Components + strict TypeScript kontratlarına taşımaktır.
 
 ## Yerel geliştirme
 
-Bu proje düz HTML uygulaması değildir. VS Code **Live Server** proje kökündeki `.tsx` kaynaklarını derlemez.
+Bu proje düz HTML sitesi değildir. VS Code Live Server proje kökündeki `.tsx` kaynaklarını derleyemez.
 
 ```bash
 npm install
@@ -46,14 +48,14 @@ Tarayıcı:
 http://127.0.0.1:4173/
 ```
 
-Üretim önizlemesi:
+Production önizleme:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-Live Server kullanmak zorundaysanız önce `npm run build` çalıştırın ve yalnızca `dist/` klasörünü servis edin.
+Live Server zorunluysa önce `npm run build` çalıştırın ve yalnız `dist/` klasörünü servis edin.
 
 ## Kalite kapısı
 
@@ -61,84 +63,88 @@ Live Server kullanmak zorundaysanız önce `npm run build` çalıştırın ve ya
 npm run check
 ```
 
-Bu komut:
+Bu komut sırasıyla servis kataloğu doğrulaması, strict TypeScript, Vitest regresyon testleri, production build ve `dist/` smoke doğrulamasını çalıştırır.
 
-1. servis kataloğu şema / HTTPS / tekrar doğrulaması
-2. strict TypeScript derleme kontrolü
-3. Vitest regresyon testleri
-4. production build
-5. `dist/` smoke doğrulaması
+## 3B operasyon yetenekleri
 
-çalıştırır.
-
-## Operasyon özellikleri
-
-### 3B sahne
-
-- Ankara merkezli SceneView
-- dünya yükseklik modeli
-- high / balanced / eco cihaz profilleri
+- Ankara merkezli SceneView + world elevation
+- adaptive high / balanced / eco kalite profilleri
 - FeatureServer, SceneServer, MapServer, WMS ve WFS adaptörleri
 - katman arama, kurum gruplama, servis türü filtresi ve favoriler
-- görünürlük, saydamlık, yakınlaşma ve yeniden bağlanma
-- Home, pusula, konum ve tam ekran
-- kamera + katman + altlık durumunu URL ile paylaşma
-- kamera ve aktif katmanları birlikte saklayan yer imleri
-- PNG harita ekran görüntüsü
+- görünürlük, saydamlık, zoom, retry
+- Search / Home / Compass / Locate / Fullscreen ArcGIS Web Components
+- kamera + katman + altlık paylaşım URL'si
+- kamera ve aktif katmanları saklayan yer imleri
+- PNG ekran görüntüsü
+- **M: harita odak modu**
 
-### Öznitelik Veri Atölyesi
+## Öznitelik Veri Atölyesi
 
-FeatureServer ve SceneServer katmanları salt-okunur olarak sorgulanabilir.
+FeatureServer ve SceneServer katmanları salt-okunur sorgulanabilir.
 
 - 50 / 100 / 250 / 500 kayıt limiti
-- geometri indirmeden düşük maliyetli öznitelik sorgusu
-- servis alan adları ve alias bilgileri
+- geometri indirmeden öznitelik sorgusu
+- alan alias bilgileri
 - sütun görünürlüğü seçimi
-- yüklenen kayıtlarda gecikmesiz istemci tarafı arama
+- istemci tarafı arama
 - Türkçe sayı / boolean gösterimi
-- UTF-8 BOM içeren CSV dışa aktarma
-- toplam kayıt ile yüklenen kayıt farkını gösteren örnekleme uyarısı
+- UTF-8 BOM CSV dışa aktarma
+- toplam/yüklenen kayıt farkı uyarısı
 
-Bu çalışma alanı veri düzenlemez ve sunucuya yazma işlemi yapmaz.
+Veri atölyesi sunucuya yazma veya edit işlemi yapmaz.
 
-### 3B analiz
+## 3B analiz araçları
 
-- 3B mesafe
-- 3B alan
+v7 ile bu yüzeyler deprecated Widget sınıflarından ArcGIS Web Components'e taşınır:
+
+- Legend
+- Basemap Gallery
+- Direct Line Measurement 3D
+- Area Measurement 3D
 - Daylight
 - Slice
 - Line of Sight
 - Elevation Profile
-- Legend
-- Basemap Gallery
 
-Araç modülleri ihtiyaç halinde dinamik olarak yüklenir.
+Bileşenler ihtiyaç halinde lazy import edilir.
 
-### Servis sağlığı
+## Servis gözlemlenebilirliği
 
-Katman yükleme işlemleri gerçek runtime sonucundan telemetri üretir.
-
-- hazır / yükleniyor / hata / beklemede
+- ready / loading / error / idle durumu
 - katman açılış süresi
-- ortalama servis gecikmesi
-- P95 servis gecikmesi
-- en yavaş servislerin görünümü
-- son başarılı / başarısız ölçüm zamanı
-- hatalı servisleri toplu yeniden deneme
+- ortalama latency
+- P95 latency
+- en yavaş servislerin listesi
+- son ölçüm zamanı
+- toplu retry
 
-### Sistem tanılama
+## Sistem tanılama
 
 - WebGL2
-- CPU logical core sayısı
-- tahmini cihaz belleği
-- device pixel ratio
-- bağlantı tipi ve veri tasarrufu
+- CPU logical core
+- tahmini bellek
+- DPR
+- bağlantı tipi / save-data
 - color gamut
-- secure-context durumu
+- secure-context
 - performans skoru
-- güvenli JSON tanılama raporu
+- URL/token içermeyen JSON tanılama raporu
 
-Tanılama raporu servis URL/token değerlerini içermez.
+## Comfort White tasarım ilkeleri
+
+- saf beyaz yerine çok hafif gri çalışma tuvali
+- solid beyaz kart/panel yüzeyleri
+- düşük alfa gölgeleri
+- açık gri sınırlar
+- mavi vurgu yalnız aktif/etkileşimli öğelerde
+- 8–11 px eski yoğun yardımcı metinlerin kritik bölümlerinde daha okunaklı ölçek
+- yüksek kontrast talebi için `prefers-contrast: more`
+- animasyon hassasiyeti için `prefers-reduced-motion`
+- focus-visible klavye halkaları
+- mobilde solid white yüzeyler
+- ArcGIS / Calcite bileşenlerinde aynı açık renk tokenları
+
+Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 
 ## Kısayollar
 
@@ -146,55 +152,20 @@ Tanılama raporu servis URL/token değerlerini içermez.
 - `L` — katman kataloğu
 - `D` — veri atölyesi
 - `H` — Ankara başlangıç görünümü
+- `M` — harita odak modu
 - `F` — tam ekran
-- `Esc` — açık araç veya paneli kapat
+- `Esc` — açık araç/paneli kapat
 
 ## Güvenlik
 
-Public istemci bundle'ına gerçek gizli token eklenmez. Token gerektiren WMS/WFS servisleri için sunucu tarafı same-origin proxy / token broker kullanılmalıdır. Servis kimlikleri URL query-string ve token değerlerini DOM, localStorage veya paylaşım bağlantılarına taşımayacak şekilde türetilir.
-
-Öznitelik veri atölyesi de yalnızca katalogda istemciye açılmış servisleri kullanır; kimlik bilgisi veya gizli token üretmez.
-
-Ayrıntılar:
+Public bundle içine gizli token eklenmez. Token gerektiren WMS/WFS servisleri için sunucu tarafı same-origin proxy / token broker kullanılmalıdır. Öznitelik veri atölyesi de yalnız istemciye açık katalog servislerini kullanır.
 
 - [SECURITY.md](SECURITY.md)
 - [docs/SECURE_SERVICES.md](docs/SECURE_SERVICES.md)
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
-## Mimari
-
-```text
-src/
-  components/
-    DataWorkbench.tsx     salt-okunur öznitelik çalışma alanı
-    LayerExplorer.tsx     servis kataloğu
-    OperationsPanel.tsx   sağlık / veri / tanılama / yer imi panelleri
-  gis/
-    ArcGISRuntime.ts      SceneView, sorgu ve operasyon runtime
-    layerFactory.ts       lazy ArcGIS / OGC layer adaptörleri
-  lib/
-    attributeTable.ts     tablo, CSV ve filtre yardımcıları
-    serviceMetrics.ts     servis sağlık ve latency ölçümleri
-    catalog.ts
-    performance.ts
-    storage.ts
-    urlState.ts
-  platform/
-    capabilities.ts       cihaz ve tarayıcı tanılama
-  styles/
-    app.css               responsive command-center tasarım sistemi
-tests/
-  attributeTable.test.ts
-  serviceMetrics.test.ts
-  layerFactory.test.ts
-  catalog.test.ts
-  performance.test.ts
-  storage.test.ts
-  urlState.test.ts
-```
-
 ## Sürüm
 
-Current application version: **6.0.0**
+Current application version: **7.0.0**
 
-MIT lisansı. Harita ve veri servislerinin kendi lisans ve kullanım koşulları ayrıca geçerlidir.
+MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
