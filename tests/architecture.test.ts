@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v7 architecture guardrails", () => {
+describe("v8 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -18,5 +18,15 @@ describe("v7 architecture guardrails", () => {
     expect(entry).toContain('./styles/comfort-white.css');
     expect(storage).toContain('theme: "light"');
     expect(comfort).toContain("--comfort-white: #ffffff");
+  });
+
+  it("ships the query studio and workspace portability layers", async () => {
+    const query = await readFile("src/lib/attributeQuery.ts", "utf8");
+    const workspace = await readFile("src/lib/workspace.ts", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+
+    expect(query).toContain("buildWhereClause");
+    expect(workspace).toContain("parseWorkspaceSnapshot");
+    expect(app).toContain("ViewTransition");
   });
 });

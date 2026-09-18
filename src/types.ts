@@ -2,7 +2,7 @@ export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "Scene
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
-export type PanelId = "layers" | "data" | "health" | "bookmarks" | "diagnostics" | "help" | null;
+export type PanelId = "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
@@ -106,6 +106,31 @@ export interface AttributeField {
   type?: string;
 }
 
+export type AttributeFilterOperator =
+  | "equals"
+  | "notEquals"
+  | "contains"
+  | "startsWith"
+  | "greaterThan"
+  | "greaterThanOrEqual"
+  | "lessThan"
+  | "lessThanOrEqual"
+  | "isNull"
+  | "isNotNull";
+
+export interface AttributeFilter {
+  field: string;
+  operator: AttributeFilterOperator;
+  value?: string;
+}
+
+export interface AttributeQueryOptions {
+  limit: number;
+  offset: number;
+  filter?: AttributeFilter;
+  orderBy?: { field: string; direction: "asc" | "desc" };
+}
+
 export interface AttributeTableResult {
   serviceId: string;
   serviceName: string;
@@ -115,6 +140,12 @@ export interface AttributeTableResult {
   truncated: boolean;
   objectIdField?: string;
   fetchedAt: string;
+  offset: number;
+  limit: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  where: string;
+  orderBy?: string;
 }
 
 export interface ServiceHealthSummary {
@@ -125,4 +156,18 @@ export interface ServiceHealthSummary {
   active: number;
   averageLatencyMs?: number;
   p95LatencyMs?: number;
+}
+
+
+export interface WorkspaceSnapshot {
+  schemaVersion: 1;
+  application: "Başkent 3B CBS";
+  applicationVersion: string;
+  exportedAt: string;
+  camera: CameraState;
+  basemap: string;
+  layerVisibility: Record<string, boolean>;
+  layerOpacity: Record<string, number>;
+  favorites: string[];
+  bookmarks: Bookmark[];
 }
