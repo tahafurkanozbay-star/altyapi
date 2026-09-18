@@ -3,7 +3,7 @@ import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import "@arcgis/core/assets/esri/themes/dark/main.css";
 import "./styles/app.css";
-import "./styles/v3.css";
+import "./styles/runtime.css";
 
 declare global {
   interface Window {
