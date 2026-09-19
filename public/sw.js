@@ -1,4 +1,4 @@
-const CACHE = "altyapi-shell-v8";
+const CACHE = "altyapi-shell-v9";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -29,7 +29,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.endsWith("services.json") || url.pathname.endsWith("health.html") || url.pathname.endsWith(".map")) return;
+  if (url.pathname.endsWith("services.json") || url.pathname.endsWith("service-health.json") || url.pathname.endsWith("health.html") || url.pathname.endsWith(".map")) return;
 
   if (request.mode === "navigate" || request.destination === "document") {
     event.respondWith(networkFirst(request));
