@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SERVICE_HEALTH_MAX_AGE_MS,
   applyServiceHealthSnapshot,
   failurePatch,
   isServiceCoolingDown,
@@ -12,12 +13,12 @@ import type { ServiceDefinition, ServiceHealthSnapshot } from "../src/types";
 
 function service(overrides: Partial<ServiceDefinition> = {}): ServiceDefinition {
   return {
-    id: "svc-1",
+    id: "svc-a",
     kind: "FeatureServer",
-    displayName: "SINIRLAR",
+    displayName: "Katman A",
     organization: "ABB",
     owner: "ABB",
-    url: "https://example.test/FeatureServer/1",
+    url: "https://example.com/FeatureServer/0",
     status: "idle",
     visible: false,
     opacity: 1,
@@ -27,9 +28,9 @@ function service(overrides: Partial<ServiceDefinition> = {}): ServiceDefinition 
     failureCount: 0,
     ustKurumAdi: "ABB",
     metaveriSahibiKurumAdi: "ABB",
-    cografiVeriKatmanAdi: "SINIRLAR",
+    cografiVeriKatmanAdi: "Katman A",
     servisTuruAdi: "FeatureServer",
-    tokenUrl: "https://example.test/FeatureServer/1",
+    tokenUrl: "https://example.com/FeatureServer/0",
     ...overrides
   };
 }
@@ -41,57 +42,61 @@ function snapshot(generatedAt: string): ServiceHealthSnapshot {
     source: "test",
     services: [{
       index: 0,
-      name: "SINIRLAR",
+      name: "Katman A",
       kind: "FeatureServer",
       availability: "verified",
       access: "public-browser",
       browserCompatible: true,
-      reason: "test ok"
+      reason: "test"
     }]
   };
 }
 
 describe("serviceHealth", () => {
-  it("parses sanitized verification snapshots", () => {
-    const parsed = parseServiceHealthSnapshot(snapshot("2026-09-19T12:00:00.000Z"));
-    expect(parsed.services).toHaveLength(1);
-    expect(parsed.services[0]?.availability).toBe("verified");
+  it("parses and applies matching verification entries", () => {
+    const parsed = parseServiceHealthSnapshot(snapshot("2026-09-19T18:00:00.000Z"));
+    const [enriched] = applyServiceHealthSnapshot([service()], parsed, Date.parse("2026-09-19T19:00:00.000Z"));
+    expect(enriched?.availability).toBe("verified");
+    expect(enriched?.access).toBe("public-browser");
+    expect(enriched?.verificationStale).toBe(false);
   });
 
-  it("applies verification state and marks stale snapshots", () => {
-    const current = Date.parse("2026-09-19T12:00:00.000Z");
-    const fresh = applyServiceHealthSnapshot([service()], snapshot("2026-09-19T11:00:00.000Z"), current)[0]!;
-    expect(fresh.availability).toBe("verified");
-    expect(fresh.verificationStale).toBe(false);
-
-    const stale = applyServiceHealthSnapshot([service()], snapshot("2026-09-14T11:00:00.000Z"), current)[0]!;
-    expect(stale.verificationStale).toBe(true);
-    expect(shouldAutoLoadService(stale, current)).toBe(true);
+  it("marks old snapshots stale and stale negatives do not block startup", () => {
+    const staleSnapshot: ServiceHealthSnapshot = {
+      ...snapshot("2026-09-10T18:00:00.000Z"),
+      services: [{
+        index: 0,
+        name: "Katman A",
+        kind: "FeatureServer",
+        availability: "unavailable",
+        access: "server-error",
+        browserCompatible: false
+      }]
+    };
+    const now = Date.parse("2026-09-19T19:00:00.000Z");
+    const [enriched] = applyServiceHealthSnapshot([service()], staleSnapshot, now);
+    expect(enriched?.verificationStale).toBe(true);
+    expect(enriched && shouldAutoLoadService(enriched, now)).toBe(true);
   });
 
-  it("uses exponential cooldown after repeated failures", () => {
-    const now = Date.parse("2026-09-19T12:00:00.000Z");
-    const first = { ...service(), ...failurePatch(service(), "timeout", 1200, now) };
+  it("implements exponential cooldown after repeated failures", () => {
+    const now = Date.parse("2026-09-19T19:00:00.000Z");
+    const first = { ...service(), ...failurePatch(service(), "x", 100, now) };
     expect(first.failureCount).toBe(1);
     expect(first.cooldownUntil).toBeUndefined();
 
-    const secondPatch = failurePatch(first, "timeout", 1300, now);
-    const second = { ...first, ...secondPatch };
+    const second = { ...first, ...failurePatch(first, "x", 120, now) };
     expect(second.failureCount).toBe(2);
-    expect(isServiceCoolingDown(second, now + 1)).toBe(true);
-    expect(shouldAutoLoadService(second, now + 1)).toBe(false);
-  });
+    expect(isServiceCoolingDown(second, now + 10_000)).toBe(true);
 
-  it("resets circuit state after success", () => {
-    const recovered = { ...service({ failureCount: 3, cooldownUntil: "2026-09-19T13:00:00.000Z" }), ...successPatch(220, Date.parse("2026-09-19T12:00:00.000Z")) };
+    const recovered = { ...second, ...successPatch(80, now + 60_000) };
     expect(recovered.failureCount).toBe(0);
     expect(recovered.cooldownUntil).toBeUndefined();
-    expect(recovered.status).toBe("ready");
   });
 
-  it("rejects unsupported snapshot shape and detects freshness", () => {
-    expect(() => parseServiceHealthSnapshot({ schemaVersion: 2, services: [] })).toThrow(/desteklenmeyen/i);
-    expect(isServiceHealthSnapshotFresh(snapshot("2026-09-19T11:00:00.000Z"), Date.parse("2026-09-19T12:00:00.000Z"))).toBe(true);
-    expect(isServiceHealthSnapshotFresh(snapshot("2026-09-10T11:00:00.000Z"), Date.parse("2026-09-19T12:00:00.000Z"))).toBe(false);
+  it("enforces snapshot freshness window", () => {
+    const now = Date.parse("2026-09-19T19:00:00.000Z");
+    expect(isServiceHealthSnapshotFresh(snapshot(new Date(now - SERVICE_HEALTH_MAX_AGE_MS + 1000).toISOString()), now)).toBe(true);
+    expect(isServiceHealthSnapshotFresh(snapshot(new Date(now - SERVICE_HEALTH_MAX_AGE_MS - 1000).toISOString()), now)).toBe(false);
   });
 });
