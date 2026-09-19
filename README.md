@@ -161,7 +161,7 @@ Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 
 ## Güvenlik
 
-Public bundle içine gizli token eklenmez. Token gerektiren WMS/WFS servisleri için sunucu tarafı same-origin proxy / token broker kullanılmalıdır. Öznitelik veri atölyesi de yalnız istemciye açık katalog servislerini kullanır.
+Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/services.json` içindeki her değer tarayıcıya ve repo okuyucularına görünür kabul edilmelidir. Gizli/yenilenebilir kimlik bilgileri burada tutulmamalı; gerçek secret gerekiyorsa same-origin sunucu proxy / token broker kullanılmalıdır. Health snapshot ve tanılama raporları endpoint/token değerlerini tekrar etmez.
 
 - [SECURITY.md](SECURITY.md)
 - [docs/SECURE_SERVICES.md](docs/SECURE_SERVICES.md)
@@ -184,3 +184,5 @@ npm run validate:health
 ```
 
 Probe çıktısı yalnız servis adı/türü ve sanitizasyonlu durum bilgisi yazar; endpoint URL'lerini health snapshot'a kopyalamaz. Dış ağ koşulları nedeniyle ölçümler zamana ve çalıştırıldığı ağa göre değişebilir.
+
+GitHub Pages workflow'u her production deploy öncesinde probe'u çalıştırır ve ayrıca her gün 03:17 UTC'de yeniden build/deploy yaparak yayınlanan sağlık snapshot'ını tazeler. CI kalite kontrolü ise dış ağ durumuna bağımlı olmamak için statik snapshot doğrulaması kullanır.
