@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
+import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import { DataWorkbench } from "./DataWorkbench";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
@@ -43,50 +44,96 @@ export function OperationsPanel(props: Props) {
 function HealthPanel({ services, onRetryErrors }: Props) {
   const counts = summarizeServiceHealth(services);
   const errors = services.filter((service) => service.status === "error");
+  const retryableErrors = errors.filter((service) => service.availability !== "unavailable" && !isServiceCoolingDown(service));
   const measured = services
     .filter((service) => Number.isFinite(service.latencyMs))
     .sort((a, b) => (b.latencyMs ?? 0) - (a.latencyMs ?? 0))
     .slice(0, 5);
+  const latestVerification = services
+    .map((service) => service.verifiedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+
   return (
     <div className="operations-body">
+      <div className="health-section-title">
+        <span>HARİCİ DOĞRULAMA</span>
+        <strong>{latestVerification ? new Date(latestVerification).toLocaleString("tr-TR") : "Snapshot yok"}</strong>
+      </div>
+      <div className="health-grid health-grid-verification">
+        <Metric label="Doğrulandı" value={counts.verified} tone="good" />
+        <Metric label="Kısıtlı" value={counts.degraded} tone="warn" />
+        <Metric label="Ulaşılamıyor" value={counts.unavailable} tone="bad" />
+        <Metric label="Bilinmiyor" value={counts.unknown} tone="neutral" />
+      </div>
+
+      <div className="health-note health-note-policy">
+        <Icon name="health" />
+        <div>
+          <strong>Akıllı servis orkestrasyonu</strong>
+          <span>Doğrulanmış servisler otomatik yüklenebilir. Kısıtlı veya ulaşılamayan servisler başlangıçta zorlanmaz; kullanıcı isterse manuel deneyebilir. Tekrarlayan hatalarda devre kesici gereksiz ağ yükünü azaltır.</span>
+        </div>
+      </div>
+
+      <div className="health-section-title">
+        <span>CANLI TARAYICI DURUMU</span>
+        <strong>{counts.coolingDown ? `${counts.coolingDown} devre kesici` : "Normal"}</strong>
+      </div>
       <div className="health-grid">
         <Metric label="Hazır" value={counts.ready} tone="good" />
         <Metric label="Bağlanıyor" value={counts.loading} tone="warn" />
         <Metric label="Hata" value={counts.error} tone="bad" />
         <Metric label="Beklemede" value={counts.idle} tone="neutral" />
       </div>
-      <div className="health-note">
-        <Icon name="health" />
-        <div><strong>Canlı servis telemetrisi</strong><span>Durumlar gerçek ArcGIS layer yükleme sonucundan üretilir. Böylece yalnızca URL varlığı değil, tarayıcıdan kullanılabilirlik de görünür.</span></div>
-      </div>
+
       <div className="health-latency-grid">
         <div><span>Ortalama katman açılışı</span><strong>{counts.averageLatencyMs !== undefined ? `${counts.averageLatencyMs} ms` : "—"}</strong></div>
         <div><span>P95 açılış süresi</span><strong>{counts.p95LatencyMs !== undefined ? `${counts.p95LatencyMs} ms` : "—"}</strong></div>
       </div>
+
       {measured.length > 0 && (
         <div className="latency-list" aria-label="Servis gecikme ölçümleri">
           {measured.map((service) => (
             <div key={service.id}>
-              <span><strong>{service.displayName}</strong><small>{latencyLabel(service.latencyMs)}</small></span>
+              <span>
+                <strong>{service.displayName}</strong>
+                <small>{availabilityLabel(service)} · {latencyLabel(service.latencyMs)}</small>
+              </span>
               <em>{service.latencyMs} ms</em>
             </div>
           ))}
         </div>
       )}
+
       {errors.length > 0 ? (
         <>
-          <button type="button" className="primary-button full" onClick={() => void onRetryErrors()}><Icon name="refresh" /> Hatalı servisleri yeniden dene</button>
+          <button
+            type="button"
+            className="primary-button full"
+            onClick={() => void onRetryErrors()}
+            disabled={retryableErrors.length === 0}
+          >
+            <Icon name="refresh" /> Uygun hataları yeniden dene ({retryableErrors.length})
+          </button>
           <div className="health-errors">
-            {errors.map((service) => (
-              <article key={service.id}>
-                <span className="status-dot status-error" />
-                <div><strong>{service.displayName}</strong><p>{service.error ?? "Servis yüklenemedi."}</p></div>
-              </article>
-            ))}
+            {errors.map((service) => {
+              const cooldown = cooldownRemaining(service);
+              return (
+                <article key={service.id} className={`availability-${service.availability}`}>
+                  <span className="status-dot status-error" />
+                  <div>
+                    <strong>{service.displayName}</strong>
+                    <p>{service.error ?? "Servis yüklenemedi."}</p>
+                    <small>{availabilityLabel(service)}{cooldown ? ` · devre kesici ${cooldown}` : ""}</small>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (
-        <div className="empty-state"><Icon name="check" size={28} /><strong>Aktif hata yok</strong><span>Açılan servisler burada canlı olarak izlenir.</span></div>
+        <div className="empty-state"><Icon name="check" size={28} /><strong>Aktif çalışma zamanı hatası yok</strong><span>Açılan servislerin canlı sonuçları burada izlenir.</span></div>
       )}
     </div>
   );
@@ -102,8 +149,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "8.0.0",
-      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + @arcgis/core ESM",
+      version: "9.0.0",
+      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + resilient service orchestration",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -113,7 +160,13 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
         kind: service.kind,
         status: service.status,
         visible: service.visible,
-        error: service.error ?? null
+        error: service.error ?? null,
+        availability: service.availability,
+        access: service.access,
+        browserCompatible: service.browserCompatible ?? null,
+        verifiedAt: service.verifiedAt ?? null,
+        failureCount: service.failureCount,
+        cooldownUntil: service.cooldownUntil ?? null
       }))
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
@@ -230,8 +283,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v8 · Query Studio Platform</h3>
-        <p>React 19.3 View Transitions, ArcGIS 5.1 Web Components ve native @arcgis/core ESM ile çalışan; beyaz arayüz, sunucu tarafı öznitelik sorguları, sayfalama ve servis telemetrisini birleştiren Ankara CBS istemcisi.</p>
+        <h3>Başkent 3B CBS v9 · Resilient Service Platform</h3>
+        <p>React 19.3, TypeScript 7, ArcGIS 5.1 Web Components ve servis sağlık snapshot'larını birleştiren; hatalı servisleri izole eden, doğrulanmış servisleri önceliklendiren dayanıklı Ankara 3B CBS platformu.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -244,6 +297,7 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
+      <div className="health-note"><Icon name="health" /><div><strong>Dayanıklı servis katmanı</strong><span>Harici doğrulama snapshot'ı, canlı tarayıcı telemetrisi ve üstel geri çekilmeli devre kesici birlikte çalışır; problemli servisler uygulamanın geri kalanını kilitlemez.</span></div></div>
       <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, sunucu sorgusu, çalışma alanı paketi, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
