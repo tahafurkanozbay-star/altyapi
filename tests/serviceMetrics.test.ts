@@ -14,6 +14,9 @@ function service(id: string, status: ServiceDefinition["status"], latencyMs?: nu
     visible: status === "ready",
     opacity: 1,
     favorite: false,
+    availability: "unknown",
+    access: "unknown",
+    failureCount: 0,
     ustKurumAdi: "ABB",
     metaveriSahibiKurumAdi: "ABB",
     cografiVeriKatmanAdi: id,
@@ -36,6 +39,9 @@ describe("serviceMetrics", () => {
     expect(summary.active).toBe(2);
     expect(summary.averageLatencyMs).toBe(1033);
     expect(summary.p95LatencyMs).toBe(2500);
+    expect(summary.unknown).toBe(4);
+    expect(summary.verified).toBe(0);
+    expect(summary.coolingDown).toBe(0);
   });
 
   it("labels service latency consistently", () => {
