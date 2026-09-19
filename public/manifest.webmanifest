@@ -1,7 +1,7 @@
 {
   "name": "Başkent 3B CBS Operasyon Platformu",
   "short_name": "Başkent 3B CBS",
-  "description": "Comfort White arayüzlü 3B CBS, güvenli sunucu sorgu stüdyosu, taşınabilir çalışma alanı paketleri ve servis telemetrisi platformu",
+  "description": "Comfort White arayüzlü 3B CBS, güvenli sorgu stüdyosu, servis doğrulama snapshot'ları, devre kesici ve taşınabilir çalışma alanı platformu",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
