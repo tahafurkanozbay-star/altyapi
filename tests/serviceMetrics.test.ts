@@ -42,9 +42,6 @@ describe("serviceMetrics", () => {
     expect(summary.unknown).toBe(4);
     expect(summary.verified).toBe(0);
     expect(summary.coolingDown).toBe(0);
-    expect(summary.unknown).toBe(4);
-    expect(summary.verified).toBe(0);
-    expect(summary.coolingDown).toBe(0);
   });
 
   it("labels service latency consistently", () => {
