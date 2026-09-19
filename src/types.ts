@@ -1,7 +1,7 @@
 export type ServiceKind = "WMS" | "WFS" | "MapServer" | "FeatureServer" | "SceneServer";
 export type ServiceStatus = "idle" | "loading" | "ready" | "error";
 export type ServiceAvailability = "verified" | "degraded" | "unavailable" | "unknown";
-export type ServiceAccess = "public-browser" | "network-restricted" | "server-error" | "unknown";
+export type ServiceAccess = "public-browser" | "browser-blocked" | "network-restricted" | "server-error" | "unknown";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
 export type PanelId = "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
