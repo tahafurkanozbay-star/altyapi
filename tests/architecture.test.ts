@@ -34,6 +34,7 @@ describe("v9 architecture guardrails", () => {
     const health = await readFile("src/lib/serviceHealth.ts", "utf8");
     const snapshot = await readFile("public/service-health.json", "utf8");
     const packageJson = await readFile("package.json", "utf8");
+    const pages = await readFile(".github/workflows/pages.yml", "utf8");
 
     expect(health).toContain("SERVICE_HEALTH_MAX_AGE_MS");
     expect(health).toContain("failurePatch");
@@ -41,5 +42,8 @@ describe("v9 architecture guardrails", () => {
     expect(snapshot).not.toContain("http://");
     expect(snapshot).not.toContain("https://");
     expect(packageJson).toContain("validate:health");
+    expect(packageJson).toContain("probe:services");
+    expect(pages).toContain("npm run probe:services");
+    expect(pages).toContain('cron: "17 3 * * *"');
   });
 });
