@@ -38,6 +38,7 @@ export interface ServiceDefinition extends RawServiceDefinition {
   browserCompatible?: boolean | null;
   verificationReason?: string;
   verifiedAt?: string;
+  verificationStale?: boolean;
   failureCount: number;
   lastFailureAt?: string;
   cooldownUntil?: string;
