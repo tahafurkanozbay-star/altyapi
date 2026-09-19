@@ -36,7 +36,7 @@ export function parseServiceHealthSnapshot(value: unknown): ServiceHealthSnapsho
   const services: ServiceVerificationEntry[] = input.services.flatMap((entry) => {
     if (!entry || typeof entry !== "object") return [];
     const record = entry as Record<string, unknown>;
-    if (!Number.isInteger(record.index) || typeof record.name !== "string" || typeof record.kind !== "string") return [];
+    if (typeof record.index !== "number" || !Number.isInteger(record.index) || typeof record.name !== "string" || typeof record.kind !== "string") return [];
     if (!AVAILABILITY.has(record.availability as ServiceAvailability)) return [];
     if (!ACCESS.has(record.access as ServiceAccess)) return [];
     const browserCompatible =
