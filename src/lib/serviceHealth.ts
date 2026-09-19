@@ -7,7 +7,7 @@ import type {
 } from "../types";
 
 const AVAILABILITY = new Set<ServiceAvailability>(["verified", "degraded", "unavailable", "unknown"]);
-const ACCESS = new Set<ServiceAccess>(["public-browser", "network-restricted", "server-error", "unknown"]);
+const ACCESS = new Set<ServiceAccess>(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
 
 export async function loadServiceHealthSnapshot(url = "./service-health.json", signal?: AbortSignal): Promise<ServiceHealthSnapshot | null> {
   try {
