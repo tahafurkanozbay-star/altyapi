@@ -6,7 +6,7 @@ const snapshot = JSON.parse(await readFile(resolve("public/service-health.json")
 const errors = [];
 
 const allowedAvailability = new Set(["verified", "degraded", "unavailable", "unknown"]);
-const allowedAccess = new Set(["public-browser", "network-restricted", "server-error", "unknown"]);
+const allowedAccess = new Set(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
 
 if (snapshot?.schemaVersion !== 1) errors.push("service-health.json: schemaVersion 1 olmalı.");
 if (!Array.isArray(snapshot?.services)) errors.push("service-health.json: services bir dizi olmalı.");
