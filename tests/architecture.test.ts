@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v8 architecture guardrails", () => {
+describe("v9 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -28,5 +28,18 @@ describe("v8 architecture guardrails", () => {
     expect(query).toContain("buildWhereClause");
     expect(workspace).toContain("parseWorkspaceSnapshot");
     expect(app).toContain("ViewTransition");
+  });
+
+  it("ships the resilient service health layer", async () => {
+    const health = await readFile("src/lib/serviceHealth.ts", "utf8");
+    const snapshot = await readFile("public/service-health.json", "utf8");
+    const packageJson = await readFile("package.json", "utf8");
+
+    expect(health).toContain("SERVICE_HEALTH_MAX_AGE_MS");
+    expect(health).toContain("failurePatch");
+    expect(snapshot).not.toContain("tokenUrl");
+    expect(snapshot).not.toContain("http://");
+    expect(snapshot).not.toContain("https://");
+    expect(packageJson).toContain("validate:health");
   });
 });
