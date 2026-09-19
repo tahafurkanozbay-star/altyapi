@@ -79,7 +79,9 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
   };
 
   const retryErrors = async () => {
-    const errors = services.filter((service) => service.status === "error");
+    const errors = services.filter(
+      (service) => service.status === "error" && service.availability !== "unavailable" && !isServiceCoolingDown(service)
+    );
     if (errors.length === 0 || bulkBusy) return;
     setBulkBusy(true);
     try {
@@ -112,8 +114,13 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
         <button type="button" className="catalog-action" onClick={() => void deactivateVisible()} disabled={metrics.active === 0 || bulkBusy}>
           <Icon name="eyeOff" size={14} /> Aktifleri kapat
         </button>
-        <button type="button" className={`catalog-action ${metrics.error ? "has-error" : ""}`} onClick={() => void retryErrors()} disabled={metrics.error === 0 || bulkBusy}>
-          <Icon name="refresh" size={14} /> Hataları dene
+        <button
+          type="button"
+          className={`catalog-action ${metrics.error ? "has-error" : ""}`}
+          onClick={() => void retryErrors()}
+          disabled={metrics.error === 0 || bulkBusy || services.every((service) => service.status !== "error" || service.availability === "unavailable" || isServiceCoolingDown(service))}
+        >
+          <Icon name="refresh" size={14} /> Uygun hataları dene
         </button>
       </div>
 
