@@ -379,13 +379,9 @@ export default function App() {
       if (outcome && !outcome.ok) {
         return {
           ...service,
-          visible: false,
+          ...failurePatch(service, outcome.error, outcome.durationMs, Date.parse(now)),
           opacity,
-          favorite: favorites.has(service.id),
-          status: "error" as const,
-          error: outcome.error,
-          latencyMs: outcome.durationMs,
-          lastLoadedAt: now
+          favorite: favorites.has(service.id)
         };
       }
       return {
