@@ -26,6 +26,9 @@ export function StatusBar({ telemetry, services, performance }: { telemetry: Sce
         <span><i className="status-indicator is-active" /> <strong>{active}</strong> aktif</span>
         <span><i className="status-indicator is-ready" /> <strong>{ready}</strong> hazır</span>
         {errors > 0 && <span className="status-error"><i className="status-indicator is-error" /> <strong>{errors}</strong> hata</span>}
+        <span className="status-verified"><i className="status-indicator is-verified" /> <strong>{health.verified}</strong> doğrulandı</span>
+        {(health.degraded + health.unavailable) > 0 && <span className="status-risk"><i className="status-indicator is-risk" /> <strong>{health.degraded + health.unavailable}</strong> riskli</span>}
+        {health.coolingDown > 0 && <span className="status-circuit"><Icon name="refresh" size={11} /> <strong>{health.coolingDown}</strong> bekliyor</span>}
         {health.averageLatencyMs !== undefined && <span className="status-latency"><Icon name="speed" size={12} /> <strong>{health.averageLatencyMs}</strong> ms</span>}
       </div>
       <div className={`performance-pill performance-${performance}`}><Icon name="speed" size={13} /><span>{performanceLabel(performance)}</span></div>
