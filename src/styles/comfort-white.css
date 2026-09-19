@@ -919,4 +919,206 @@
     color: #b84053;
   }
 
+
+  /* v9 · Resilient service platform */
+  .catalog-overview-v9 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .catalog-stat.is-warn {
+    border-color: #efdca8;
+    background: #fffaf0;
+  }
+
+  .availability-filter {
+    display: flex;
+    gap: 6px;
+    padding: 0 1px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .availability-filter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .availability-chip {
+    flex: 0 0 auto;
+    min-height: 28px;
+    padding: 0 9px;
+    border: 1px solid #dfe7ec;
+    border-radius: 999px;
+    background: #fff;
+    color: #667f8f;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    cursor: pointer;
+  }
+
+  .availability-chip:hover,
+  .availability-chip.is-active {
+    border-color: #b9d4e6;
+    background: #edf6fc;
+    color: #0f6dbd;
+  }
+
+  .availability-chip.availability-degraded.is-active {
+    border-color: #e6cf91;
+    background: #fff8e7;
+    color: #8a6413;
+  }
+
+  .availability-chip.availability-unavailable.is-active {
+    border-color: #efc5cc;
+    background: #fff5f6;
+    color: #b33e52;
+  }
+
+  .filter-circuit-count {
+    margin-left: auto;
+    color: #a16a14;
+    font-size: 8.5px;
+    font-weight: 700;
+  }
+
+  .availability-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 18px;
+    padding: 0 6px;
+    border: 1px solid #dce5ea;
+    border-radius: 999px;
+    background: #f7fafb;
+    color: #687f8e;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .availability-badge.availability-verified {
+    border-color: #c6e4d5;
+    background: #f0faf5;
+    color: #15744f;
+  }
+
+  .availability-badge.availability-degraded {
+    border-color: #ecd99f;
+    background: #fff9ea;
+    color: #886313;
+  }
+
+  .availability-badge.availability-unavailable {
+    border-color: #efc9cf;
+    background: #fff6f7;
+    color: #b43e52;
+  }
+
+  .layer-card.availability-verified {
+    box-shadow: inset 2px 0 0 rgba(22, 134, 91, .22), 0 2px 8px rgba(47, 78, 98, .035);
+  }
+
+  .layer-card.availability-degraded {
+    box-shadow: inset 2px 0 0 rgba(165, 111, 18, .22), 0 2px 8px rgba(47, 78, 98, .035);
+  }
+
+  .layer-card.availability-unavailable {
+    box-shadow: inset 2px 0 0 rgba(198, 67, 86, .24), 0 2px 8px rgba(47, 78, 98, .035);
+  }
+
+  .health-section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 2px;
+  }
+
+  .health-section-title > span {
+    color: #708694;
+    font-size: 7.5px;
+    font-weight: 850;
+    letter-spacing: .12em;
+  }
+
+  .health-section-title > strong {
+    overflow: hidden;
+    color: #38566a;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .health-grid-verification .tone-good {
+    background: #f1faf6;
+    border-color: #cce6d9;
+  }
+
+  .health-grid-verification .tone-warn {
+    background: #fff9ed;
+    border-color: #ead9aa;
+  }
+
+  .health-grid-verification .tone-bad {
+    background: #fff6f7;
+    border-color: #efcbd1;
+  }
+
+  .health-note-policy {
+    border-color: #d7e5ee;
+    background: linear-gradient(145deg, #f5faff, #fbfdff);
+  }
+
+  .health-errors article small {
+    display: block;
+    margin-top: 4px;
+    color: #7b8e9a;
+    font-size: 8px;
+  }
+
+  .status-indicator.is-verified {
+    background: #16865b;
+    box-shadow: 0 0 0 3px rgba(22, 134, 91, .09);
+  }
+
+  .status-indicator.is-risk {
+    background: #b77817;
+    box-shadow: 0 0 0 3px rgba(183, 120, 23, .09);
+  }
+
+  .status-verified {
+    color: #32664f;
+  }
+
+  .status-risk,
+  .status-circuit {
+    color: #8a6413;
+  }
+
+  .status-circuit {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 3px;
+  }
+
+  @media (max-width: 760px) {
+    .catalog-overview-v9 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 520px) {
+    .catalog-overview-v9 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .health-section-title {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 3px;
+    }
+  }
+
 }

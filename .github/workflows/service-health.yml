@@ -1,0 +1,50 @@
+name: Service Health Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: service-health-monitor
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Probe external services
+        run: npm run probe:services
+      - name: Validate sanitized snapshot
+        run: npm run validate:health
+      - name: Write summary
+        shell: bash
+        run: |
+          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require("node:fs");
+          const h = JSON.parse(fs.readFileSync("public/service-health.json", "utf8"));
+          const states = ["verified", "degraded", "unavailable", "unknown"];
+          console.log("## Başkent 3B CBS · Service Health");
+          console.log("");
+          console.log(`Measured: **${h.generatedAt}**`);
+          console.log("");
+          for (const state of states) {
+            console.log(`- **${state}**: ${h.services.filter(s => s.availability === state).length}`);
+          }
+          NODE
+      - name: Upload sanitized health snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-health-snapshot
+          path: public/service-health.json
+          if-no-files-found: error
+          retention-days: 14

@@ -1,22 +1,23 @@
-# Başkent 3B CBS · Query Studio Platform v8
+# Başkent 3B CBS · Resilient Service Platform v9
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
 
-## v8: Query Studio + Portable Workspace
+## v9: Resilient Service Platform
 
-v8, v7'deki Comfort White ve ArcGIS Web Components mimarisini korurken kurumsal veri operasyonlarını ileri taşır.
+v9, v8'in Query Studio ve Comfort White mimarisini korurken gerçek servis davranışını uygulama mimarisinin bir parçası haline getirir.
 
-- FeatureServer / SceneServer için **güvenli sunucu tarafı sorgu stüdyosu**
-- alan tipine duyarlı filtre operatörleri
-- string literal escaping ve yalnız servis şemasındaki alan adlarını kabul eden query builder
-- sunucu tarafı sıralama ve gerçek sayfalama
-- eşleşen toplam kayıt, sayfa aralığı ve aktif WHERE / ORDER BY görünümü
-- mevcut sayfa üzerinde hızlı istemci araması ve CSV dışa aktarma
-- **taşınabilir çalışma alanı paketleri**: kamera, altlık, görünürlük, saydamlık, favoriler ve yer imleri
-- içe aktarmada yalnız mevcut katalogdaki servis kimliklerini kabul eden sanitizasyon
-- gizli token / servis URL'si taşımayan JSON çalışma alanı formatı
-- React 19.3 **ViewTransition** ile panel geçişleri
-- v7 Comfort White tasarım sistemi ve ArcGIS 5.1 Web Components korunur
+- katalogdan ayrı, URL/token içermeyen **service-health.json** sağlık snapshot'ı
+- doğrulanmış / kısıtlı / ulaşılamıyor / bilinmiyor servis sınıflandırması
+- GitHub Pages tarayıcı origin'i için CORS erişim profili
+- doğrulanmış servisleri başlangıçta önceliklendiren akıllı yükleme politikası
+- eski sağlık snapshot'larında 72 saat sonra otomatik güvenli gevşeme
+- art arda hatalarda üstel geri çekilmeli **devre kesici**
+- toplu retry sırasında doğrulanmış politika ve cooldown durumuna saygı
+- katman kartlarında doğrulama, erişim profili, ölçüm zamanı ve devre kesici görünümü
+- Servis Sağlığı panelinde harici doğrulama + canlı tarayıcı telemetrisi
+- build sırasında katalog ve sağlık snapshot'ı tutarlılık doğrulaması
+- manuel / zamanlanabilir, sanitizasyonlu servis sağlık probe scripti
+- v8 sunucu tarafı Query Studio, taşınabilir çalışma alanları ve React View Transitions korunur
 
 ## Güncel teknoloji
 
@@ -62,7 +63,7 @@ Live Server zorunluysa önce `npm run build` çalıştırın ve yalnız `dist/` 
 npm run check
 ```
 
-Bu komut sırasıyla servis kataloğu doğrulaması, strict TypeScript, Vitest regresyon testleri, production build ve `dist/` smoke doğrulamasını çalıştırır.
+Bu komut sırasıyla servis kataloğu, servis sağlık snapshot'ı, strict TypeScript, Vitest regresyon testleri, production build ve `dist/` smoke doğrulamasını çalıştırır.
 
 ## 3B operasyon yetenekleri
 
@@ -107,15 +108,17 @@ v7 ile bu yüzeyler deprecated Widget sınıflarından ArcGIS Web Components'e t
 
 Bileşenler ihtiyaç halinde lazy import edilir.
 
-## Servis gözlemlenebilirliği
+## Servis dayanıklılığı ve gözlemlenebilirliği
 
-- ready / loading / error / idle durumu
-- katman açılış süresi
-- ortalama latency
-- P95 latency
-- en yavaş servislerin listesi
-- son ölçüm zamanı
-- toplu retry
+- harici doğrulama: verified / degraded / unavailable / unknown
+- erişim profili: public-browser / browser-blocked / network-restricted / server-error
+- canlı runtime: ready / loading / error / idle
+- katman açılış süresi, ortalama latency ve P95
+- başarısızlık sayacı, son hata zamanı ve cooldown
+- üstel geri çekilmeli devre kesici
+- 72 saatlik verification freshness politikası
+- yalnız uygun servisleri toplu retry
+- URL/token içermeyen tanılama ve health snapshot formatı
 
 ## Sistem tanılama
 
@@ -166,6 +169,18 @@ Public bundle içine gizli token eklenmez. Token gerektiren WMS/WFS servisleri i
 
 ## Sürüm
 
-Current application version: **8.0.0**
+Current application version: **9.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
+
+
+## Servis sağlık probe
+
+Dış servislerin canlı durumunu yeniden ölçmek için:
+
+```bash
+npm run probe:services
+npm run validate:health
+```
+
+Probe çıktısı yalnız servis adı/türü ve sanitizasyonlu durum bilgisi yazar; endpoint URL'lerini health snapshot'a kopyalamaz. Dış ağ koşulları nedeniyle ölçümler zamana ve çalıştırıldığı ağa göre değişebilir.

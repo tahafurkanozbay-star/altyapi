@@ -5,6 +5,14 @@ import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import { createWorkspaceSnapshot, parseWorkspaceSnapshot, workspaceSnapshotToJson } from "./lib/workspace";
+import {
+  applyServiceHealthSnapshot,
+  failurePatch,
+  isServiceCoolingDown,
+  loadServiceHealthSnapshot,
+  shouldAutoLoadService,
+  successPatch
+} from "./lib/serviceHealth";
 import type {
   AppPreferences,
   AttributeQueryOptions,
@@ -27,7 +35,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "8.0.0";
+const APP_VERSION = "9.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -117,20 +125,33 @@ export default function App() {
 
     void (async () => {
       try {
-        const catalog = await loadServiceCatalog("./services.json", controller.signal);
+        const [catalog, healthSnapshot] = await Promise.all([
+          loadServiceCatalog("./services.json", controller.signal),
+          loadServiceHealthSnapshot("./service-health.json", controller.signal)
+        ]);
         if (cancelled || !mapRef.current) return;
         const share = decodeShareState(new URLSearchParams(location.search));
         const favoriteSet = new Set(initialPreferences.favorites);
         const sharedLayers = share ? new Set(share.layerIds) : null;
-        const restored = catalog.map((service) => ({
-          ...service,
-          visible: sharedLayers ? sharedLayers.has(service.id) : (initialPreferences.layerVisibility[service.id] ?? false),
-          opacity: initialPreferences.layerOpacity[service.id] ?? service.opacity,
-          favorite: favoriteSet.has(service.id)
-        }));
+        const enrichedCatalog = applyServiceHealthSnapshot(catalog, healthSnapshot);
+        let suppressedRestores = 0;
+        const restored = enrichedCatalog.map((service) => {
+          const requestedVisible = sharedLayers ? sharedLayers.has(service.id) : (initialPreferences.layerVisibility[service.id] ?? false);
+          const visible = requestedVisible && shouldAutoLoadService(service);
+          if (requestedVisible && !visible) suppressedRestores += 1;
+          return {
+            ...service,
+            visible,
+            opacity: initialPreferences.layerOpacity[service.id] ?? service.opacity,
+            favorite: favoriteSet.has(service.id)
+          };
+        });
 
         if (!restored.some((service) => service.visible)) {
-          const preferred = [restored.find((service) => service.kind === "SceneServer"), restored.find((service) => service.kind === "FeatureServer")].filter(Boolean) as ServiceDefinition[];
+          const preferred = [
+            restored.find((service) => service.kind === "SceneServer" && shouldAutoLoadService(service)),
+            restored.find((service) => service.kind === "FeatureServer" && shouldAutoLoadService(service))
+          ].filter(Boolean) as ServiceDefinition[];
           for (const service of preferred) service.visible = true;
         }
 
@@ -169,13 +190,16 @@ export default function App() {
           patchService(
             service.id,
             result.ok
-              ? { status: "ready", visible: true, latencyMs: result.durationMs, lastLoadedAt: new Date().toISOString(), error: undefined }
-              : { status: "error", visible: false, latencyMs: result.durationMs, lastLoadedAt: new Date().toISOString(), error: result.error }
+              ? { ...successPatch(result.durationMs), visible: true }
+              : failurePatch(service, result.error, result.durationMs)
           );
         });
         if (cancelled) return;
         persistLayerPreferences(servicesRef.current);
-        pushToast(`${restored.length} servis katalogdan yüklendi.`, "success");
+        pushToast(`${restored.length} servis katalogdan yüklendi · ${restored.filter((service) => service.availability === "verified").length} doğrulanmış.`, "success");
+        if (suppressedRestores > 0) {
+          pushToast(`${suppressedRestores} riskli servis başlangıçta otomatik açılmadı; Katmanlar panelinden manuel denenebilir.`, "info");
+        }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         const message = error instanceof Error ? error.message : "Uygulama başlatılamadı.";
@@ -214,30 +238,33 @@ export default function App() {
   const toggleLayer = useCallback(async (service: ServiceDefinition, visible: boolean) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    if (visible) patchService(service.id, { visible: true, status: "loading", error: undefined });
-    else patchService(service.id, { visible: false });
+    if (visible) {
+      patchService(service.id, { visible: true, status: "loading", error: undefined });
+      if (service.availability !== "verified") {
+        pushToast(`${service.displayName}: servis doğrulama durumu “${service.availability}”; manuel bağlantı deneniyor.`, "info");
+      }
+    } else {
+      patchService(service.id, { visible: false });
+    }
 
     const result = await runtime.setLayerVisible({ ...service, visible }, visible);
-    if (!result.ok) {
-      patchService(service.id, {
-        visible: false,
-        status: "error",
-        error: result.error,
-        latencyMs: result.durationMs,
-        lastLoadedAt: new Date().toISOString()
-      });
-      pushToast(`${service.displayName}: ${result.error ?? "Servis yüklenemedi."}`, "error");
-    } else {
-      patchService(service.id, {
-        visible,
-        status: visible ? "ready" : service.status === "error" ? "error" : service.status,
-        error: undefined,
-        ...(visible ? { latencyMs: result.durationMs, lastLoadedAt: new Date().toISOString() } : {})
-      });
-    }
-    const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, visible: result.ok ? visible : false } : item);
+    const patch: Partial<ServiceDefinition> = result.ok
+      ? {
+          ...(visible ? successPatch(result.durationMs) : {}),
+          visible,
+          status: visible ? "ready" : service.status === "loading" ? "idle" : service.status,
+          error: visible ? undefined : service.error
+        }
+      : failurePatch(service, result.error, result.durationMs);
+
+    patchService(service.id, patch);
+    const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
+
+    if (!result.ok) {
+      pushToast(`${service.displayName}: ${result.error ?? "Servis yüklenemedi."}`, "error");
+    }
   }, [patchService, persistLayerPreferences, pushToast]);
 
   const setOpacity = useCallback((service: ServiceDefinition, opacity: number) => {
@@ -266,10 +293,9 @@ export default function App() {
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
     const result = await runtime.reloadLayer({ ...service, visible: true });
-    const measuredAt = new Date().toISOString();
-    const patch = result.ok
-      ? { visible: true, status: "ready" as const, error: undefined, latencyMs: result.durationMs, lastLoadedAt: measuredAt }
-      : { visible: false, status: "error" as const, error: result.error, latencyMs: result.durationMs, lastLoadedAt: measuredAt };
+    const patch: Partial<ServiceDefinition> = result.ok
+      ? { ...successPatch(result.durationMs), visible: true }
+      : failurePatch(service, result.error, result.durationMs);
     patchService(service.id, patch);
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
@@ -278,9 +304,15 @@ export default function App() {
   }, [patchService, persistLayerPreferences, pushToast]);
 
   const retryErrors = useCallback(async () => {
-    const errors = servicesRef.current.filter((service) => service.status === "error");
+    const errors = servicesRef.current.filter(
+      (service) => service.status === "error" && service.availability !== "unavailable" && !isServiceCoolingDown(service)
+    );
+    const skipped = servicesRef.current.filter(
+      (service) => service.status === "error" && (service.availability === "unavailable" || isServiceCoolingDown(service))
+    ).length;
+    if (skipped > 0) pushToast(`${skipped} servis devre kesici / doğrulama politikası nedeniyle toplu denemede atlandı.`, "info");
     await mapWithConcurrency(errors, 2, retryLayer);
-  }, [retryLayer]);
+  }, [pushToast, retryLayer]);
 
   const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
@@ -326,7 +358,8 @@ export default function App() {
     const outcomes = new Map<string, Awaited<ReturnType<ArcGISRuntime["setLayerVisible"]>>>();
 
     await mapWithConcurrency(currentServices, 2, async (service) => {
-      const desiredVisible = snapshot.layerVisibility[service.id] ?? false;
+      const requestedVisible = snapshot.layerVisibility[service.id] ?? false;
+      const desiredVisible = requestedVisible && shouldAutoLoadService(service);
       const desiredOpacity = snapshot.layerOpacity[service.id] ?? service.opacity;
       runtime.setOpacity(service.id, desiredOpacity);
       if (service.visible !== desiredVisible) {
@@ -339,19 +372,16 @@ export default function App() {
 
     const now = new Date().toISOString();
     const nextServices = currentServices.map((service) => {
-      const desiredVisible = snapshot.layerVisibility[service.id] ?? false;
+      const requestedVisible = snapshot.layerVisibility[service.id] ?? false;
+      const desiredVisible = requestedVisible && shouldAutoLoadService(service);
       const opacity = snapshot.layerOpacity[service.id] ?? service.opacity;
       const outcome = outcomes.get(service.id);
       if (outcome && !outcome.ok) {
         return {
           ...service,
-          visible: false,
+          ...failurePatch(service, outcome.error, outcome.durationMs, Date.parse(now)),
           opacity,
-          favorite: favorites.has(service.id),
-          status: "error" as const,
-          error: outcome.error,
-          latencyMs: outcome.durationMs,
-          lastLoadedAt: now
+          favorite: favorites.has(service.id)
         };
       }
       return {
