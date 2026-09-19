@@ -8,6 +8,7 @@ import type {
 
 const AVAILABILITY = new Set<ServiceAvailability>(["verified", "degraded", "unavailable", "unknown"]);
 const ACCESS = new Set<ServiceAccess>(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
+export const SERVICE_HEALTH_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 
 export async function loadServiceHealthSnapshot(url = "./service-health.json", signal?: AbortSignal): Promise<ServiceHealthSnapshot | null> {
   try {
@@ -63,10 +64,12 @@ export function parseServiceHealthSnapshot(value: unknown): ServiceHealthSnapsho
 
 export function applyServiceHealthSnapshot(
   services: ServiceDefinition[],
-  snapshot: ServiceHealthSnapshot | null
+  snapshot: ServiceHealthSnapshot | null,
+  now = Date.now()
 ): ServiceDefinition[] {
   if (!snapshot) return services;
 
+  const stale = !isServiceHealthSnapshotFresh(snapshot, now);
   const entries = new Map(snapshot.services.map((entry) => [entry.index, entry]));
   return services.map((service, index) => {
     const entry = entries.get(index);
@@ -77,14 +80,25 @@ export function applyServiceHealthSnapshot(
       access: entry.access,
       browserCompatible: entry.browserCompatible,
       verificationReason: entry.reason,
-      verifiedAt: snapshot.generatedAt
+      verifiedAt: snapshot.generatedAt,
+      verificationStale: stale
     };
   });
 }
 
 export function shouldAutoLoadService(service: ServiceDefinition, now = Date.now()): boolean {
   if (isServiceCoolingDown(service, now)) return false;
+  if (service.verificationStale) return true;
   return service.availability === "verified" || service.availability === "unknown";
+}
+
+export function isServiceHealthSnapshotFresh(
+  snapshot: ServiceHealthSnapshot,
+  now = Date.now(),
+  maxAgeMs = SERVICE_HEALTH_MAX_AGE_MS
+): boolean {
+  const generatedAt = Date.parse(snapshot.generatedAt);
+  return Number.isFinite(generatedAt) && generatedAt <= now + 5 * 60_000 && now - generatedAt <= maxAgeMs;
 }
 
 export function isServiceCoolingDown(service: ServiceDefinition, now = Date.now()): boolean {
@@ -126,9 +140,10 @@ export function successPatch(durationMs: number | undefined, now = Date.now()): 
 }
 
 export function availabilityLabel(service: ServiceDefinition): string {
-  if (service.availability === "verified") return "Doğrulandı";
-  if (service.availability === "degraded") return "Kısıtlı erişim";
-  if (service.availability === "unavailable") return "Ulaşılamıyor";
+  const suffix = service.verificationStale ? " · eski" : "";
+  if (service.availability === "verified") return `Doğrulandı${suffix}`;
+  if (service.availability === "degraded") return `Kısıtlı erişim${suffix}`;
+  if (service.availability === "unavailable") return `Ulaşılamıyor${suffix}`;
   return "Doğrulanmadı";
 }
 
