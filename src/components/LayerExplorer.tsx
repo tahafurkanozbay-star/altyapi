@@ -274,6 +274,7 @@ function statusLabel(service: ServiceDefinition): string {
 
 function accessLabel(service: ServiceDefinition): string {
   if (service.access === "public-browser") return "Tarayıcıdan doğrulandı";
+  if (service.access === "browser-blocked") return "Tarayıcı CORS erişimi engelli";
   if (service.access === "network-restricted") return "Ağ / kurum erişimi gerekebilir";
   if (service.access === "server-error") return "Sunucu protokol hatası";
   return "Bilinmiyor";
