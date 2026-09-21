@@ -97,7 +97,7 @@ export default function App() {
     clearIncidentJournal();
     setIncidents([]);
     pushToast("Olay günlüğü temizlendi.", "success");
-  }, [pushToast, recordIncident]);
+  }, [pushToast]);
 
   const patchService = useCallback((id: string, patch: Partial<ServiceDefinition>) => {
     setServices((current) => current.map((service) => service.id === id ? { ...service, ...patch } : service));
@@ -138,7 +138,7 @@ export default function App() {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [pushToast]);
+  }, [pushToast, recordIncident]);
 
   useEffect(() => {
     let cancelled = false;
