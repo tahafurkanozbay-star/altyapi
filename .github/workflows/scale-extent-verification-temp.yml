@@ -17,12 +17,16 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Verify service scale ranges and operational extents
+      - name: Verify service scale ranges and declared extents
         run: node scripts/probe-scale-extents.mjs
-      - name: Upload sanitized report
+      - name: Verify actual query extents
+        run: node scripts/probe-data-extents.mjs
+      - name: Upload sanitized reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: scale-extent-report
-          path: scale-extent-report.json
+          name: scale-extent-reports
+          path: |
+            scale-extent-report.json
+            data-extent-report.json
           if-no-files-found: ignore
