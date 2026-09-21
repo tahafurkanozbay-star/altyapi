@@ -50,6 +50,9 @@ export function parseServiceHealthSnapshot(value: unknown): ServiceHealthSnapsho
       availability: record.availability as ServiceAvailability,
       access: record.access as ServiceAccess,
       browserCompatible,
+      latencyMs: typeof record.latencyMs === "number" && Number.isFinite(record.latencyMs) && record.latencyMs >= 0
+        ? Math.round(record.latencyMs)
+        : undefined,
       reason: typeof record.reason === "string" ? record.reason.slice(0, 240) : undefined
     }];
   });
@@ -79,6 +82,7 @@ export function applyServiceHealthSnapshot(
       availability: entry.availability,
       access: entry.access,
       browserCompatible: entry.browserCompatible,
+      verificationLatencyMs: entry.latencyMs,
       verificationReason: entry.reason,
       verifiedAt: snapshot.generatedAt,
       verificationStale: stale
