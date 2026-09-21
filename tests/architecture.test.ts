@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v12 architecture guardrails", () => {
+describe("v12.1 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -76,6 +76,28 @@ describe("v12 architecture guardrails", () => {
     expect(app).toContain("loadIncidentJournal");
     expect(operations).toContain("Olay Günlüğü");
   });
+  it("ships verified operational extents and scale-aware layer activation", async () => {
+    const navigation = await readFile("src/lib/serviceNavigation.ts", "utf8");
+    const snapshot = await readFile("public/service-navigation.json", "utf8");
+    const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
+    const factory = await readFile("src/gis/layerFactory.ts", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+    const serviceWorker = await readFile("public/sw.js", "utf8");
+    const packageJson = await readFile("package.json", "utf8");
+
+    expect(navigation).toContain("isOperationalScale");
+    expect(navigation).toContain("recommendedActivationScale");
+    expect(snapshot).not.toContain("tokenUrl");
+    expect(snapshot).not.toContain("http://");
+    expect(snapshot).not.toContain("https://");
+    expect(runtime).toContain("prepareLayerActivation");
+    expect(runtime).toContain("operationalExtentCenter");
+    expect(factory).toContain("operationalMinScale");
+    expect(app).toContain("loadServiceNavigationSnapshot");
+    expect(serviceWorker).toContain("service-navigation.json");
+    expect(packageJson).toContain("validate:navigation");
+  });
+
   it("ships adaptive stabilization, session analytics and controlled PWA updates", async () => {
     const stabilization = await readFile("src/lib/stabilization.ts", "utf8");
     const reliability = await readFile("src/lib/sessionReliability.ts", "utf8");
