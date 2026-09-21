@@ -3,7 +3,7 @@ import type { IncidentKind, IncidentSeverity, RuntimeIncident } from "../types";
 export const INCIDENT_STORAGE_KEY = "altyapi:incidents:v1";
 export const MAX_INCIDENTS = 80;
 
-interface IncidentInput {
+export interface IncidentInput {
   severity: IncidentSeverity;
   kind: IncidentKind;
   message: string;
