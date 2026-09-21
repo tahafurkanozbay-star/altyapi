@@ -3,18 +3,21 @@ import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "..
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import { DataWorkbench } from "./DataWorkbench";
+import { incidentJournalToJson } from "../lib/incidentJournal";
 import { OperationsOverview } from "./OperationsOverview";
-import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
+import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
   panel: Exclude<PanelId, null | "layers">;
   services: ServiceDefinition[];
   bookmarks: Bookmark[];
+  incidents: RuntimeIncident[];
   performance: PerformanceProfile;
   online: boolean;
   onClose: () => void;
   onNavigatePanel: (panel: Exclude<PanelId, null>) => void;
+  onClearIncidents: () => void;
   onRetryErrors: () => Promise<void>;
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
@@ -43,6 +46,7 @@ export function OperationsPanel(props: Props) {
         />
       )}
       {props.panel === "health" && <HealthPanel {...props} />}
+      {props.panel === "incidents" && <IncidentPanel {...props} />}
       {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
       {props.panel === "workspace" && <WorkspacePanel {...props} />}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
@@ -156,6 +160,74 @@ function HealthPanel({ services, onRetryErrors }: Props) {
       ) : (
         <div className="empty-state"><Icon name="check" size={28} /><strong>Aktif çalışma zamanı hatası yok</strong><span>Açılan servislerin canlı sonuçları burada izlenir.</span></div>
       )}
+    </div>
+  );
+}
+
+function IncidentPanel({ incidents, onClearIncidents }: Props) {
+  const errors = incidents.filter((incident) => incident.severity === "error").length;
+  const warnings = incidents.filter((incident) => incident.severity === "warning").length;
+  const recovered = incidents.filter((incident) => incident.recovered).length;
+
+  const download = () => {
+    const blob = new Blob([incidentJournalToJson(incidents)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `baskent-3b-incidents-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="operations-body incident-panel-body">
+      <div className="health-grid">
+        <Metric label="Toplam" value={incidents.length} tone="neutral" />
+        <Metric label="Hata" value={errors} tone={errors ? "bad" : "neutral"} />
+        <Metric label="Uyarı" value={warnings} tone={warnings ? "warn" : "neutral"} />
+        <Metric label="Toparlandı" value={recovered} tone={recovered ? "good" : "neutral"} />
+      </div>
+
+      <div className="health-note">
+        <Icon name="activity" />
+        <div>
+          <strong>Sanitizasyonlu çalışma zamanı günlüğü</strong>
+          <span>Katman yükleme, retry, sorgu ve ağ olayları tutulur. URL/token benzeri değerler kaydedilmeden önce maskelenir; en fazla 80 olay saklanır.</span>
+        </div>
+      </div>
+
+      <div className="incident-actions">
+        <button type="button" className="catalog-action" onClick={download} disabled={incidents.length === 0}>
+          <Icon name="download" size={14} /> JSON dışa aktar
+        </button>
+        <button type="button" className="catalog-action is-danger" onClick={onClearIncidents} disabled={incidents.length === 0}>
+          <Icon name="trash" size={14} /> Günlüğü temizle
+        </button>
+      </div>
+
+      <div className="incident-list">
+        {incidents.length === 0 && (
+          <div className="empty-state">
+            <Icon name="check" size={28} />
+            <strong>Kayıtlı olay yok</strong>
+            <span>Yeni ağ, katman ve sorgu olayları burada görünecek.</span>
+          </div>
+        )}
+        {incidents.map((incident) => (
+          <article key={incident.id} className={`incident-card severity-${incident.severity}`}>
+            <span className="incident-icon"><Icon name={incident.recovered ? "check" : incident.severity === "error" ? "warning" : "activity"} size={15} /></span>
+            <div>
+              <strong>{incident.serviceName ?? incidentKindLabel(incident.kind)}</strong>
+              <p>{incident.message}</p>
+              <small>
+                {new Date(incident.occurredAt).toLocaleString("tr-TR")}
+                {incident.durationMs !== undefined ? ` · ${incident.durationMs} ms` : ""}
+                {incident.recovered ? " · toparlandı" : ""}
+              </small>
+            </div>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
@@ -339,9 +411,20 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "overview") return "Operasyon Özeti";
   if (panel === "health") return "Servis Sağlığı";
+  if (panel === "incidents") return "Olay Günlüğü";
   if (panel === "data") return "Sorgu Stüdyosu";
   if (panel === "workspace") return "Çalışma Alanı Paketi";
   if (panel === "bookmarks") return "Yer İmleri";
   if (panel === "diagnostics") return "Sistem Tanılama";
   return "Yardım & Kısayollar";
+}
+
+
+function incidentKindLabel(kind: RuntimeIncident["kind"]): string {
+  if (kind === "boot") return "Uygulama başlangıcı";
+  if (kind === "network") return "Ağ bağlantısı";
+  if (kind === "layer-load") return "Katman yükleme";
+  if (kind === "layer-retry") return "Servis yeniden deneme";
+  if (kind === "query") return "Öznitelik sorgusu";
+  return "Sistem olayı";
 }
