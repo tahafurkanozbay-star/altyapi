@@ -54,12 +54,17 @@ function HealthPanel({ services, onRetryErrors }: Props) {
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
+  const staleVerification = services.some((service) => service.verificationStale);
 
   return (
     <div className="operations-body">
       <div className="health-section-title">
         <span>HARİCİ DOĞRULAMA</span>
-        <strong>{latestVerification ? new Date(latestVerification).toLocaleString("tr-TR") : "Snapshot yok"}</strong>
+        <strong>
+          {latestVerification
+            ? `${staleVerification ? "Eski snapshot · " : ""}${new Date(latestVerification).toLocaleString("tr-TR")}`
+            : "Snapshot yok"}
+        </strong>
       </div>
       <div className="health-grid health-grid-verification">
         <Metric label="Doğrulandı" value={counts.verified} tone="good" />
@@ -72,7 +77,12 @@ function HealthPanel({ services, onRetryErrors }: Props) {
         <Icon name="health" />
         <div>
           <strong>Akıllı servis orkestrasyonu</strong>
-          <span>Doğrulanmış servisler otomatik yüklenebilir. Kısıtlı veya ulaşılamayan servisler başlangıçta zorlanmaz; kullanıcı isterse manuel deneyebilir. Tekrarlayan hatalarda devre kesici gereksiz ağ yükünü azaltır.</span>
+          <span>
+            {staleVerification
+              ? "Harici doğrulama 72 saatten eski olduğu için negatif durumlar başlangıcı engellemez; canlı tarayıcı sonucu öncelik kazanır."
+              : "Doğrulanmış servisler otomatik yüklenebilir. Kısıtlı veya ulaşılamayan servisler başlangıçta zorlanmaz; kullanıcı isterse manuel deneyebilir."}
+            {" "}Tekrarlayan hatalarda devre kesici gereksiz ağ yükünü azaltır.
+          </span>
         </div>
       </div>
 
@@ -166,7 +176,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
         browserCompatible: service.browserCompatible ?? null,
         verifiedAt: service.verifiedAt ?? null,
         failureCount: service.failureCount,
-        cooldownUntil: service.cooldownUntil ?? null
+        cooldownUntil: service.cooldownUntil ?? null,
+        verificationStale: service.verificationStale ?? false
       }))
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });

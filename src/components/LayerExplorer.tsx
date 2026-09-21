@@ -233,7 +233,17 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                     </div>
                     <button type="button" className="icon-ghost" onClick={() => onZoom(service)} disabled={!service.visible} title="Katmana yaklaş"><Icon name="zoom" size={15} /></button>
                     <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi" aria-expanded={openInfo === service.id}><Icon name="info" size={15} /></button>
-                    {service.status === "error" && <button type="button" className="icon-ghost is-danger" onClick={() => void onRetry(service)} title="Yeniden dene"><Icon name="refresh" size={15} /></button>}
+                    {service.status === "error" && (
+                      <button
+                        type="button"
+                        className="icon-ghost is-danger"
+                        onClick={() => void onRetry(service)}
+                        title={service.availability === "unavailable" ? "Harici doğrulamada ulaşılamıyor" : cooldownRemaining(service) ? `Devre kesici: ${cooldownRemaining(service)}` : "Yeniden dene"}
+                        disabled={service.availability === "unavailable" || isServiceCoolingDown(service)}
+                      >
+                        <Icon name="refresh" size={15} />
+                      </button>
+                    )}
                   </div>
 
                   {openInfo === service.id && (
