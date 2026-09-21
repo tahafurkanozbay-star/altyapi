@@ -242,8 +242,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "10.0.0",
-      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + operations intelligence",
+      version: "11.0.0",
+      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + race-safe runtime reliability",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -378,12 +378,13 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v10 · Operations Intelligence</h3>
-        <p>React 19.3, TypeScript 7, ArcGIS 5.1 Web Components, güvenli Query Studio ve doğrulama/circuit-breaker sinyallerini tek operasyon hazırlık görünümünde birleştiren Ankara 3B CBS platformu.</p>
+        <h3>Başkent 3B CBS v11 · Runtime Reliability</h3>
+        <p>React 19.3, TypeScript 7 ve ArcGIS 5.1 Web Components üzerinde yarış koşulu güvenli katman yükleme, bounded timeout, sanitizasyonlu olay günlüğü ve Operations Intelligence katmanlarını birleştiren Ankara 3B CBS platformu.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
         <Shortcut keyName="O" label="Operasyon özeti" />
+        <Shortcut keyName="I" label="Olay günlüğü" />
         <Shortcut keyName="L" label="Katman paneli" />
         <Shortcut keyName="D" label="Sorgu stüdyosu" />
         <Shortcut keyName="W" label="Çalışma alanı paketi" />
