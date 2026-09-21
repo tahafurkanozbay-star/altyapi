@@ -1493,4 +1493,102 @@
     }
   }
 
+
+  /* v11 · Runtime Reliability Center */
+  .incident-panel-body {
+    display: grid;
+    align-content: start;
+    gap: 12px;
+  }
+
+  .incident-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .incident-actions .catalog-action {
+    min-height: 36px;
+    justify-content: center;
+  }
+
+  .incident-list {
+    display: grid;
+    gap: 7px;
+  }
+
+  .incident-card {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 9px;
+    align-items: start;
+    padding: 10px;
+    border: 1px solid #e0e8ed;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .incident-icon {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: #f1f6f9;
+    color: #5f7a8d;
+  }
+
+  .incident-card.severity-warning {
+    border-color: #ead9aa;
+    background: #fffaf0;
+  }
+
+  .incident-card.severity-warning .incident-icon {
+    background: #fff2cf;
+    color: #946710;
+  }
+
+  .incident-card.severity-error {
+    border-color: #efcbd1;
+    background: #fff7f8;
+  }
+
+  .incident-card.severity-error .incident-icon {
+    background: #fde9ec;
+    color: #b84053;
+  }
+
+  .incident-card strong,
+  .incident-card p,
+  .incident-card small {
+    display: block;
+    margin: 0;
+  }
+
+  .incident-card strong {
+    color: #294657;
+    font-size: 9.5px;
+  }
+
+  .incident-card p {
+    margin-top: 3px;
+    color: #5f7889;
+    font-size: 8.5px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .incident-card small {
+    margin-top: 5px;
+    color: #8497a2;
+    font-size: 7.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 520px) {
+    .incident-actions {
+      grid-template-columns: 1fr;
+    }
+  }
+
 }
