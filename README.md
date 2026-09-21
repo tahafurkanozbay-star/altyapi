@@ -1,6 +1,22 @@
-# Başkent 3B CBS · Adaptive Operations Platform v12
+# Başkent 3B CBS · Scale-Aware Operations Platform v12.1
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
+
+## v12.1: Scale-Aware Operations
+
+v12.1, kullanıcının sahada gözlemlediği “bazı altyapı servisleri ancak yakın ölçekte düzgün cevap veriyor” davranışını canlı servis testleriyle doğrulayıp istemci mimarisine işler.
+
+- 6 ABB yağmur / pis su / içme suyu MapServer katmanı için gerçek veri kapsamı `returnExtentOnly` sorgularıyla doğrulandı
+- servislerin metadata kapsamlarının bazı katmanlarda gerçek veriden çok daha geniş olduğu tespit edildi; “Katmana yaklaş” artık doğrulanmış çalışma extentini kullanır
+- aynı 6 katman 1:250.000–1:600.000 aralığında canlı export testine tabi tutuldu
+- tüm 6 servis 1:400.000 ölçekte başarılı cevap verdi; içme suyu katmanları 1:600.000 ölçekte 16 sn sınırında zaman aşımına düştü
+- bu nedenle ölçek-duyarlı altyapı katmanlarında güvenli istemci görünürlük sınırı **1:400.000 ve daha yakın**, önerilen açılış ölçeği **1:300.000** olarak uygulanır
+- Uygulama İmar Planı servisinin sunucu tarafından ilan edilen görünürlük aralığı **1:2.311.162–1:1.128** olarak korunur
+- katman açılırken mevcut görünüm çalışma kapsamı/ölçeği dışındaysa uygulama katmanı yüklemeden önce güvenli görünüme geçer
+- kullanıcı sonrasında çalışma ölçeği içinde serbestçe yakınlaşıp uzaklaşabilir; sınır dışına çıkıldığında katman ArcGIS `minScale/maxScale` kurallarıyla çizim isteği üretmez
+- `service-navigation.json` URL/token içermez ve offline data cache'e dahildir
+
+Detay: [docs/SCALE_AWARE_NAVIGATION.md](docs/SCALE_AWARE_NAVIGATION.md)
 
 ## v12: Adaptive Operations Platform
 
@@ -95,7 +111,7 @@ Live Server zorunluysa önce `npm run build` çalıştırın ve yalnız `dist/` 
 npm run check
 ```
 
-Bu komut sırasıyla servis kataloğu, servis sağlık snapshot'ı, strict TypeScript, Vitest regresyon testleri, production build ve `dist/` smoke doğrulamasını çalıştırır.
+Bu komut sırasıyla servis kataloğu, servis sağlık snapshot'ı, doğrulanmış navigasyon profilleri, strict TypeScript, Vitest regresyon testleri, production build ve `dist/` smoke doğrulamasını çalıştırır.
 
 ## 3B operasyon yetenekleri
 
@@ -103,7 +119,7 @@ Bu komut sırasıyla servis kataloğu, servis sağlık snapshot'ı, strict TypeS
 - adaptive high / balanced / eco kalite profilleri
 - FeatureServer, SceneServer, MapServer, WMS ve WFS adaptörleri
 - katman arama, kurum gruplama, servis türü filtresi ve favoriler
-- görünürlük, saydamlık, zoom, retry
+- görünürlük, saydamlık, doğrulanmış çalışma extentine zoom, ölçek-duyarlı aktivasyon ve retry
 - Search / Home / Compass / Locate / Fullscreen ArcGIS Web Components
 - kamera + katman + altlık paylaşım URL'si
 - kamera ve aktif katmanları saklayan yer imleri
@@ -150,7 +166,7 @@ Bileşenler ihtiyaç halinde lazy import edilir.
 - üstel geri çekilmeli devre kesici
 - 72 saatlik verification freshness politikası
 - yalnız uygun servisleri toplu retry
-- URL/token içermeyen tanılama ve health snapshot formatı
+- URL/token içermeyen tanılama, health ve navigation snapshot formatı
 - servis bazlı açıklanabilir hazırlık puanı ve risk sinyalleri
 
 ## Operations Intelligence
@@ -236,7 +252,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **12.0.0**
+Current application version: **12.1.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 
