@@ -7,7 +7,9 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     Promise.all([
       caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL)),
-      caches.open(DATA_CACHE).then((cache) => cache.addAll(DATA_FILES))
+      caches.open(DATA_CACHE).then((cache) =>
+        Promise.allSettled(DATA_FILES.map((file) => cache.add(file)))
+      )
     ]).then(() => self.skipWaiting())
   );
 });
@@ -33,7 +35,13 @@ self.addEventListener("message", (event) => {
     return;
   }
   if (event.data?.type === "CLEAR_DATA_CACHE") {
-    event.waitUntil(caches.delete(DATA_CACHE).then(() => caches.open(DATA_CACHE).then((cache) => cache.addAll(DATA_FILES))));
+    event.waitUntil(
+      caches.delete(DATA_CACHE).then(() =>
+        caches.open(DATA_CACHE).then((cache) =>
+          Promise.allSettled(DATA_FILES.map((file) => cache.add(file)))
+        )
+      )
+    );
   }
 });
 
