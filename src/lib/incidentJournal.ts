@@ -124,7 +124,7 @@ function isSeverity(value: unknown): value is IncidentSeverity {
 }
 
 function isKind(value: unknown): value is IncidentKind {
-  return value === "boot" || value === "network" || value === "layer-load" || value === "layer-retry" || value === "query" || value === "system";
+  return value === "boot" || value === "network" || value === "layer-load" || value === "layer-retry" || value === "query" || value === "system" || value === "health-refresh" || value === "sync";
 }
 
 function safeIdentifier(value?: string): string | undefined {
