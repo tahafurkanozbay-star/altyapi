@@ -4,6 +4,7 @@ import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import { DataWorkbench } from "./DataWorkbench";
 import { incidentJournalToJson } from "../lib/incidentJournal";
+import { filterIncidents, reliabilityTrendLabel, summarizeIncidentReliability } from "../lib/sessionReliability";
 import { OperationsOverview } from "./OperationsOverview";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
@@ -18,6 +19,7 @@ interface Props {
   onClose: () => void;
   onNavigatePanel: (panel: Exclude<PanelId, null>) => void;
   onClearIncidents: () => void;
+  onStabilizeWorkspace: () => Promise<void>;
   onRetryErrors: () => Promise<void>;
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
@@ -44,6 +46,7 @@ export function OperationsPanel(props: Props) {
           performance={props.performance}
           incidents={props.incidents}
           onPanel={props.onNavigatePanel}
+          onStabilize={props.onStabilizeWorkspace}
         />
       )}
       {props.panel === "health" && <HealthPanel {...props} />}
@@ -166,6 +169,14 @@ function HealthPanel({ services, onRetryErrors }: Props) {
 }
 
 function IncidentPanel({ incidents, onClearIncidents }: Props) {
+  const [severity, setSeverity] = useState<RuntimeIncident["severity"] | "all">("all");
+  const [kind, setKind] = useState<RuntimeIncident["kind"] | "all">("all");
+  const [windowMs, setWindowMs] = useState<number>(24 * 60 * 60 * 1000);
+  const summary = useMemo(() => summarizeIncidentReliability(incidents, Date.now(), windowMs), [incidents, windowMs]);
+  const filteredIncidents = useMemo(
+    () => filterIncidents(incidents, { severity, kind, sinceMs: windowMs }),
+    [incidents, severity, kind, windowMs]
+  );
   const errors = incidents.filter((incident) => incident.severity === "error").length;
   const warnings = incidents.filter((incident) => incident.severity === "warning").length;
   const recovered = incidents.filter((incident) => incident.recovered).length;
@@ -197,6 +208,37 @@ function IncidentPanel({ incidents, onClearIncidents }: Props) {
         </div>
       </div>
 
+      <div className="incident-reliability-summary">
+        <div><span>Güvenilirlik</span><strong>{summary.score}/100</strong><small>{reliabilityTrendLabel(summary.trend)}</small></div>
+        <div><span>Toparlanma</span><strong>{summary.recoveryRate}%</strong><small>{summary.recovered} kayıt</small></div>
+        <div><span>P95 süre</span><strong>{summary.p95DurationMs !== undefined ? `${summary.p95DurationMs} ms` : "—"}</strong><small>{summary.total} olay</small></div>
+      </div>
+
+      <div className="incident-filter-bar">
+        <select value={String(windowMs)} onChange={(event) => setWindowMs(Number(event.target.value))} aria-label="Olay zaman aralığı">
+          <option value={60 * 60 * 1000}>Son 1 saat</option>
+          <option value={6 * 60 * 60 * 1000}>Son 6 saat</option>
+          <option value={24 * 60 * 60 * 1000}>Son 24 saat</option>
+          <option value={7 * 24 * 60 * 60 * 1000}>Son 7 gün</option>
+        </select>
+        <select value={severity} onChange={(event) => setSeverity(event.target.value as RuntimeIncident["severity"] | "all")} aria-label="Olay önem filtresi">
+          <option value="all">Tüm önemler</option>
+          <option value="error">Hata</option>
+          <option value="warning">Uyarı</option>
+          <option value="info">Bilgi</option>
+        </select>
+        <select value={kind} onChange={(event) => setKind(event.target.value as RuntimeIncident["kind"] | "all")} aria-label="Olay türü filtresi">
+          <option value="all">Tüm türler</option>
+          <option value="layer-load">Katman yükleme</option>
+          <option value="layer-retry">Retry</option>
+          <option value="query">Sorgu</option>
+          <option value="network">Ağ</option>
+          <option value="boot">Başlangıç</option>
+          <option value="system">Sistem</option>
+        </select>
+        <span>{filteredIncidents.length} kayıt</span>
+      </div>
+
       <div className="incident-actions">
         <button type="button" className="catalog-action" onClick={download} disabled={incidents.length === 0}>
           <Icon name="download" size={14} /> JSON dışa aktar
@@ -207,14 +249,14 @@ function IncidentPanel({ incidents, onClearIncidents }: Props) {
       </div>
 
       <div className="incident-list">
-        {incidents.length === 0 && (
+        {filteredIncidents.length === 0 && (
           <div className="empty-state">
             <Icon name="check" size={28} />
-            <strong>Kayıtlı olay yok</strong>
-            <span>Yeni ağ, katman ve sorgu olayları burada görünecek.</span>
+            <strong>Filtreye uyan olay yok</strong>
+            <span>Zaman aralığını veya filtreleri değiştirin.</span>
           </div>
         )}
-        {incidents.map((incident) => (
+        {filteredIncidents.map((incident) => (
           <article key={incident.id} className={`incident-card severity-${incident.severity}`}>
             <span className="incident-icon"><Icon name={incident.recovered ? "check" : incident.severity === "error" ? "warning" : "activity"} size={15} /></span>
             <div>
@@ -243,8 +285,8 @@ function DiagnosticsPanel({ services, performance, incidents }: { services: Serv
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "11.0.0",
-      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + race-safe runtime reliability",
+      version: "12.0.0",
+      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + adaptive operations reliability",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -387,8 +429,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v11 · Runtime Reliability</h3>
-        <p>React 19.3, TypeScript 7 ve ArcGIS 5.1 Web Components üzerinde yarış koşulu güvenli katman yükleme, bounded timeout, sanitizasyonlu olay günlüğü ve Operations Intelligence katmanlarını birleştiren Ankara 3B CBS platformu.</p>
+        <h3>Başkent 3B CBS v12 · Adaptive Operations</h3>
+        <p>React 19.3, TypeScript 7 ve ArcGIS 5.1 Web Components üzerinde adaptif güvenli mod, oturum güvenilirlik analitiği, kontrollü PWA güncellemesi ve yarış koşulu güvenli katman orkestrasyonunu birleştiren Ankara 3B CBS platformu.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -404,6 +446,7 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
       <div className="health-note"><Icon name="health" /><div><strong>Dayanıklı servis katmanı</strong><span>Harici doğrulama snapshot'ı, canlı tarayıcı telemetrisi ve üstel geri çekilmeli devre kesici birlikte çalışır; problemli servisler uygulamanın geri kalanını kilitlemez.</span></div></div>
+      <div className="health-note"><Icon name="activity" /><div><strong>Adaptif operasyon</strong><span>Stabilizasyon planı riskli görünür katmanları izole eder, gerekirse en uygun doğrulanmış servisleri sınırlı sayıda devreye alır; olay günlüğü son saatler için güvenilirlik trendi üretir.</span></div></div>
       <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, sunucu sorgusu, çalışma alanı paketi, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
