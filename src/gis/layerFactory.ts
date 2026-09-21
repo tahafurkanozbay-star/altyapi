@@ -16,6 +16,8 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
     title: service.displayName,
     visible: service.visible,
     opacity: service.opacity,
+    minScale: service.operationalMinScale,
+    maxScale: service.operationalMaxScale,
     listMode: "show" as const
   };
 
@@ -39,7 +41,12 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
       return new MapImageLayer({
         ...common,
         url: root,
-        sublayers: sublayerId === undefined ? undefined : [{ id: sublayerId, visible: true }]
+        sublayers: sublayerId === undefined ? undefined : [{
+          id: sublayerId,
+          visible: true,
+          minScale: service.operationalMinScale,
+          maxScale: service.operationalMaxScale
+        }]
       });
     }
     case "WMS": {
