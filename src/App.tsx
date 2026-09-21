@@ -21,6 +21,11 @@ import {
   shouldAutoLoadService,
   successPatch
 } from "./lib/serviceHealth";
+import {
+  applyServiceNavigationSnapshot,
+  formatScale,
+  loadServiceNavigationSnapshot
+} from "./lib/serviceNavigation";
 import type {
   AppPreferences,
   AttributeQueryOptions,
@@ -160,15 +165,17 @@ export default function App() {
 
     void (async () => {
       try {
-        const [catalog, healthSnapshot] = await Promise.all([
+        const [catalog, healthSnapshot, navigationSnapshot] = await Promise.all([
           loadServiceCatalog("./services.json", controller.signal),
-          loadServiceHealthSnapshot("./service-health.json", controller.signal)
+          loadServiceHealthSnapshot("./service-health.json", controller.signal),
+          loadServiceNavigationSnapshot("./service-navigation.json", controller.signal)
         ]);
         if (cancelled || !mapRef.current) return;
         const share = decodeShareState(new URLSearchParams(location.search));
         const favoriteSet = new Set(initialPreferences.favorites);
         const sharedLayers = share ? new Set(share.layerIds) : null;
-        const enrichedCatalog = applyServiceHealthSnapshot(catalog, healthSnapshot);
+        const healthCatalog = applyServiceHealthSnapshot(catalog, healthSnapshot);
+        const enrichedCatalog = applyServiceNavigationSnapshot(healthCatalog, navigationSnapshot);
         let suppressedRestores = 0;
         const restored = enrichedCatalog.map((service) => {
           const requestedVisible = sharedLayers ? sharedLayers.has(service.id) : (initialPreferences.layerVisibility[service.id] ?? false);
@@ -287,6 +294,13 @@ export default function App() {
     if (!runtime) return;
     if (visible) {
       patchService(service.id, { visible: true, status: "loading", error: undefined });
+      const navigation = await runtime.prepareLayerActivation(service);
+      if (navigation.moved) {
+        pushToast(
+          `${service.displayName}: doğrulanmış çalışma görünümüne geçildi${navigation.targetScale ? ` · 1:${formatScale(navigation.targetScale)}` : ""}.`,
+          "info"
+        );
+      }
       if (service.availability !== "verified") {
         pushToast(`${service.displayName}: servis doğrulama durumu “${service.availability}”; manuel bağlantı deneniyor.`, "info");
       }
@@ -349,14 +363,21 @@ export default function App() {
   }, [patchService, persistLayerPreferences]);
 
   const zoomLayer = useCallback(async (service: ServiceDefinition) => {
-    const ok = await runtimeRef.current?.zoomToLayer(service.id);
-    if (!ok) pushToast("Katmanın görüntüleme kapsamı alınamadı.", "info");
+    const ok = await runtimeRef.current?.zoomToLayer(service);
+    if (!ok) pushToast("Katmanın doğrulanmış çalışma kapsamı alınamadı.", "info");
   }, [pushToast]);
 
   const retryLayer = useCallback(async (service: ServiceDefinition) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
+    const navigation = await runtime.prepareLayerActivation(service);
+    if (navigation.moved) {
+      pushToast(
+        `${service.displayName}: yeniden denemeden önce çalışma ölçeğine geçildi${navigation.targetScale ? ` · 1:${formatScale(navigation.targetScale)}` : ""}.`,
+        "info"
+      );
+    }
     const result = await runtime.reloadLayer({ ...service, visible: true });
     if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
@@ -700,7 +721,7 @@ export default function App() {
           {panel === "layers" ? (
             <aside className="main-panel" key="layers">
               <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)}><Icon name="close" /></button>
-              <LayerExplorer services={services} onToggle={toggleLayer} onOpacity={setOpacity} onFavorite={toggleFavorite} onZoom={(service) => void zoomLayer(service)} onRetry={retryLayer} />
+              <LayerExplorer services={services} currentScale={telemetry.scale} onToggle={toggleLayer} onOpacity={setOpacity} onFavorite={toggleFavorite} onZoom={(service) => void zoomLayer(service)} onRetry={retryLayer} />
             </aside>
           ) : panel ? (
             <OperationsPanel
