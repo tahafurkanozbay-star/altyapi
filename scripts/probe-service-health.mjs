@@ -68,6 +68,8 @@ function classifyNetworkFailure(result, stage) {
       availability: "unavailable",
       access: "server-error",
       browserCompatible: false,
+      latencyMs: result.ms,
+      latencyMs: result.ms,
       reason: `${stage} HTTP ${result.status}`
     };
   }
@@ -83,6 +85,7 @@ function classifyNetworkFailure(result, stage) {
     availability: "degraded",
     access: "network-restricted",
     browserCompatible: null,
+    latencyMs: result.ms,
     reason: `${stage} ağ erişimi doğrulanamadı${result.error ? ` (${String(result.error).slice(0, 40)})` : ""}`
   };
 }
@@ -93,6 +96,7 @@ function successClassification(result, reason) {
       availability: "verified",
       access: "public-browser",
       browserCompatible: true,
+      latencyMs: result.ms,
       reason
     };
   }
@@ -100,6 +104,7 @@ function successClassification(result, reason) {
     availability: "degraded",
     access: "browser-blocked",
     browserCompatible: false,
+    latencyMs: result.ms,
     reason: `${reason}; CORS başlığı doğrulanamadı`
   };
 }
@@ -151,6 +156,7 @@ async function probeArcGis(service) {
       availability: "unavailable",
       access: "server-error",
       browserCompatible: false,
+      latencyMs: result.ms,
       reason: `${stage} JSON yanıtı geçersiz`
     };
   }
@@ -160,6 +166,7 @@ async function probeArcGis(service) {
       availability: "unavailable",
       access: "server-error",
       browserCompatible: false,
+      latencyMs: result.ms,
       reason: `${stage} ArcGIS hata yanıtı`
     };
   }
@@ -169,6 +176,7 @@ async function probeArcGis(service) {
       availability: "degraded",
       access: result.cors ? "public-browser" : "browser-blocked",
       browserCompatible: result.cors,
+      latencyMs: result.ms,
       reason: "FeatureServer yanıt verdi ancak kayıt sayımı doğrulanamadı"
     };
   }
