@@ -4,7 +4,7 @@ export type ServiceAvailability = "verified" | "degraded" | "unavailable" | "unk
 export type ServiceAccess = "public-browser" | "browser-blocked" | "network-restricted" | "server-error" | "unknown";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
-export type PanelId = "overview" | "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
+export type PanelId = "overview" | "layers" | "data" | "workspace" | "health" | "incidents" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
@@ -205,6 +205,21 @@ export interface OperationalReadinessSummary {
   active: number;
   ready: number;
   total: number;
+}
+
+export type IncidentSeverity = "info" | "warning" | "error";
+export type IncidentKind = "boot" | "network" | "layer-load" | "layer-retry" | "query" | "system";
+
+export interface RuntimeIncident {
+  id: string;
+  occurredAt: string;
+  severity: IncidentSeverity;
+  kind: IncidentKind;
+  message: string;
+  serviceId?: string;
+  serviceName?: string;
+  durationMs?: number;
+  recovered?: boolean;
 }
 
 export interface ServiceHealthSnapshot {
