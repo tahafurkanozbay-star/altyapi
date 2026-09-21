@@ -1477,4 +1477,20 @@
     .overview-quick-actions { grid-template-columns: 1fr; }
   }
 
+
+  .status-readiness {
+    min-width: 78px;
+  }
+
+  .status-readiness strong {
+    color: #245d83;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 900px) {
+    .status-readiness {
+      display: none;
+    }
+  }
+
 }
