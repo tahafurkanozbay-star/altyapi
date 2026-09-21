@@ -35,6 +35,7 @@ export function CommandPalette({ open, services, onClose, onLayer, onTool, onPan
     { id: "data", label: "Sorgu stüdyosunu aç", subtitle: "Veri", icon: "table", keywords: "öznitelik tablo csv veri sorgu feature kayıt filtre sıralama", run: () => onPanel("data") },
     { id: "workspace", label: "Çalışma alanı paketini aç", subtitle: "Oturum", icon: "archive", keywords: "çalışma alanı workspace dışa aktar içe aktar yedek json", run: () => onPanel("workspace") },
     { id: "health", label: "Servis sağlığını aç", subtitle: "Panel", icon: "health", keywords: "servis sağlık hata durum", run: () => onPanel("health") },
+    { id: "incidents", label: "Olay günlüğünü aç", subtitle: "Reliability", icon: "activity", keywords: "olay incident hata retry ağ geçmiş log reliability", run: () => onPanel("incidents") },
     { id: "diagnostics", label: "Sistem tanılamayı aç", subtitle: "Platform", icon: "speed", keywords: "webgl gpu cihaz sistem tanılama performans", run: () => onPanel("diagnostics") },
     { id: "bookmarks", label: "Yer imlerini aç", subtitle: "Panel", icon: "bookmark", keywords: "yer imi bookmark", run: () => onPanel("bookmarks") },
     { id: "shot", label: "Ekran görüntüsü al", subtitle: "Harita", icon: "camera", keywords: "ekran screenshot png indir", run: onScreenshot },
