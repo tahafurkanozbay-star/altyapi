@@ -1,6 +1,6 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type ArcGISMap from "@arcgis/core/Map.js";
-import type SceneView from "@arcgis/core/views/SceneView.js";
+import type Camera from "@arcgis/core/Camera.js";
 import { createLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { normalizeAttributeValue } from "../lib/attributeTable";
@@ -23,8 +23,43 @@ import type {
 } from "../types";
 
 type Removable = { remove(): void };
+type MapPointLike = { latitude?: number | null; longitude?: number | null };
+type GraphicHit = {
+  type: "graphic";
+  graphic: {
+    attributes?: Record<string, unknown>;
+    layer?: { title?: string | null };
+  };
+  mapPoint?: MapPointLike | null;
+};
+type SceneHitResult = GraphicHit | { type: string };
+type ScenePointerDetail = { x: number; y: number };
+type ArcGISSceneElement = HTMLElement & {
+  autoDestroyDisabled?: boolean;
+  basemap?: string;
+  ground?: string;
+  viewingMode?: "global" | "local";
+  camera?: Camera;
+  cameraPosition?: string | number[];
+  cameraTilt?: number;
+  cameraHeading?: number;
+  qualityProfile?: "low" | "medium" | "high";
+  environment?: unknown;
+  popupDisabled?: boolean;
+  map?: ArcGISMap | null;
+  scale?: number;
+  fatalError?: Error | null;
+  componentOnReady?: () => Promise<unknown>;
+  viewOnReady?: () => Promise<void>;
+  goTo?: (target: unknown, options?: unknown) => Promise<unknown>;
+  hitTest?: (target: unknown) => Promise<{ results: SceneHitResult[] }>;
+  toMap?: (target: unknown) => MapPointLike | null | undefined;
+  takeScreenshot?: (options?: unknown) => Promise<{ dataUrl: string }>;
+  tryFatalErrorRecovery?: () => Promise<void>;
+  destroy?: () => Promise<void>;
+};
 type ArcGISComponentElement = HTMLElement & {
-  view?: SceneView;
+  referenceElement?: ArcGISSceneElement | string;
   element?: HTMLElement;
   profiles?: Array<{ type: "ground" }>;
   includeDefaultSources?: boolean;
@@ -64,7 +99,7 @@ const HOME_CAMERA: CameraState = {
 
 export class ArcGISRuntime {
   private map?: ArcGISMap;
-  private view?: SceneView;
+  private scene?: ArcGISSceneElement;
   private readonly layers = new Map<string, Layer>();
   private readonly loadingLayers = new Map<string, Promise<LayerLoadResult>>();
   private readonly desiredVisibility = new Map<string, boolean>();
@@ -91,52 +126,63 @@ export class ArcGISRuntime {
     this.destroyed = false;
     this.callbacks = callbacks;
 
-    const [{ default: MapCtor }, { default: SceneViewCtor }, { default: config }] = await Promise.all([
-      import("@arcgis/core/Map.js"),
-      import("@arcgis/core/views/SceneView.js"),
-      import("@arcgis/core/config.js")
+    const [{ default: config }] = await Promise.all([
+      import("@arcgis/core/config.js"),
+      import("@arcgis/map-components/components/arcgis-scene")
     ]);
     if (this.destroyed) return;
 
     config.request.timeout = 30_000;
-    const map = new MapCtor({ basemap, ground: "world-elevation" });
-    const view = new SceneViewCtor({
-      container,
-      map,
-      viewingMode: "local",
-      camera: {
-        position: pointProperties(camera),
-        heading: camera.heading,
-        tilt: camera.tilt
-      },
-      qualityProfile: profileToSceneQuality(this.profile),
-      popupEnabled: false,
-      environment: this.environmentFor(this.profile)
-    });
+    container.replaceChildren();
 
-    this.map = map;
-    this.view = view;
-    await view.when();
+    const scene = document.createElement("arcgis-scene") as ArcGISSceneElement;
+    scene.id = "altyapi-main-scene";
+    scene.className = "arcgis-scene-root";
+    scene.autoDestroyDisabled = true;
+    scene.basemap = basemap;
+    scene.ground = "world-elevation";
+    scene.viewingMode = "local";
+    scene.cameraPosition = `${camera.longitude}, ${camera.latitude}, ${camera.z}`;
+    scene.cameraHeading = camera.heading;
+    scene.cameraTilt = camera.tilt;
+    scene.qualityProfile = profileToSceneQuality(this.profile);
+    scene.environment = this.environmentFor(this.profile);
+    scene.popupDisabled = true;
+
+    container.append(scene);
+    this.scene = scene;
+    await scene.viewOnReady?.();
+
     if (this.destroyed) {
-      view.destroy();
-      this.view = undefined;
+      scene.remove();
+      await scene.destroy?.().catch(() => undefined);
+      this.scene = undefined;
       this.map = undefined;
       return;
     }
-    this.installViewEvents();
+
+    const map = scene.map ?? undefined;
+    if (!map) {
+      scene.remove();
+      await scene.destroy?.().catch(() => undefined);
+      this.scene = undefined;
+      throw new Error("ArcGIS Scene bileşeni harita modelini oluşturamadı.");
+    }
+
+    this.map = map;
+    this.installSceneEvents();
   }
 
   async mountSearch(container: HTMLDivElement): Promise<void> {
-    if (!this.view || this.destroyed) return;
+    if (!this.scene || this.destroyed) return;
     this.disposeComponent(this.searchWidget);
     this.searchWidget = undefined;
     container.replaceChildren();
 
     await import("@arcgis/map-components/components/arcgis-search");
-    if (!this.view || this.destroyed) return;
+    if (!this.scene || this.destroyed) return;
 
-    const search = document.createElement("arcgis-search") as ArcGISComponentElement;
-    search.view = this.view;
+    const search = this.createConnectedComponent("arcgis-search");
     search.includeDefaultSources = true;
     search.locationEnabled = false;
     search.popupEnabled = false;
@@ -148,7 +194,7 @@ export class ArcGISRuntime {
   }
 
   async mountNavigation(container: HTMLDivElement): Promise<() => void> {
-    if (!this.view || this.destroyed) return () => undefined;
+    if (!this.scene || this.destroyed) return () => undefined;
     this.destroyNavigation();
     container.replaceChildren();
 
@@ -158,7 +204,7 @@ export class ArcGISRuntime {
       import("@arcgis/map-components/components/arcgis-locate"),
       import("@arcgis/map-components/components/arcgis-fullscreen")
     ]);
-    if (!this.view || this.destroyed) return () => undefined;
+    if (!this.scene || this.destroyed) return () => undefined;
 
     const widgets = [
       this.createConnectedComponent("arcgis-home"),
@@ -181,7 +227,7 @@ export class ArcGISRuntime {
   }
 
   async setLayerVisible(service: ServiceDefinition, visible: boolean): Promise<LayerLoadResult> {
-    if (!this.map || !this.view || this.destroyed) {
+    if (!this.map || !this.scene || this.destroyed) {
       return { ok: false, error: "Harita motoru henüz hazır değil." };
     }
 
@@ -341,12 +387,12 @@ export class ArcGISRuntime {
   }
 
   async prepareLayerActivation(service: ServiceDefinition): Promise<OperationalNavigationResult> {
-    if (!this.view || this.destroyed || !service.renderScaleSensitive) return { moved: false };
+    if (!this.scene || this.destroyed || !service.renderScaleSensitive) return { moved: false };
 
-    const camera = this.view.camera;
+    const camera = this.scene.camera;
     const longitude = camera.position.longitude;
     const latitude = camera.position.latitude;
-    const scale = this.view.scale;
+    const scale = this.scene.scale;
     const insideExtent =
       service.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
         ? operationalExtentContains(service, longitude!, latitude!)
@@ -371,13 +417,13 @@ export class ArcGISRuntime {
 
     try {
       const { default: Point } = await import("@arcgis/core/geometry/Point.js");
-      if (!this.view || this.destroyed) return { moved: false };
+      if (!this.scene || this.destroyed) return { moved: false };
       const target = new Point({
         longitude: targetCenter.longitude,
         latitude: targetCenter.latitude,
         spatialReference: { wkid: 4326 }
       });
-      await this.view.goTo(
+      await this.scene.goTo?.(
         { target, scale: targetScale },
         { duration: 780, easing: "ease-in-out" }
       );
@@ -388,11 +434,11 @@ export class ArcGISRuntime {
   }
 
   async zoomToLayer(service: ServiceDefinition): Promise<boolean> {
-    if (!this.view || this.destroyed) return false;
+    if (!this.scene || this.destroyed) return false;
     try {
       if (service.operationalExtent) {
         const { default: Point } = await import("@arcgis/core/geometry/Point.js");
-        if (!this.view || this.destroyed) return false;
+        if (!this.scene || this.destroyed) return false;
         const center = operationalExtentCenter(service.operationalExtent);
         const target = new Point({
           longitude: center.longitude,
@@ -401,12 +447,12 @@ export class ArcGISRuntime {
         });
         const scale = recommendedActivationScale(service);
         if (scale) {
-          await this.view.goTo({ target, scale }, { duration: 850, easing: "ease-in-out" });
+          await this.scene.goTo?.({ target, scale }, { duration: 850, easing: "ease-in-out" });
           return true;
         }
 
         const { default: Extent } = await import("@arcgis/core/geometry/Extent.js");
-        if (!this.view || this.destroyed) return false;
+        if (!this.scene || this.destroyed) return false;
         const extent = new Extent({
           xmin: service.operationalExtent.xmin,
           ymin: service.operationalExtent.ymin,
@@ -414,7 +460,7 @@ export class ArcGISRuntime {
           ymax: service.operationalExtent.ymax,
           spatialReference: { wkid: 4326 }
         });
-        await this.view.goTo(extent.expand(1.08), { duration: 850, easing: "ease-in-out" });
+        await this.scene.goTo?.(extent.expand(1.08), { duration: 850, easing: "ease-in-out" });
         return true;
       }
 
@@ -423,7 +469,7 @@ export class ArcGISRuntime {
       await layer.load();
       const extent = layer.fullExtent;
       if (!extent) return false;
-      await this.view.goTo(extent.expand(1.2), { duration: 900, easing: "ease-in-out" });
+      await this.scene.goTo?.(extent.expand(1.2), { duration: 900, easing: "ease-in-out" });
       return true;
     } catch {
       return false;
@@ -431,19 +477,19 @@ export class ArcGISRuntime {
   }
 
   setBasemap(basemap: string): void {
-    if (this.map && !this.destroyed) this.map.basemap = basemap;
+    if (this.scene && !this.destroyed) this.scene.basemap = basemap;
   }
 
   setPerformanceProfile(profile: PerformanceProfile): void {
     this.profile = profile;
-    if (!this.view || this.destroyed) return;
-    this.view.qualityProfile = profileToSceneQuality(profile);
-    this.view.environment = this.environmentFor(profile);
+    if (!this.scene || this.destroyed) return;
+    this.scene.qualityProfile = profileToSceneQuality(profile);
+    this.scene.environment = this.environmentFor(profile);
     this.pruneLayerCache();
   }
 
   async openTool(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<void> {
-    if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
+    if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
     this.closeTool();
     container.replaceChildren();
     this.activeWidget = await this.createToolWidget(tool, container);
@@ -459,20 +505,20 @@ export class ArcGISRuntime {
   }
 
   async goTo(camera: CameraState): Promise<void> {
-    if (!this.view || this.destroyed) return;
-    const { default: Camera } = await import("@arcgis/core/Camera.js");
-    if (!this.view || this.destroyed) return;
-    const target = new Camera({
+    if (!this.scene || this.destroyed) return;
+    const { default: CameraCtor } = await import("@arcgis/core/Camera.js");
+    if (!this.scene || this.destroyed) return;
+    const target = new CameraCtor({
       position: pointProperties(camera),
       heading: camera.heading,
       tilt: camera.tilt
     });
-    await this.view.goTo(target, { duration: 950, easing: "ease-in-out" });
+    await this.scene.goTo?.(target, { duration: 950, easing: "ease-in-out" });
   }
 
   getCamera(): CameraState {
-    if (!this.view || this.destroyed) return HOME_CAMERA;
-    const camera = this.view.camera;
+    if (!this.scene || this.destroyed) return HOME_CAMERA;
+    const camera = this.scene.camera;
     return {
       longitude: camera.position.longitude ?? HOME_CAMERA.longitude,
       latitude: camera.position.latitude ?? HOME_CAMERA.latitude,
@@ -483,13 +529,13 @@ export class ArcGISRuntime {
   }
 
   async takeScreenshot(): Promise<string | undefined> {
-    if (!this.view || this.destroyed) return undefined;
+    if (!this.scene || this.destroyed) return undefined;
     try {
-      const result = await this.view.takeScreenshot({
+      const result = await this.scene.takeScreenshot?.({
         format: "png",
         width: Math.min(innerWidth * devicePixelRatio, 2400)
       });
-      return result.dataUrl;
+      return result?.dataUrl;
     } catch {
       return undefined;
     }
@@ -511,9 +557,11 @@ export class ArcGISRuntime {
     this.loadingLayers.clear();
     this.desiredVisibility.clear();
     this.callbacks = {};
-    this.view?.destroy();
-    this.view = undefined;
+    const scene = this.scene;
+    this.scene = undefined;
     this.map = undefined;
+    scene?.remove();
+    if (scene?.destroy) void scene.destroy().catch(() => undefined);
   }
 
   private async loadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
@@ -580,9 +628,9 @@ export class ArcGISRuntime {
   }
 
   private createConnectedComponent(tagName: string, properties: Partial<ArcGISComponentElement> = {}): ArcGISComponentElement {
-    if (!this.view) throw new Error("Harita motoru hazır değil.");
+    if (!this.scene) throw new Error("Harita motoru hazır değil.");
     const element = document.createElement(tagName) as ArcGISComponentElement;
-    element.view = this.view;
+    element.referenceElement = this.scene;
     Object.assign(element, properties);
     return element;
   }
@@ -593,17 +641,19 @@ export class ArcGISRuntime {
     if (component.destroy) void component.destroy().catch(() => undefined);
   }
 
-  private installViewEvents(): void {
-    if (!this.view) return;
+  private installSceneEvents(): void {
+    const scene = this.scene;
+    if (!scene) return;
 
     this.handles.push(
-      this.view.on("click", async (event) => {
-        if (!this.view || this.destroyed) return;
+      domHandle(scene, "arcgisViewClick", async (event) => {
+        if (!this.scene || this.destroyed || !this.scene.hitTest) return;
         try {
-          const hit = await this.view.hitTest(event);
+          const detail = event instanceof CustomEvent ? event.detail : undefined;
+          const hit = await this.scene.hitTest(detail);
           if (this.destroyed) return;
-          const graphicHit = hit.results.find((result) => result.type === "graphic");
-          if (!graphicHit || graphicHit.type !== "graphic") {
+          const graphicHit = hit.results.find((result): result is GraphicHit => result.type === "graphic");
+          if (!graphicHit) {
             this.callbacks.onIdentify?.(null);
             return;
           }
@@ -624,27 +674,29 @@ export class ArcGISRuntime {
     );
 
     this.handles.push(
-      this.view.on("pointer-move", (event) => {
-        if (!this.view || this.destroyed || document.hidden) return;
+      domHandle(scene, "arcgisViewPointerMove", (event) => {
+        if (!this.scene || this.destroyed || document.hidden || !this.scene.toMap) return;
+        const detail = event instanceof CustomEvent ? event.detail as ScenePointerDetail : undefined;
+        if (!detail || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) return;
         cancelAnimationFrame(this.telemetryFrame);
         this.telemetryFrame = requestAnimationFrame(() => {
-          if (!this.view || this.destroyed) return;
-          const point = this.view.toMap({ x: event.x, y: event.y });
-          const camera = this.view.camera;
+          if (!this.scene || this.destroyed || !this.scene.toMap) return;
+          const point = this.scene.toMap({ x: detail.x, y: detail.y });
+          const camera = this.scene.camera;
           this.callbacks.onTelemetry?.({
             latitude: point?.latitude ?? undefined,
             longitude: point?.longitude ?? undefined,
-            altitude: camera.position.z ?? 0,
-            tilt: camera.tilt ?? 0,
-            heading: camera.heading ?? 0,
-            scale: this.view.scale
+            altitude: camera?.position.z ?? 0,
+            tilt: camera?.tilt ?? 0,
+            heading: camera?.heading ?? 0,
+            scale: this.scene.scale
           });
         });
       })
     );
 
     this.handles.push(
-      this.view.watch("camera", () => {
+      domHandle(scene, "arcgisViewChange", () => {
         if (this.destroyed) return;
         window.clearTimeout(this.cameraTimer);
         this.cameraTimer = window.setTimeout(() => {
@@ -652,10 +704,17 @@ export class ArcGISRuntime {
         }, 350);
       })
     );
+
+    this.handles.push(
+      domHandle(scene, "arcgisViewReadyError", () => {
+        if (this.destroyed || !this.scene?.fatalError || !this.scene.tryFatalErrorRecovery) return;
+        void this.scene.tryFatalErrorRecovery().catch(() => undefined);
+      })
+    );
   }
 
   private async createToolWidget(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<ArcGISComponentElement> {
-    if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
+    if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
 
     let tagName: string;
     switch (tool) {
@@ -693,13 +752,23 @@ export class ArcGISRuntime {
         break;
     }
 
-    if (!this.view || this.destroyed) throw new Error("Harita motoru hazır değil.");
+    if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
     const component = this.createConnectedComponent(tagName);
     if (tool === "elevation") component.profiles = [{ type: "ground" }];
     component.classList.add("arcgis-tool-component");
     container.append(component);
     await component.componentOnReady?.();
     return component;
+  }
+
+  async recoverGraphics(): Promise<boolean> {
+    if (!this.scene || this.destroyed || !this.scene.tryFatalErrorRecovery) return false;
+    try {
+      await this.scene.tryFatalErrorRecovery();
+      return !this.scene.fatalError;
+    } catch {
+      return false;
+    }
   }
 
   private environmentFor(profile: PerformanceProfile) {
@@ -801,4 +870,10 @@ function formatValue(value: unknown): string {
 function coordinateLabel(point: { latitude?: number | null; longitude?: number | null }): string | undefined {
   if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) return undefined;
   return `${point.latitude!.toFixed(5)}° N · ${point.longitude!.toFixed(5)}° E`;
+}
+
+
+function domHandle(target: EventTarget, type: string, listener: EventListener): Removable {
+  target.addEventListener(type, listener);
+  return { remove: () => target.removeEventListener(type, listener) };
 }
