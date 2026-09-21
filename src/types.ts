@@ -245,7 +245,7 @@ export interface OperationalReadinessSummary {
 }
 
 export type IncidentSeverity = "info" | "warning" | "error";
-export type IncidentKind = "boot" | "network" | "layer-load" | "layer-retry" | "query" | "system";
+export type IncidentKind = "boot" | "network" | "layer-load" | "layer-retry" | "query" | "system" | "health-refresh" | "sync";
 
 export interface RuntimeIncident {
   id: string;
@@ -264,6 +264,28 @@ export interface ServiceHealthSnapshot {
   generatedAt: string;
   source: string;
   services: ServiceVerificationEntry[];
+}
+
+export type LiveHealthSource = "boot" | "network" | "broadcast" | "offline-cache";
+
+export interface ServiceHealthChange {
+  serviceId: string;
+  serviceName: string;
+  fromAvailability: ServiceAvailability;
+  toAvailability: ServiceAvailability;
+  fromAccess: ServiceAccess;
+  toAccess: ServiceAccess;
+}
+
+export interface LiveHealthState {
+  refreshing: boolean;
+  source: LiveHealthSource;
+  lastAttemptAt?: string;
+  lastSuccessAt?: string;
+  lastSnapshotAt?: string;
+  lastError?: string;
+  changeCount: number;
+  crossTab: boolean;
 }
 
 
