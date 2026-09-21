@@ -1,5 +1,5 @@
-const SHELL_CACHE = "altyapi-shell-v11";
-const DATA_CACHE = "altyapi-data-v11";
+const SHELL_CACHE = "altyapi-shell-v12";
+const DATA_CACHE = "altyapi-data-v12";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 const DATA_FILES = ["./services.json", "./service-health.json"];
 
@@ -10,7 +10,7 @@ self.addEventListener("install", (event) => {
       caches.open(DATA_CACHE).then((cache) =>
         Promise.allSettled(DATA_FILES.map((file) => cache.add(file)))
       )
-    ]).then(() => self.skipWaiting())
+    ])
   );
 });
 
