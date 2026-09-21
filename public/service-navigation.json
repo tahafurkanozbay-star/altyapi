@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-21T07:20:56.229Z",
+  "source": "GitHub Actions live ArcGIS query-extent and multi-scale export verification",
+  "profiles": [
+    {
+      "index": 10,
+      "name": "YAĞMUR SUYU ELEMAN",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 31.311525,
+        "ymin": 38.843148,
+        "xmax": 33.7197,
+        "ymax": 40.807147,
+        "wkid": 4326
+      },
+      "minScale": 400000,
+      "recommendedScale": 300000,
+      "renderScaleSensitive": true,
+      "source": "verified-render",
+      "note": "1:400.000 export doğrulandı; geniş görünümlerde belirgin performans düşüşü ölçüldü."
+    },
+    {
+      "index": 11,
+      "name": "YAĞMUR SUYU BORU",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 31.319266,
+        "ymin": 38.91013,
+        "xmax": 33.610458,
+        "ymax": 40.499206,
+        "wkid": 4326
+      },
+      "minScale": 400000,
+      "recommendedScale": 300000,
+      "renderScaleSensitive": true,
+      "source": "verified-render",
+      "note": "1:400.000 export doğrulandı; çalışma kapsamı query extent ile doğrulandı."
+    },
+    {
+      "index": 12,
+      "name": "PİS SU BORU",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 30.865435,
+        "ymin": 38.74424,
+        "xmax": 33.835721,
+        "ymax": 40.807422,
+        "wkid": 4326
+      },
+      "minScale": 400000,
+      "recommendedScale": 300000,
+      "renderScaleSensitive": true,
+      "source": "verified-render",
+      "note": "1:400.000 export doğrulandı; çalışma kapsamı query extent ile doğrulandı."
+    },
+    {
+      "index": 13,
+      "name": "PİS SU ELEMAN",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 30.865435,
+        "ymin": 38.74424,
+        "xmax": 33.835721,
+        "ymax": 40.807422,
+        "wkid": 4326
+      },
+      "minScale": 400000,
+      "recommendedScale": 300000,
+      "renderScaleSensitive": true,
+      "source": "verified-render",
+      "note": "1:400.000 export doğrulandı; çalışma kapsamı query extent ile doğrulandı."
+    },
+    {
+      "index": 14,
+      "name": "İÇME SUYU ELEMAN",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 30.834117,
+        "ymin": 38.717957,
+        "xmax": 33.880233,
+        "ymax": 40.74737,
+        "wkid": 4326
+      },
+      "minScale": 400000,
+      "recommendedScale": 300000,
+      "renderScaleSensitive": true,
+      "source": "verified-render",
+      "note": "1:400.000 export 11 sn içinde doğrulandı; 1:600.000 isteği 16 sn sınırında zaman aşımına düştü."
+    },
+    {
+      "index": 15,
+      "name": "İÇME SUYU BORU",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 30.83775,
+        "ymin": 38.718023,
+        "xmax": 33.880281,
+        "ymax": 40.750997,
+        "wkid": 4326
+      },
+      "minScale": 400000,
+      "recommendedScale": 300000,
+      "renderScaleSensitive": true,
+      "source": "verified-render",
+      "note": "1:400.000 export 11 sn içinde doğrulandı; 1:600.000 isteği 16 sn sınırında zaman aşımına düştü."
+    },
+    {
+      "index": 16,
+      "name": "UYGULAMA İMAR PLANI (UIP ESRI3)",
+      "kind": "MapServer",
+      "extent": {
+        "xmin": 30.913512,
+        "ymin": 38.698109,
+        "xmax": 34.523361,
+        "ymax": 40.755393,
+        "wkid": 4326
+      },
+      "minScale": 2311162,
+      "maxScale": 1128,
+      "recommendedScale": 1800000,
+      "renderScaleSensitive": true,
+      "source": "declared-service",
+      "note": "Servis metadata'sı görünürlük aralığını 1:2.311.162–1:1.128 olarak ilan ediyor."
+    },
+    {
+      "index": 17,
+      "name": "SINIRLAR",
+      "kind": "FeatureServer",
+      "extent": {
+        "xmin": 30.815291,
+        "ymin": 38.679057,
+        "xmax": 33.893073,
+        "ymax": 40.756728,
+        "wkid": 4326
+      },
+      "source": "verified-query",
+      "note": "returnExtentOnly sorgusu ile doğrulandı."
+    },
+    {
+      "index": 18,
+      "name": "3D1234 WFL1",
+      "kind": "FeatureServer",
+      "extent": {
+        "xmin": 31.765806,
+        "ymin": 38.950764,
+        "xmax": 33.316627,
+        "ymax": 40.347615,
+        "wkid": 4326
+      },
+      "source": "verified-query",
+      "note": "returnExtentOnly sorgusu ile doğrulandı."
+    },
+    {
+      "index": 19,
+      "name": "3D1234 WSL2",
+      "kind": "SceneServer",
+      "extent": {
+        "xmin": 31.816,
+        "ymin": 39.094,
+        "xmax": 33.145,
+        "ymax": 40.265,
+        "wkid": 4326
+      },
+      "source": "declared-service",
+      "note": "Scene layer metadata kapsamı doğrulandı."
+    }
+  ]
+}
