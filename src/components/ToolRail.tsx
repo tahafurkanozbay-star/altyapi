@@ -34,6 +34,7 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
         <ToolButton icon="table" label="Sorgu stüdyosu" shortcut="D" active={activePanel === "data"} onClick={() => onPanel("data")} />
         <ToolButton icon="archive" label="Çalışma alanı paketi" shortcut="W" active={activePanel === "workspace"} onClick={() => onPanel("workspace")} />
         <ToolButton icon="health" label="Servis sağlığı" active={activePanel === "health"} onClick={() => onPanel("health")} />
+        <ToolButton icon="activity" label="Olay günlüğü" shortcut="I" active={activePanel === "incidents"} onClick={() => onPanel("incidents")} />
         <ToolButton icon="speed" label="Sistem tanılama" active={activePanel === "diagnostics"} onClick={() => onPanel("diagnostics")} />
         <ToolButton icon="bookmark" label="Yer imleri" active={activePanel === "bookmarks"} onClick={() => onPanel("bookmarks")} />
       </div>
