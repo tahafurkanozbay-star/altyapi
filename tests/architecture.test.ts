@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v11 architecture guardrails", () => {
+describe("v12 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -57,7 +57,7 @@ describe("v11 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).toContain('useState<PanelId>("overview")');
-    expect(serviceWorker).toContain("altyapi-data-v11");
+    expect(serviceWorker).toContain("altyapi-data-v12");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -76,4 +76,23 @@ describe("v11 architecture guardrails", () => {
     expect(app).toContain("loadIncidentJournal");
     expect(operations).toContain("Olay Günlüğü");
   });
+  it("ships adaptive stabilization, session analytics and controlled PWA updates", async () => {
+    const stabilization = await readFile("src/lib/stabilization.ts", "utf8");
+    const reliability = await readFile("src/lib/sessionReliability.ts", "utf8");
+    const main = await readFile("src/main.tsx", "utf8");
+    const serviceWorker = await readFile("public/sw.js", "utf8");
+    const overview = await readFile("src/components/OperationsOverview.tsx", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+
+    expect(stabilization).toContain("buildStabilizationPlan");
+    expect(reliability).toContain("summarizeIncidentReliability");
+    expect(overview).toContain("ADAPTİF GÜVENLİ MOD");
+    expect(app).toContain("stabilizeWorkspace");
+    expect(app).toContain("altyapi:apply-update");
+    expect(main).toContain("altyapi:update-available");
+    expect(main).toContain("controllerchange");
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v12"');
+    expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
+  });
+
 });
