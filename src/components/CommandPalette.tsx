@@ -30,6 +30,7 @@ export function CommandPalette({ open, services, onClose, onLayer, onTool, onPan
 
   const commands = useMemo<Command[]>(() => [
     { id: "home", label: "Başlangıç görünümüne dön", subtitle: "Harita", icon: "home", keywords: "home başlangıç ankara", run: onHome },
+    { id: "overview", label: "Operasyon özetini aç", subtitle: "Intelligence", icon: "dashboard", keywords: "operasyon özet hazırlık skor dashboard intelligence durum", run: () => onPanel("overview") },
     { id: "layers", label: "Katman kataloğunu aç", subtitle: "Panel", icon: "layers", keywords: "katman servis katalog", run: () => onPanel("layers") },
     { id: "data", label: "Sorgu stüdyosunu aç", subtitle: "Veri", icon: "table", keywords: "öznitelik tablo csv veri sorgu feature kayıt filtre sıralama", run: () => onPanel("data") },
     { id: "workspace", label: "Çalışma alanı paketini aç", subtitle: "Oturum", icon: "archive", keywords: "çalışma alanı workspace dışa aktar içe aktar yedek json", run: () => onPanel("workspace") },
