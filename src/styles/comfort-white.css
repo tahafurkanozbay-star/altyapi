@@ -1591,4 +1591,249 @@
     }
   }
 
+
+  /* v12 · Adaptive Operations */
+  .adaptive-recovery-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 14px;
+    border: 1px solid #cfe1ed;
+    border-radius: 15px;
+    background:
+      radial-gradient(circle at 6% 18%, rgba(22, 119, 210, .08), transparent 32%),
+      linear-gradient(145deg, #ffffff, #f6fbff);
+  }
+
+  .adaptive-recovery-copy {
+    min-width: 0;
+  }
+
+  .adaptive-recovery-copy > strong {
+    display: block;
+    margin-top: 3px;
+    color: #24485f;
+    font-size: 11px;
+  }
+
+  .adaptive-recovery-copy > p {
+    margin: 4px 0 0;
+    color: #6d8391;
+    font-size: 8.5px;
+    line-height: 1.55;
+  }
+
+  .adaptive-recovery-card .primary-button {
+    min-height: 34px;
+    white-space: nowrap;
+  }
+
+  .session-reliability-card {
+    display: grid;
+    gap: 9px;
+    padding: 12px 13px;
+    border: 1px solid #dfe8ed;
+    border-radius: 14px;
+    background: #fbfcfd;
+  }
+
+  .session-reliability-card > div:first-child {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .session-reliability-card > div:first-child > strong {
+    color: #29495d;
+    font-size: 10px;
+  }
+
+  .session-reliability-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .session-reliability-grid > span {
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid #e4ebef;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .session-reliability-grid b,
+  .session-reliability-grid small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .session-reliability-grid b {
+    color: #29495d;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .session-reliability-grid small {
+    margin-top: 2px;
+    color: #8194a0;
+    font-size: 7px;
+  }
+
+  .incident-reliability-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .incident-reliability-summary > div {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #e1e9ed;
+    border-radius: 11px;
+    background: #f8fafb;
+  }
+
+  .incident-reliability-summary span,
+  .incident-reliability-summary strong,
+  .incident-reliability-summary small {
+    display: block;
+  }
+
+  .incident-reliability-summary span {
+    color: #748a98;
+    font-size: 7px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .incident-reliability-summary strong {
+    margin-top: 4px;
+    color: #28485b;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .incident-reliability-summary small {
+    margin-top: 2px;
+    color: #8a9ba5;
+    font-size: 7px;
+  }
+
+  .incident-filter-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .incident-filter-bar select {
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 1px solid #dce6eb;
+    border-radius: 9px;
+    background: #fff;
+    color: #37566a;
+    font-size: 8px;
+  }
+
+  .incident-filter-bar > span {
+    color: #778b98;
+    font-size: 8px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .app-update-banner {
+    position: fixed;
+    right: 18px;
+    bottom: 58px;
+    z-index: 95;
+    width: min(470px, calc(100vw - 36px));
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid #cbdfea;
+    border-radius: 14px;
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 18px 48px rgba(43,72,91,.16);
+    backdrop-filter: blur(14px);
+  }
+
+  .app-update-icon {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: #eaf3fb;
+    color: #1677d2;
+  }
+
+  .app-update-banner strong,
+  .app-update-banner span {
+    display: block;
+  }
+
+  .app-update-banner strong {
+    color: #28485b;
+    font-size: 9.5px;
+  }
+
+  .app-update-banner div > span {
+    margin-top: 2px;
+    color: #7a8f9b;
+    font-size: 7.5px;
+    line-height: 1.4;
+  }
+
+  .app-update-banner .primary-button {
+    min-height: 32px;
+    padding-inline: 12px;
+  }
+
+  @media (max-width: 680px) {
+    .adaptive-recovery-card {
+      grid-template-columns: 1fr;
+    }
+
+    .adaptive-recovery-card .primary-button {
+      justify-self: stretch;
+      justify-content: center;
+    }
+
+    .session-reliability-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .incident-filter-bar {
+      grid-template-columns: 1fr;
+    }
+
+    .incident-filter-bar > span {
+      justify-self: end;
+    }
+
+    .app-update-banner {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      width: auto;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .app-update-banner .primary-button {
+      grid-column: 2 / 4;
+      justify-content: center;
+    }
+  }
+
 }

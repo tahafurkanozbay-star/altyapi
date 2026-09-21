@@ -6,6 +6,7 @@ import {
   summarizeOperationalReadiness
 } from "../lib/operationsIntelligence";
 import { availabilityLabel } from "../lib/serviceHealth";
+import { reliabilityTrendLabel, summarizeIncidentReliability } from "../lib/sessionReliability";
 import type { PanelId, PerformanceProfile, RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
@@ -15,9 +16,10 @@ interface Props {
   performance: PerformanceProfile;
   incidents: RuntimeIncident[];
   onPanel: (panel: Exclude<PanelId, null>) => void;
+  onStabilize: () => Promise<void>;
 }
 
-export function OperationsOverview({ services, online, performance, incidents, onPanel }: Props) {
+export function OperationsOverview({ services, online, performance, incidents, onPanel, onStabilize }: Props) {
   const summary = useMemo(() => summarizeOperationalReadiness(services), [services]);
   const recommendations = useMemo(() => operationalRecommendations(services), [services]);
   const weakest = useMemo(() => rankServicesByReadiness(services, "worst").slice(0, 5), [services]);
@@ -31,6 +33,7 @@ export function OperationsOverview({ services, online, performance, incidents, o
     [services]
   );
   const stale = services.some((service) => service.verificationStale);
+  const reliability = useMemo(() => summarizeIncidentReliability(incidents), [incidents]);
 
   return (
     <div className="operations-body operations-overview">
@@ -59,6 +62,30 @@ export function OperationsOverview({ services, online, performance, incidents, o
         <OverviewMetric label="Riskli" value={summary.risky} sub="kısıtlı / ulaşılamıyor" tone={summary.risky ? "warn" : "good"} />
         <OverviewMetric label="Aktif" value={summary.active} sub={`${summary.ready} hazır`} tone="neutral" />
         <OverviewMetric label="Canlı hata" value={summary.runtimeErrors} sub={summary.coolingDown ? `${summary.coolingDown} devre kesici` : "devre kesici yok"} tone={summary.runtimeErrors ? "bad" : "good"} />
+      </section>
+
+      <section className="adaptive-recovery-card">
+        <div className="adaptive-recovery-copy">
+          <span className="eyebrow">ADAPTİF GÜVENLİ MOD</span>
+          <strong>Çalışma alanını tek hamlede stabilize et</strong>
+          <p>Riskli, ulaşılamayan veya devre kesicideki görünür katmanları kapatır; sahne boş kalırsa en uygun doğrulanmış servislerden en fazla ikisini güvenli biçimde açar.</p>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void onStabilize()}>
+          <Icon name="activity" size={15} /> Stabilize et
+        </button>
+      </section>
+
+      <section className="session-reliability-card" aria-label="Son bir saat güvenilirlik özeti">
+        <div>
+          <span className="eyebrow">SON 60 DAKİKA</span>
+          <strong>{reliability.score}/100 · {reliabilityTrendLabel(reliability.trend)}</strong>
+        </div>
+        <div className="session-reliability-grid">
+          <span><b>{reliability.errors}</b><small>hata</small></span>
+          <span><b>{reliability.warnings}</b><small>uyarı</small></span>
+          <span><b>{reliability.recoveryRate}%</b><small>toparlanma</small></span>
+          <span><b>{reliability.p95DurationMs !== undefined ? `${reliability.p95DurationMs} ms` : "—"}</b><small>P95 olay süresi</small></span>
+        </div>
       </section>
 
       <section className="overview-quick-actions">

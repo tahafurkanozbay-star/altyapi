@@ -36,9 +36,41 @@ if (window.__ALTYAPI_BOOT_TIMER__ !== undefined) {
 }
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  let registration: ServiceWorkerRegistration | undefined;
+  let applyingUpdate = false;
+
+  const notifyUpdateAvailable = () => {
+    if (registration?.waiting && navigator.serviceWorker.controller) {
+      window.dispatchEvent(new Event("altyapi:update-available"));
+    }
+  };
+
+  window.addEventListener("altyapi:apply-update", () => {
+    if (!registration?.waiting) return;
+    applyingUpdate = true;
+    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+  });
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!applyingUpdate) return;
+    applyingUpdate = false;
+    window.location.reload();
+  });
+
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((registration) => {
-      void registration.update();
+    void navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((nextRegistration) => {
+      registration = nextRegistration;
+      notifyUpdateAvailable();
+
+      nextRegistration.addEventListener("updatefound", () => {
+        const worker = nextRegistration.installing;
+        if (!worker) return;
+        worker.addEventListener("statechange", () => {
+          if (worker.state === "installed") notifyUpdateAvailable();
+        });
+      });
+
+      void nextRegistration.update();
     }).catch((error) => {
       console.warn("[Başkent 3B CBS] Service worker kaydedilemedi", error);
     });

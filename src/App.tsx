@@ -12,6 +12,7 @@ import {
   loadIncidentJournal,
   type IncidentInput
 } from "./lib/incidentJournal";
+import { buildStabilizationPlan } from "./lib/stabilization";
 import {
   applyServiceHealthSnapshot,
   failurePatch,
@@ -43,7 +44,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "11.0.0";
+const APP_VERSION = "12.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -70,6 +71,7 @@ export default function App() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
   const [incidents, setIncidents] = useState<RuntimeIncident[]>(() => loadIncidentJournal());
+  const [updateAvailable, setUpdateAvailable] = useState(false);
 
   const effectivePerformance: PerformanceProfile = preferences.performance === "auto" ? detectPerformanceProfile() : preferences.performance;
   const initialPerformanceRef = useRef(effectivePerformance);
@@ -120,6 +122,18 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = "light";
   }, []);
+
+  useEffect(() => {
+    const onUpdate = () => setUpdateAvailable(true);
+    window.addEventListener("altyapi:update-available", onUpdate);
+    return () => window.removeEventListener("altyapi:update-available", onUpdate);
+  }, []);
+
+  const applyAppUpdate = useCallback(() => {
+    window.dispatchEvent(new Event("altyapi:apply-update"));
+    setUpdateAvailable(false);
+    pushToast("Yeni sürüm uygulanıyor…", "info");
+  }, [pushToast]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -492,6 +506,31 @@ export default function App() {
     pushToast("Çalışma alanı paketi uygulandı.", "success");
   }, [pushToast]);
 
+  const stabilizeWorkspace = useCallback(async () => {
+    const snapshot = servicesRef.current;
+    const plan = buildStabilizationPlan(snapshot);
+    const hide = snapshot.filter((service) => plan.hideIds.includes(service.id));
+    const activate = snapshot.filter((service) => plan.activateIds.includes(service.id));
+
+    if (hide.length === 0 && activate.length === 0) {
+      pushToast("Çalışma alanı zaten stabil görünüyor.", "success");
+      return;
+    }
+
+    await mapWithConcurrency(hide, 2, async (service) => {
+      await toggleLayer(service, false);
+    });
+    await mapWithConcurrency(activate, 2, async (service) => {
+      await toggleLayer(service, true);
+    });
+
+    const message = `Stabilizasyon tamamlandı: ${hide.length} riskli katman kapatıldı, ${activate.length} doğrulanmış katman açıldı.`;
+    pushToast(message, "success");
+    recordIncident({ severity: "info", kind: "system", message, recovered: true });
+    setPanel("overview");
+    setMobilePanelsVisible(true);
+  }, [pushToast, recordIncident, toggleLayer]);
+
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
     setPanel((current) => current === nextPanel ? null : nextPanel);
     setMobilePanelsVisible(true);
@@ -675,6 +714,7 @@ export default function App() {
               onClose={() => setPanel(null)}
               onNavigatePanel={selectPanel}
               onClearIncidents={clearIncidents}
+              onStabilizeWorkspace={stabilizeWorkspace}
               onRetryErrors={retryErrors}
               onAddBookmark={addBookmark}
               onGoBookmark={(bookmark) => void goBookmark(bookmark)}
@@ -698,6 +738,15 @@ export default function App() {
       <StatusBar telemetry={telemetry} services={services} performance={effectivePerformance} />
       <CommandPalette open={commandOpen} services={services} onClose={() => setCommandOpen(false)} onLayer={(service) => void toggleLayer(service, !service.visible)} onTool={selectTool} onPanel={selectPanel} onHome={() => void runtimeRef.current?.goHome()} onScreenshot={() => void takeScreenshot()} />
       <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
+
+      {updateAvailable && (
+        <div className="app-update-banner" role="status" aria-live="polite">
+          <span className="app-update-icon"><Icon name="refresh" size={16} /></span>
+          <div><strong>Yeni Başkent 3B CBS sürümü hazır</strong><span>Güncelleme kontrollü olarak uygulanabilir; çalışma alanı tercihlerin korunur.</span></div>
+          <button type="button" className="primary-button" onClick={applyAppUpdate}>Güncelle</button>
+          <button type="button" className="icon-ghost" onClick={() => setUpdateAvailable(false)} aria-label="Güncelleme bildirimini kapat"><Icon name="close" size={14} /></button>
+        </div>
+      )}
 
       {!ready && !bootError && <div className="boot-screen"><div className="boot-logo"><span>3B</span><i /></div><div><strong>Başkent 3B CBS hazırlanıyor</strong><span>Harita motoru ve servis kataloğu yükleniyor…</span></div><div className="boot-progress"><i /></div></div>}
       {bootError && <div className="fatal-screen"><Icon name="warning" size={34} /><h1>Uygulama başlatılamadı</h1><p>{bootError}</p><button type="button" className="primary-button" onClick={() => location.reload()}><Icon name="refresh" /> Yeniden yükle</button></div>}
