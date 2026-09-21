@@ -1,7 +1,7 @@
 {
   "name": "Başkent 3B CBS Operasyon Platformu",
   "short_name": "Başkent 3B CBS",
-  "description": "Comfort White arayüzlü 3B CBS, adaptif güvenli mod, oturum güvenilirlik analitiği, Operations Intelligence, kontrollü PWA güncellemesi ve dayanıklı servis orkestrasyonu.",
+  "description": "Comfort White arayüzlü 3B CBS; ArcGIS 5.1 component-first Scene mimarisi, operasyon zekâsı, servis dayanıklılığı, güvenli Query Studio ve offline-safe veri önbelleği.",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
