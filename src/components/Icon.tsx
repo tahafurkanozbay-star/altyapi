@@ -4,7 +4,7 @@ export type IconName =
   | "layers" | "health" | "bookmark" | "home" | "legend" | "basemap" | "distance" | "area"
   | "daylight" | "slice" | "sight" | "elevation" | "camera" | "share" | "command" | "star"
   | "eye" | "eyeOff" | "zoom" | "refresh" | "info" | "close" | "plus" | "trash" | "download"
-  | "chevron" | "search" | "speed" | "theme" | "help" | "check" | "warning" | "menu" | "table" | "database" | "archive";
+  | "chevron" | "search" | "speed" | "theme" | "help" | "check" | "warning" | "menu" | "table" | "database" | "archive" | "dashboard" | "activity";
 
 const paths: Record<IconName, ReactNode> = {
   layers: <><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></>,
@@ -39,7 +39,9 @@ const paths: Record<IconName, ReactNode> = {
   menu: <path d="M4 7h16M4 12h16M4 17h16"/>,
   table: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10M15 10v10"/></>,
   database: <><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></>,
-  archive: <><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 11h6"/></>
+  archive: <><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 11h6"/></>,
+  dashboard: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
+  activity: <><path d="M3 12h4l2.2-6 4.3 12 2.2-6H21"/><circle cx="12" cy="12" r="9" opacity=".18"/></>
 };
 
 export function Icon({ name, size = 18, ...props }: { name: IconName; size?: number } & SVGProps<SVGSVGElement>) {
