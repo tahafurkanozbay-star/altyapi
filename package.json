@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "12.0.0",
+  "version": "12.1.0",
   "private": true,
   "type": "module",
-  "description": "Ankara odaklı, Comfort White arayüzlü, ArcGIS 5.1 Web Components, adaptif çalışma alanı stabilizasyonu, oturum güvenilirlik analitiği, kontrollü PWA güncellemeleri ve race-safe runtime içeren profesyonel 3B CBS platformu.",
+  "description": "Ankara odaklı, Comfort White arayüzlü, ArcGIS 5.1 Web Components, adaptif stabilizasyon, doğrulanmış çalışma extentleri ve ölçek-duyarlı altyapı katman navigasyonu içeren profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
@@ -17,9 +17,10 @@
     "test:watch": "vitest",
     "validate:services": "node scripts/validate-services.mjs",
     "verify:build": "node scripts/verify-build.mjs",
-    "check": "npm run validate:services && npm run validate:health && npm run typecheck && npm run test && npm run build",
+    "check": "npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "node scripts/validate-service-health.mjs",
-    "probe:services": "node scripts/probe-service-health.mjs"
+    "probe:services": "node scripts/probe-service-health.mjs",
+    "validate:navigation": "node scripts/validate-service-navigation.mjs"
   },
   "dependencies": {
     "@arcgis/core": "^5.1.24",
