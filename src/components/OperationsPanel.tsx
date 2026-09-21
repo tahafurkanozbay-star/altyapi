@@ -285,8 +285,8 @@ function DiagnosticsPanel({ services, performance, incidents }: { services: Serv
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "12.1.0",
-      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + adaptive operations reliability",
+      version: "13.0.0",
+      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 component-first Scene + adaptive operations reliability",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -429,8 +429,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v12.1 · Scale-Aware Operations</h3>
-        <p>React 19.3, TypeScript 7 ve ArcGIS 5.1 Web Components üzerinde adaptif güvenli mod, oturum güvenilirlik analitiği, kontrollü PWA güncellemesi ve yarış koşulu güvenli katman orkestrasyonunu birleştiren Ankara 3B CBS platformu.</p>
+        <h3>Başkent 3B CBS v13 · Component-First Scene</h3>
+        <p>React 19.3, TypeScript 7 ve ArcGIS 5.1 arcgis-scene Web Component üzerinde çalışan; referenceElement bağlantılı araçlar, otomatik WebGL kurtarma, adaptif güvenli mod ve ölçek-duyarlı katman orkestrasyonunu birleştiren Ankara 3B CBS platformu.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />

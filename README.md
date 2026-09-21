@@ -1,6 +1,23 @@
-# Başkent 3B CBS · Scale-Aware Operations Platform v12.1
+# Başkent 3B CBS · Component-First Scene Platform v13
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
+
+## v13: Component-First Scene Platform
+
+v13, ArcGIS Maps SDK 5.1'in güncel component-first programlama modeline geçer. Ana 3B görünüm artık doğrudan `new SceneView(...)` ile kurulmaz; standart tabanlı `<arcgis-scene>` Web Component harita/scene yaşam döngüsünün sahibidir.
+
+- ana 3B motoru `@arcgis/map-components/components/arcgis-scene` ile oluşturulur
+- doğrudan `Map` + `SceneView` constructor başlangıcı kaldırıldı
+- Search / Home / Compass / Locate / Fullscreen ve analiz bileşenleri `view` enjeksiyonu yerine `referenceElement` ile Scene component'e bağlanır
+- tıklama, pointer ve görünüm değişiklikleri component-native `arcgisView*` eventleri üzerinden akar
+- screenshot, hitTest, toMap, goTo ve quality profile işlemleri Scene component facade üzerinden yürütülür
+- WebGL / rendering fatal error durumunda `tryFatalErrorRecovery()` ile otomatik kurtarma denenir
+- grafik bağlamı kurtarma girişimleri sanitizasyonlu Olay Günlüğü'ne yazılır
+- Scene host'u bağımsız layout/paint containment ile izole edilir
+- PWA shell/data cache namespace'leri v13'e taşındı
+- mimari testler doğrudan SceneView constructor kullanımının geri dönmesini engeller
+
+Detay: [docs/COMPONENT_FIRST_SCENE.md](docs/COMPONENT_FIRST_SCENE.md)
 
 ## v12.1: Scale-Aware Operations
 
@@ -79,7 +96,7 @@ Hazırlık puanı bir SLA veya resmi hizmet seviyesi değildir; tarayıcı istem
 - GitHub Actions — CI, CodeQL ve GitHub Pages
 - same-origin PWA / service worker
 
-Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile yalnızca "dil değişmiş olsun" diye taşımak ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. Modernizasyon; strict TypeScript kontratları, React 19.3 View Transitions, ArcGIS Web Components, güvenli query builder, PWA yaşam döngüsü, adaptif stabilizasyon ve tip güvenli operasyon intelligence katmanında ilerler.
+Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile yalnızca "dil değişmiş olsun" diye taşımak ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. v13'te gerçek modernizasyon, doğrudan SceneView kurulumunu bırakıp ArcGIS 5.1'in component-first `arcgis-scene` modeline, `referenceElement` bağlantılı araçlara, strict TypeScript kontratlarına ve component-native event akışına geçmektir.
 
 ## Yerel geliştirme
 
@@ -115,7 +132,7 @@ Bu komut sırasıyla servis kataloğu, servis sağlık snapshot'ı, doğrulanmı
 
 ## 3B operasyon yetenekleri
 
-- Ankara merkezli SceneView + world elevation
+- Ankara merkezli **arcgis-scene Web Component** + world elevation
 - adaptive high / balanced / eco kalite profilleri
 - FeatureServer, SceneServer, MapServer, WMS ve WFS adaptörleri
 - katman arama, kurum gruplama, servis türü filtresi ve favoriler
@@ -252,7 +269,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **12.1.0**
+Current application version: **13.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 
