@@ -47,6 +47,7 @@ function snapshot(generatedAt: string): ServiceHealthSnapshot {
       availability: "verified",
       access: "public-browser",
       browserCompatible: true,
+      latencyMs: 210,
       reason: "test"
     }]
   };
