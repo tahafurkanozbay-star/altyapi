@@ -6,6 +6,13 @@ import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import { createWorkspaceSnapshot, parseWorkspaceSnapshot, workspaceSnapshotToJson } from "./lib/workspace";
 import {
+  appendIncident,
+  clearIncidentJournal,
+  createIncident,
+  loadIncidentJournal,
+  type IncidentInput
+} from "./lib/incidentJournal";
+import {
   applyServiceHealthSnapshot,
   failurePatch,
   isServiceCoolingDown,
@@ -22,6 +29,7 @@ import type {
   IdentifyResult,
   PanelId,
   PerformanceProfile,
+  RuntimeIncident,
   SceneTelemetry,
   ServiceDefinition,
   ToolId
@@ -35,7 +43,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "10.0.0";
+const APP_VERSION = "11.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -61,6 +69,7 @@ export default function App() {
   const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
+  const [incidents, setIncidents] = useState<RuntimeIncident[]>(() => loadIncidentJournal());
 
   const effectivePerformance: PerformanceProfile = preferences.performance === "auto" ? detectPerformanceProfile() : preferences.performance;
   const initialPerformanceRef = useRef(effectivePerformance);
@@ -79,6 +88,16 @@ export default function App() {
     setToasts((items) => [...items.slice(-3), { id, message, tone }]);
     window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 4800);
   }, []);
+
+  const recordIncident = useCallback((input: IncidentInput) => {
+    setIncidents((current) => appendIncident(current, createIncident(input)));
+  }, []);
+
+  const clearIncidents = useCallback(() => {
+    clearIncidentJournal();
+    setIncidents([]);
+    pushToast("Olay günlüğü temizlendi.", "success");
+  }, [pushToast]);
 
   const patchService = useCallback((id: string, patch: Partial<ServiceDefinition>) => {
     setServices((current) => current.map((service) => service.id === id ? { ...service, ...patch } : service));
@@ -106,10 +125,12 @@ export default function App() {
     const onOnline = () => {
       setOnline(true);
       pushToast("Ağ bağlantısı yeniden kuruldu.", "success");
+      recordIncident({ severity: "info", kind: "network", message: "Ağ bağlantısı yeniden kuruldu.", recovered: true });
     };
     const onOffline = () => {
       setOnline(false);
       pushToast("Ağ bağlantısı kesildi. Harita servisleri geçici olarak kullanılamayabilir.", "error");
+      recordIncident({ severity: "warning", kind: "network", message: "Tarayıcı çevrimdışı duruma geçti." });
     };
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
@@ -117,7 +138,7 @@ export default function App() {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [pushToast]);
+  }, [pushToast, recordIncident]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,12 +208,23 @@ export default function App() {
           if (cancelled) return;
           patchService(service.id, { status: "loading" });
           const result = await runtime.setLayerVisible(service, true);
+          if (result.superseded) return;
           patchService(
             service.id,
             result.ok
               ? { ...successPatch(result.durationMs), visible: true }
               : failurePatch(service, result.error, result.durationMs)
           );
+          if (!result.ok) {
+            recordIncident({
+              severity: "error",
+              kind: "layer-load",
+              message: result.error ?? "Başlangıç katmanı yüklenemedi.",
+              serviceId: service.id,
+              serviceName: service.displayName,
+              durationMs: result.durationMs
+            });
+          }
         });
         if (cancelled) return;
         persistLayerPreferences(servicesRef.current);
@@ -205,6 +237,7 @@ export default function App() {
         const message = error instanceof Error ? error.message : "Uygulama başlatılamadı.";
         setBootError(message);
         pushToast(message, "error");
+        recordIncident({ severity: "error", kind: "boot", message });
       }
     })();
 
@@ -217,7 +250,7 @@ export default function App() {
       runtimeRef.current = null;
       runtime?.destroy();
     };
-  }, [initialPreferences, patchService, persistLayerPreferences, pushToast]);
+  }, [initialPreferences, patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   useEffect(() => {
     runtimeRef.current?.setPerformanceProfile(effectivePerformance);
@@ -248,6 +281,7 @@ export default function App() {
     }
 
     const result = await runtime.setLayerVisible({ ...service, visible }, visible);
+    if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? {
           ...(visible ? successPatch(result.durationMs) : {}),
@@ -264,8 +298,25 @@ export default function App() {
 
     if (!result.ok) {
       pushToast(`${service.displayName}: ${result.error ?? "Servis yüklenemedi."}`, "error");
+      recordIncident({
+        severity: "error",
+        kind: "layer-load",
+        message: result.error ?? "Servis yüklenemedi.",
+        serviceId: service.id,
+        serviceName: service.displayName,
+        durationMs: result.durationMs
+      });
+    } else if (visible && (result.durationMs ?? 0) >= 5_000) {
+      recordIncident({
+        severity: "warning",
+        kind: "layer-load",
+        message: "Katman başarıyla açıldı ancak yükleme süresi yüksekti.",
+        serviceId: service.id,
+        serviceName: service.displayName,
+        durationMs: result.durationMs
+      });
     }
-  }, [patchService, persistLayerPreferences, pushToast]);
+  }, [patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   const setOpacity = useCallback((service: ServiceDefinition, opacity: number) => {
     const safeOpacity = Math.min(1, Math.max(0, opacity));
@@ -293,6 +344,7 @@ export default function App() {
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
     const result = await runtime.reloadLayer({ ...service, visible: true });
+    if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? { ...successPatch(result.durationMs), visible: true }
       : failurePatch(service, result.error, result.durationMs);
@@ -301,7 +353,16 @@ export default function App() {
     servicesRef.current = next;
     persistLayerPreferences(next);
     pushToast(result.ok ? `${service.displayName} yeniden bağlandı.` : `${service.displayName} yeniden bağlanamadı.`, result.ok ? "success" : "error");
-  }, [patchService, persistLayerPreferences, pushToast]);
+    recordIncident({
+      severity: result.ok ? "info" : "error",
+      kind: "layer-retry",
+      message: result.ok ? "Servis yeniden bağlandı." : (result.error ?? "Servis yeniden bağlanamadı."),
+      serviceId: service.id,
+      serviceName: service.displayName,
+      durationMs: result.durationMs,
+      recovered: result.ok
+    });
+  }, [patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   const retryErrors = useCallback(async () => {
     const errors = servicesRef.current.filter(
@@ -317,8 +378,21 @@ export default function App() {
   const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
     if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
-    return runtime.queryAttributes(service, options);
-  }, []);
+    const startedAt = performance.now();
+    try {
+      return await runtime.queryAttributes(service, options);
+    } catch (error) {
+      recordIncident({
+        severity: "error",
+        kind: "query",
+        message: error instanceof Error ? error.message : "Öznitelik sorgusu başarısız oldu.",
+        serviceId: service.id,
+        serviceName: service.displayName,
+        durationMs: Math.round(performance.now() - startedAt)
+      });
+      throw error;
+    }
+  }, [recordIncident]);
 
   const exportWorkspace = useCallback(() => {
     const runtime = runtimeRef.current;
@@ -376,6 +450,7 @@ export default function App() {
       const desiredVisible = requestedVisible && shouldAutoLoadService(service);
       const opacity = snapshot.layerOpacity[service.id] ?? service.opacity;
       const outcome = outcomes.get(service.id);
+      if (outcome?.superseded) return service;
       if (outcome && !outcome.ok) {
         return {
           ...service,
@@ -527,6 +602,7 @@ export default function App() {
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
       if (event.key.toLowerCase() === "o") selectPanel("overview");
       if (event.key.toLowerCase() === "l") selectPanel("layers");
+      if (event.key.toLowerCase() === "i") selectPanel("incidents");
       if (event.key.toLowerCase() === "d") selectPanel("data");
       if (event.key.toLowerCase() === "w") selectPanel("workspace");
       if (event.key.toLowerCase() === "m") setFocusMode((value) => !value);
@@ -593,10 +669,12 @@ export default function App() {
               panel={panel}
               services={services}
               bookmarks={preferences.bookmarks}
+              incidents={incidents}
               performance={effectivePerformance}
               online={online}
               onClose={() => setPanel(null)}
               onNavigatePanel={selectPanel}
+              onClearIncidents={clearIncidents}
               onRetryErrors={retryErrors}
               onAddBookmark={addBookmark}
               onGoBookmark={(bookmark) => void goBookmark(bookmark)}

@@ -39,6 +39,7 @@ export interface LayerLoadResult {
   ok: boolean;
   error?: string;
   durationMs?: number;
+  superseded?: boolean;
 }
 
 const HOME_CAMERA: CameraState = {
@@ -53,6 +54,8 @@ export class ArcGISRuntime {
   private map?: ArcGISMap;
   private view?: SceneView;
   private readonly layers = new Map<string, Layer>();
+  private readonly loadingLayers = new Map<string, Promise<LayerLoadResult>>();
+  private readonly desiredVisibility = new Map<string, boolean>();
   private activeWidget?: ArcGISComponentElement;
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
@@ -170,39 +173,42 @@ export class ArcGISRuntime {
       return { ok: false, error: "Harita motoru henüz hazır değil." };
     }
 
-    let layer = this.layers.get(service.id);
-    if (!layer && visible) {
-      const startedAt = performance.now();
-      try {
-        layer = await createLayer(service);
-        if (this.destroyed) {
-          layer.destroy();
-          return { ok: false, error: "Harita oturumu kapatıldı." };
-        }
-        this.layers.set(service.id, layer);
-        this.map.add(layer);
-        await layer.load();
-        if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
-        layer.opacity = clampOpacity(service.opacity);
-        layer.visible = true;
-        this.pruneLayerCache();
-        return { ok: true, durationMs: Math.round(performance.now() - startedAt) };
-      } catch (error) {
-        if (layer) {
-          this.map.remove(layer);
-          layer.destroy();
-        }
-        this.layers.delete(service.id);
-        return {
-          ok: false,
-          error: readableError(error),
-          durationMs: Math.round(performance.now() - startedAt)
-        };
-      }
+    this.desiredVisibility.set(service.id, visible);
+
+    if (!visible) {
+      const existing = this.layers.get(service.id);
+      if (existing) existing.visible = false;
+      return { ok: true, durationMs: 0 };
     }
 
-    if (layer) layer.visible = visible;
-    return { ok: true, durationMs: 0 };
+    const existingLoad = this.loadingLayers.get(service.id);
+    if (existingLoad) {
+      const result = await existingLoad;
+      if (this.destroyed || this.desiredVisibility.get(service.id) !== true) {
+        return { ok: true, durationMs: result.durationMs, superseded: true };
+      }
+      const loaded = this.layers.get(service.id);
+      if (result.ok && loaded) {
+        loaded.opacity = clampOpacity(service.opacity);
+        loaded.visible = true;
+      }
+      return result;
+    }
+
+    const existing = this.layers.get(service.id);
+    if (existing) {
+      existing.opacity = clampOpacity(service.opacity);
+      existing.visible = true;
+      return { ok: true, durationMs: 0 };
+    }
+
+    const operation = this.loadLayer(service);
+    this.loadingLayers.set(service.id, operation);
+    try {
+      return await operation;
+    } finally {
+      if (this.loadingLayers.get(service.id) === operation) this.loadingLayers.delete(service.id);
+    }
   }
 
   setOpacity(serviceId: string, opacity: number): void {
@@ -212,12 +218,19 @@ export class ArcGISRuntime {
 
   async reloadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
     if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
+
+    this.desiredVisibility.set(service.id, false);
+    const inFlight = this.loadingLayers.get(service.id);
+    if (inFlight) await inFlight.catch(() => undefined);
+
     const existing = this.layers.get(service.id);
     if (existing) {
       this.map?.remove(existing);
       existing.destroy();
       this.layers.delete(service.id);
     }
+
+    this.desiredVisibility.set(service.id, true);
     return this.setLayerVisible(service, true);
   }
 
@@ -255,7 +268,7 @@ export class ArcGISRuntime {
     };
 
     try {
-      await layer.load();
+      await withTimeout(layer.load(), 20_000, "Katman sorgu hazırlığı");
       if (!queryable.createQuery || !queryable.queryFeatures) {
         throw new Error("Bu katman tarayıcı üzerinden öznitelik sorgusunu desteklemiyor.");
       }
@@ -278,10 +291,14 @@ export class ArcGISRuntime {
       countQuery.where = where;
       countQuery.returnGeometry = false;
 
-      const [featureSet, total] = await Promise.all([
-        queryable.queryFeatures(query),
-        queryable.queryFeatureCount ? queryable.queryFeatureCount(countQuery) : Promise.resolve(undefined)
-      ]);
+      const [featureSet, total] = await withTimeout(
+        Promise.all([
+          queryable.queryFeatures(query),
+          queryable.queryFeatureCount ? queryable.queryFeatureCount(countQuery) : Promise.resolve(undefined)
+        ]),
+        25_000,
+        "Öznitelik sorgusu"
+      );
 
       const rows = (featureSet.features ?? []).map((feature) =>
         Object.fromEntries(
@@ -404,10 +421,70 @@ export class ArcGISRuntime {
     this.handles = [];
     for (const layer of this.layers.values()) layer.destroy();
     this.layers.clear();
+    this.loadingLayers.clear();
+    this.desiredVisibility.clear();
     this.callbacks = {};
     this.view?.destroy();
     this.view = undefined;
     this.map = undefined;
+  }
+
+  private async loadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
+    const startedAt = performance.now();
+    let layer: Layer | undefined;
+
+    try {
+      layer = await withTimeout(createLayer(service), 12_000, "Katman bileşeni oluşturma");
+      if (this.destroyed) {
+        layer.destroy();
+        return { ok: false, error: "Harita oturumu kapatıldı.", durationMs: Math.round(performance.now() - startedAt) };
+      }
+
+      if (this.desiredVisibility.get(service.id) !== true) {
+        layer.destroy();
+        return { ok: true, durationMs: Math.round(performance.now() - startedAt), superseded: true };
+      }
+
+      this.layers.set(service.id, layer);
+      this.map?.add(layer);
+      await withTimeout(layer.load(), 22_000, "Katman yükleme");
+
+      if (this.destroyed) {
+        this.cleanupLayer(service.id, layer);
+        return { ok: false, error: "Harita oturumu kapatıldı.", durationMs: Math.round(performance.now() - startedAt) };
+      }
+
+      layer.opacity = clampOpacity(service.opacity);
+      if (this.desiredVisibility.get(service.id) !== true) {
+        layer.visible = false;
+        return { ok: true, durationMs: Math.round(performance.now() - startedAt), superseded: true };
+      }
+
+      layer.visible = true;
+      this.pruneLayerCache();
+      return { ok: true, durationMs: Math.round(performance.now() - startedAt) };
+    } catch (error) {
+      if (layer) this.cleanupLayer(service.id, layer);
+      return {
+        ok: false,
+        error: readableError(error),
+        durationMs: Math.round(performance.now() - startedAt)
+      };
+    }
+  }
+
+  private cleanupLayer(serviceId: string, layer: Layer): void {
+    if (this.layers.get(serviceId) === layer) this.layers.delete(serviceId);
+    try {
+      this.map?.remove(layer);
+    } catch {
+      // Layer may already have been detached while an async load was being superseded.
+    }
+    try {
+      layer.destroy();
+    } catch {
+      // ArcGIS layer destruction is best-effort during cancellation/teardown.
+    }
   }
 
   private destroyNavigation(): void {
@@ -575,6 +652,20 @@ function pointProperties(camera: CameraState) {
 
 function clampOpacity(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer = 0;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(`${label} zaman aşımına uğradı (${Math.round(timeoutMs / 1000)} sn).`)), timeoutMs);
+      })
+    ]);
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function readableError(error: unknown): string {

@@ -6,17 +6,18 @@ import {
   summarizeOperationalReadiness
 } from "../lib/operationsIntelligence";
 import { availabilityLabel } from "../lib/serviceHealth";
-import type { PanelId, PerformanceProfile, ServiceDefinition } from "../types";
+import type { PanelId, PerformanceProfile, RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
   services: ServiceDefinition[];
   online: boolean;
   performance: PerformanceProfile;
+  incidents: RuntimeIncident[];
   onPanel: (panel: Exclude<PanelId, null>) => void;
 }
 
-export function OperationsOverview({ services, online, performance, onPanel }: Props) {
+export function OperationsOverview({ services, online, performance, incidents, onPanel }: Props) {
   const summary = useMemo(() => summarizeOperationalReadiness(services), [services]);
   const recommendations = useMemo(() => operationalRecommendations(services), [services]);
   const weakest = useMemo(() => rankServicesByReadiness(services, "worst").slice(0, 5), [services]);
@@ -65,6 +66,7 @@ export function OperationsOverview({ services, online, performance, onPanel }: P
         <button type="button" onClick={() => onPanel("health")}><Icon name="health" /><span><strong>Servis sağlığı</strong><small>Hata ve devre kesici ayrıntıları</small></span><Icon name="chevron" size={14} /></button>
         <button type="button" onClick={() => onPanel("data")}><Icon name="table" /><span><strong>Sorgu stüdyosu</strong><small>Sunucu tarafı filtre ve sayfalama</small></span><Icon name="chevron" size={14} /></button>
         <button type="button" onClick={() => onPanel("workspace")}><Icon name="archive" /><span><strong>Çalışma alanı</strong><small>Güvenli JSON içe / dışa aktarma</small></span><Icon name="chevron" size={14} /></button>
+        <button type="button" onClick={() => onPanel("incidents")}><Icon name="activity" /><span><strong>Olay günlüğü</strong><small>{incidents.length} kayıt · runtime reliability</small></span><Icon name="chevron" size={14} /></button>
       </section>
 
       <section className="overview-section">

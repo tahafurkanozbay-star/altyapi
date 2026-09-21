@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v10 architecture guardrails", () => {
+describe("v11 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -57,7 +57,23 @@ describe("v10 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).toContain('useState<PanelId>("overview")');
-    expect(serviceWorker).toContain("altyapi-data-v10");
+    expect(serviceWorker).toContain("altyapi-data-v11");
     expect(serviceWorker).toContain("networkFirstData");
+  });
+
+  it("ships race-safe layer orchestration and sanitized incident diagnostics", async () => {
+    const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
+    const incidents = await readFile("src/lib/incidentJournal.ts", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+    const operations = await readFile("src/components/OperationsPanel.tsx", "utf8");
+
+    expect(runtime).toContain("loadingLayers");
+    expect(runtime).toContain("desiredVisibility");
+    expect(runtime).toContain("withTimeout");
+    expect(runtime).toContain("superseded");
+    expect(incidents).toContain("sanitizeIncidentText");
+    expect(incidents).toContain("MAX_INCIDENTS = 80");
+    expect(app).toContain("loadIncidentJournal");
+    expect(operations).toContain("Olay Günlüğü");
   });
 });
