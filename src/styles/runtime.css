@@ -1,4 +1,12 @@
 @layer components {
+  .arcgis-scene-root {
+    width: 100%;
+    height: 100%;
+    display: block;
+    contain: layout paint size;
+    background: var(--comfort-canvas, #f4f7f9);
+  }
+
   .live-chip.is-offline {
     border-color: color-mix(in srgb, var(--red) 38%, transparent);
     background: color-mix(in srgb, var(--red) 10%, transparent);
