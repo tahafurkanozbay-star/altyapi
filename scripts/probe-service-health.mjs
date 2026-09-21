@@ -69,7 +69,6 @@ function classifyNetworkFailure(result, stage) {
       access: "server-error",
       browserCompatible: false,
       latencyMs: result.ms,
-      latencyMs: result.ms,
       reason: `${stage} HTTP ${result.status}`
     };
   }
@@ -78,6 +77,7 @@ function classifyNetworkFailure(result, stage) {
       availability: "unavailable",
       access: "server-error",
       browserCompatible: false,
+      latencyMs: result.ms,
       reason: `${stage} HTTP ${result.status}`
     };
   }
