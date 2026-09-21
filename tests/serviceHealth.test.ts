@@ -59,6 +59,7 @@ describe("serviceHealth", () => {
     expect(enriched?.availability).toBe("verified");
     expect(enriched?.access).toBe("public-browser");
     expect(enriched?.verificationStale).toBe(false);
+    expect(enriched?.verificationLatencyMs).toBe(210);
   });
 
   it("marks old snapshots stale and stale negatives do not block startup", () => {
