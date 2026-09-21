@@ -348,8 +348,8 @@ export class ArcGISRuntime {
     const latitude = camera.position.latitude;
     const scale = this.view.scale;
     const insideExtent =
-      service.operationalExtent && longitude !== undefined && latitude !== undefined
-        ? operationalExtentContains(service, longitude, latitude)
+      service.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? operationalExtentContains(service, longitude!, latitude!)
         : true;
     const insideScale = isOperationalScale(service, scale);
 
