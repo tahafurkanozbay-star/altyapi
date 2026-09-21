@@ -1,5 +1,3 @@
-import type { ServiceDefinition } from "../types";
-
 /**
  * Katmanları katalogdaki mevcut sıra korunacak şekilde kurum bazında gruplar.
  *
@@ -7,10 +5,10 @@ import type { ServiceDefinition } from "../types";
  * sıralamayı ASLA etkilemez. Böylece bir katmanı açıp kapatmak kartın yerini
  * değiştirmez ve operatörün mekânsal hafızası korunur.
  */
-export function groupServicesInStableOrder(
-  services: ServiceDefinition[]
-): Array<[organization: string, services: ServiceDefinition[]]> {
-  const groups = new Map<string, ServiceDefinition[]>();
+export function groupServicesInStableOrder<T extends { organization: string }>(
+  services: readonly T[]
+): Array<[organization: string, services: T[]]> {
+  const groups = new Map<string, T[]>();
 
   for (const service of services) {
     const current = groups.get(service.organization);
