@@ -6,7 +6,7 @@ const WINDOWS=[
   ["city","32.55,39.65,33.20,40.15"],
   ["close","32.75,39.82,33.00,40.04"]
 ];
-const TIMEOUT=35000;
+const TIMEOUT=15000;
 
 function rootAndLayer(url){
   const m=url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
@@ -23,19 +23,38 @@ async function fetchTimed(url,accept){
   finally{clearTimeout(timer);}
 }
 
+const tasks=[];
 for(let i=0;i<services.length;i++){
   const s=services[i];const {root,layer}=rootAndLayer(s.tokenUrl);
-  console.log(`SERVICE [${i+11}] ${s.cografiVeriKatmanAdi}`);
   for(const [label,bbox] of WINDOWS){
+    tasks.push({index:i,service:s,root,layer,label,bbox});
+  }
+}
+const results=new Array(tasks.length);
+let cursor=0;
+async function worker(){
+  while(cursor<tasks.length){
+    const taskIndex=cursor++;
+    const {index,service:s,root,layer,label,bbox}=tasks[taskIndex];
     const exportUrl=withQuery(root+"/export",{bbox,bboxSR:4326,imageSR:3857,size:"256,256",format:"png32",transparent:"true",layers:`show:${layer}`,f:"json"});
     const meta=await fetchTimed(exportUrl,"application/json,*/*");
     let data;try{data=JSON.parse(meta.text)}catch{}
     if(!meta.ok||data?.error||typeof data?.href!=="string"){
-      console.log(`  ${label.padEnd(8)} FAIL HTTP=${meta.status} ms=${meta.ms} error=${data?.error?.message??meta.error??"no-image-href"}`);
+      results[taskIndex]={index:index+11,name:s.cografiVeriKatmanAdi,label,ok:false,metaMs:meta.ms,imageMs:null,bytes:0,http:meta.status,error:data?.error?.message??meta.error??"no-image-href"};
       continue;
     }
     const image=await fetchTimed(data.href,"image/png,image/*,*/*");
-    const valid=image.ok&&/^image\//i.test(image.type)&&image.bytes>100;
-    console.log(`  ${label.padEnd(8)} ${valid?"PASS":"FAIL"} metaMs=${meta.ms} imageMs=${image.ms} bytes=${image.bytes} HTTP=${image.status}`);
+    results[taskIndex]={index:index+11,name:s.cografiVeriKatmanAdi,label,ok:Boolean(image.ok&&/^image\\//i.test(image.type)&&image.bytes>100),metaMs:meta.ms,imageMs:image.ms,bytes:image.bytes,http:image.status,error:image.ok?null:(image.error??"image-fail")};
   }
 }
+await Promise.all(Array.from({length:6},()=>worker()));
+for(const row of results){
+  console.log(`[${row.index}] ${row.name} ${row.label.padEnd(8)} ${row.ok?"PASS":"FAIL"} metaMs=${row.metaMs} imageMs=${row.imageMs??"-"} bytes=${row.bytes} HTTP=${row.http} error=${row.error??"none"}`);
+}
+const summary={};
+for(const row of results){
+  const key=String(row.index);
+  summary[key]??={name:row.name,passes:[]};
+  if(row.ok) summary[key].passes.push(row.label);
+}
+console.log("SUMMARY "+JSON.stringify(summary));
