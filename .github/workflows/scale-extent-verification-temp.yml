@@ -10,12 +10,12 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Retry large infrastructure extents
-        run: node scripts/probe-long-extents.mjs
+      - name: Verify infrastructure render behavior across zoom windows
+        run: node scripts/probe-render-windows.mjs
