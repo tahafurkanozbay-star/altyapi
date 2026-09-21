@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v9 architecture guardrails", () => {
+describe("v10 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -45,5 +45,19 @@ describe("v9 architecture guardrails", () => {
     expect(packageJson).toContain("probe:services");
     expect(pages).toContain("npm run probe:services");
     expect(pages).toContain('cron: "17 3 * * *"');
+  });
+
+  it("ships operations intelligence and offline-safe catalog caching", async () => {
+    const intelligence = await readFile("src/lib/operationsIntelligence.ts", "utf8");
+    const overview = await readFile("src/components/OperationsOverview.tsx", "utf8");
+    const serviceWorker = await readFile("public/sw.js", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+
+    expect(intelligence).toContain("summarizeOperationalReadiness");
+    expect(intelligence).toContain("serviceReadiness");
+    expect(overview).toContain("OPERASYON HAZIRLIK");
+    expect(app).toContain('useState<PanelId>("overview")');
+    expect(serviceWorker).toContain("altyapi-data-v10");
+    expect(serviceWorker).toContain("networkFirstData");
   });
 });

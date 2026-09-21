@@ -35,7 +35,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "9.0.0";
+const APP_VERSION = "10.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -52,7 +52,7 @@ export default function App() {
   const [services, setServices] = useState<ServiceDefinition[]>([]);
   const [ready, setReady] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<PanelId>("layers");
+  const [panel, setPanel] = useState<PanelId>("overview");
   const [activeTool, setActiveTool] = useState<ToolId>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [identify, setIdentify] = useState<IdentifyResult | null>(null);
@@ -525,6 +525,7 @@ export default function App() {
       }
       if (typing) return;
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
+      if (event.key.toLowerCase() === "o") selectPanel("overview");
       if (event.key.toLowerCase() === "l") selectPanel("layers");
       if (event.key.toLowerCase() === "d") selectPanel("data");
       if (event.key.toLowerCase() === "w") selectPanel("workspace");
@@ -593,7 +594,9 @@ export default function App() {
               services={services}
               bookmarks={preferences.bookmarks}
               performance={effectivePerformance}
+              online={online}
               onClose={() => setPanel(null)}
+              onNavigatePanel={selectPanel}
               onRetryErrors={retryErrors}
               onAddBookmark={addBookmark}
               onGoBookmark={(bookmark) => void goBookmark(bookmark)}

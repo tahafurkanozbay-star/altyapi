@@ -4,7 +4,7 @@ export type ServiceAvailability = "verified" | "degraded" | "unavailable" | "unk
 export type ServiceAccess = "public-browser" | "browser-blocked" | "network-restricted" | "server-error" | "unknown";
 export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
-export type PanelId = "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
+export type PanelId = "overview" | "layers" | "data" | "workspace" | "health" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
 
 export interface RawServiceDefinition {
@@ -38,6 +38,7 @@ export interface ServiceDefinition extends RawServiceDefinition {
   browserCompatible?: boolean | null;
   verificationReason?: string;
   verifiedAt?: string;
+  verificationLatencyMs?: number;
   verificationStale?: boolean;
   failureCount: number;
   lastFailureAt?: string;
@@ -181,7 +182,29 @@ export interface ServiceVerificationEntry {
   availability: ServiceAvailability;
   access: ServiceAccess;
   browserCompatible?: boolean | null;
+  latencyMs?: number;
   reason?: string;
+}
+
+export type OperationalGrade = "excellent" | "good" | "attention" | "critical";
+
+export interface ServiceReadiness {
+  serviceId: string;
+  score: number;
+  grade: OperationalGrade;
+  signals: string[];
+}
+
+export interface OperationalReadinessSummary {
+  score: number;
+  grade: OperationalGrade;
+  verified: number;
+  risky: number;
+  runtimeErrors: number;
+  coolingDown: number;
+  active: number;
+  ready: number;
+  total: number;
 }
 
 export interface ServiceHealthSnapshot {

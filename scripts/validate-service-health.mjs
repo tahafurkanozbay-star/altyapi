@@ -32,6 +32,9 @@ for (const [index, entry] of healthServices.entries()) {
   if (!allowedAvailability.has(entry.availability)) errors.push(`health #${index + 1}: availability geçersiz.`);
   if (!allowedAccess.has(entry.access)) errors.push(`health #${index + 1}: access geçersiz.`);
   if (![true, false, null].includes(entry.browserCompatible)) errors.push(`health #${index + 1}: browserCompatible true/false/null olmalı.`);
+  if (entry.latencyMs !== undefined && (typeof entry.latencyMs !== "number" || !Number.isFinite(entry.latencyMs) || entry.latencyMs < 0 || entry.latencyMs > 120000)) {
+    errors.push(`health #${index + 1}: latencyMs geçersiz.`);
+  }
   if (typeof entry.reason === "string" && /https?:\/\/|token|ucbp\./i.test(entry.reason)) {
     errors.push(`health #${index + 1}: reason alanı URL/token benzeri gizli ayrıntı içeriyor.`);
   }

@@ -3,6 +3,7 @@ import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "..
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import { DataWorkbench } from "./DataWorkbench";
+import { OperationsOverview } from "./OperationsOverview";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
@@ -11,7 +12,9 @@ interface Props {
   services: ServiceDefinition[];
   bookmarks: Bookmark[];
   performance: PerformanceProfile;
+  online: boolean;
   onClose: () => void;
+  onNavigatePanel: (panel: Exclude<PanelId, null>) => void;
   onRetryErrors: () => Promise<void>;
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
@@ -31,6 +34,14 @@ export function OperationsPanel(props: Props) {
         </div>
         <button type="button" className="icon-ghost" onClick={props.onClose} aria-label="Paneli kapat"><Icon name="close" /></button>
       </div>
+      {props.panel === "overview" && (
+        <OperationsOverview
+          services={props.services}
+          online={props.online}
+          performance={props.performance}
+          onPanel={props.onNavigatePanel}
+        />
+      )}
       {props.panel === "health" && <HealthPanel {...props} />}
       {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
       {props.panel === "workspace" && <WorkspacePanel {...props} />}
@@ -159,8 +170,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "9.0.0",
-      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + resilient service orchestration",
+      version: "10.0.0",
+      runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 Web Components + operations intelligence",
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
@@ -177,7 +188,8 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
         verifiedAt: service.verifiedAt ?? null,
         failureCount: service.failureCount,
         cooldownUntil: service.cooldownUntil ?? null,
-        verificationStale: service.verificationStale ?? false
+        verificationStale: service.verificationStale ?? false,
+        verificationLatencyMs: service.verificationLatencyMs ?? null
       }))
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
@@ -294,11 +306,12 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v9 · Resilient Service Platform</h3>
-        <p>React 19.3, TypeScript 7, ArcGIS 5.1 Web Components ve servis sağlık snapshot'larını birleştiren; hatalı servisleri izole eden, doğrulanmış servisleri önceliklendiren dayanıklı Ankara 3B CBS platformu.</p>
+        <h3>Başkent 3B CBS v10 · Operations Intelligence</h3>
+        <p>React 19.3, TypeScript 7, ArcGIS 5.1 Web Components, güvenli Query Studio ve doğrulama/circuit-breaker sinyallerini tek operasyon hazırlık görünümünde birleştiren Ankara 3B CBS platformu.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
+        <Shortcut keyName="O" label="Operasyon özeti" />
         <Shortcut keyName="L" label="Katman paneli" />
         <Shortcut keyName="D" label="Sorgu stüdyosu" />
         <Shortcut keyName="W" label="Çalışma alanı paketi" />
@@ -324,6 +337,7 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 }
 
 function panelTitle(panel: Props["panel"]): string {
+  if (panel === "overview") return "Operasyon Özeti";
   if (panel === "health") return "Servis Sağlığı";
   if (panel === "data") return "Sorgu Stüdyosu";
   if (panel === "workspace") return "Çalışma Alanı Paketi";

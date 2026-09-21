@@ -1,9 +1,11 @@
 import { summarizeServiceHealth } from "../lib/serviceMetrics";
+import { readinessLabel, summarizeOperationalReadiness } from "../lib/operationsIntelligence";
 import type { PerformanceProfile, SceneTelemetry, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
 export function StatusBar({ telemetry, services, performance }: { telemetry: SceneTelemetry; services: ServiceDefinition[]; performance: PerformanceProfile }) {
   const health = summarizeServiceHealth(services);
+  const readiness = summarizeOperationalReadiness(services);
   const { active, ready, error: errors } = health;
   const scale = Number.isFinite(telemetry.scale) && telemetry.scale ? `1:${Math.round(telemetry.scale).toLocaleString("tr-TR")}` : "—";
 
@@ -21,6 +23,10 @@ export function StatusBar({ telemetry, services, performance }: { telemetry: Sce
       <div className="status-segment status-scale">
         <span className="status-label">Ölçek</span>
         <strong>{scale}</strong>
+      </div>
+      <div className="status-segment status-readiness" title={`Operasyon hazırlığı: ${readinessLabel(readiness.grade)}`}>
+        <span className="status-label">Hazırlık</span>
+        <strong>{readiness.score}/100</strong>
       </div>
       <div className="status-segment status-service-summary">
         <span><i className="status-indicator is-active" /> <strong>{active}</strong> aktif</span>

@@ -1,23 +1,23 @@
-# Başkent 3B CBS · Resilient Service Platform v9
+# Başkent 3B CBS · Operations Intelligence Platform v10
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
 
-## v9: Resilient Service Platform
+## v10: Operations Intelligence Platform
 
-v9, v8'in Query Studio ve Comfort White mimarisini korurken gerçek servis davranışını uygulama mimarisinin bir parçası haline getirir.
+v10, v9'un dayanıklı servis orkestrasyonunu kullanıcıya doğrudan karar desteği veren bir operasyon görünümüne dönüştürür.
 
-- katalogdan ayrı, URL/token içermeyen **service-health.json** sağlık snapshot'ı
-- doğrulanmış / kısıtlı / ulaşılamıyor / bilinmiyor servis sınıflandırması
-- GitHub Pages tarayıcı origin'i için CORS erişim profili
-- doğrulanmış servisleri başlangıçta önceliklendiren akıllı yükleme politikası
-- eski sağlık snapshot'larında 72 saat sonra otomatik güvenli gevşeme
-- art arda hatalarda üstel geri çekilmeli **devre kesici**
-- toplu retry sırasında doğrulanmış politika ve cooldown durumuna saygı
-- katman kartlarında doğrulama, erişim profili, ölçüm zamanı ve devre kesici görünümü
-- Servis Sağlığı panelinde harici doğrulama + canlı tarayıcı telemetrisi
-- build sırasında katalog ve sağlık snapshot'ı tutarlılık doğrulaması
-- manuel / zamanlanabilir, sanitizasyonlu servis sağlık probe scripti
-- v8 sunucu tarafı Query Studio, taşınabilir çalışma alanları ve React View Transitions korunur
+- uygulama açılışında varsayılan **Operasyon Özeti**
+- harici doğrulama, CORS erişimi, canlı runtime, gecikme, ardışık hata ve devre kesici sinyallerini birleştiren deterministik **0–100 hazırlık endeksi**
+- en riskli ve en güçlü servislerin otomatik sıralanması
+- çalışma durumuna göre üretilen operasyon önerileri
+- dış servis probe gecikmesinin sanitizasyonlu biçimde health snapshot'a eklenmesi
+- katman detaylarında harici doğrulama gecikmesi
+- Status Dock içinde canlı hazırlık puanı
+- servis kataloğu ve health snapshot için **offline-safe network-first PWA cache**
+- v9'un 72 saatlik freshness politikası, devre kesici ve güvenli retry kuralları korunur
+- v8 Query Studio, taşınabilir çalışma alanları ve React View Transitions korunur
+
+Hazırlık puanı bir SLA veya resmi hizmet seviyesi değildir; tarayıcı istemcisinin operasyon önceliklendirmesi için kullanılan açıklanabilir bir heuristiktir. Ayrıntı: [docs/OPERATIONS_INTELLIGENCE.md](docs/OPERATIONS_INTELLIGENCE.md)
 
 ## Güncel teknoloji
 
@@ -31,7 +31,7 @@ v9, v8'in Query Studio ve Comfort White mimarisini korurken gerçek servis davra
 - GitHub Actions — CI, CodeQL ve GitHub Pages
 - same-origin PWA / service worker
 
-Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile sırf değişiklik olsun diye taşımak; ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. v7'de yapılan gerçek dil/mimari modernizasyonu, dinamik/deprecated Widget API katmanını standart tabanlı Web Components + strict TypeScript kontratlarına taşımaktır.
+Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile sırf değişiklik olsun diye taşımak; ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. Modernizasyon; strict TypeScript kontratları, React 19.3 View Transitions, ArcGIS Web Components, güvenli query builder, PWA stratejileri ve tip güvenli operasyon intelligence katmanında ilerler.
 
 ## Yerel geliştirme
 
@@ -78,7 +78,7 @@ Bu komut sırasıyla servis kataloğu, servis sağlık snapshot'ı, strict TypeS
 - PNG ekran görüntüsü
 - **M: harita odak modu**
 
-## Öznitelik Veri Atölyesi
+## Query Studio
 
 FeatureServer ve SceneServer katmanları salt-okunur sorgulanabilir.
 
@@ -113,12 +113,22 @@ Bileşenler ihtiyaç halinde lazy import edilir.
 - harici doğrulama: verified / degraded / unavailable / unknown
 - erişim profili: public-browser / browser-blocked / network-restricted / server-error
 - canlı runtime: ready / loading / error / idle
-- katman açılış süresi, ortalama latency ve P95
+- katman açılış süresi, harici probe gecikmesi, ortalama latency ve P95
 - başarısızlık sayacı, son hata zamanı ve cooldown
 - üstel geri çekilmeli devre kesici
 - 72 saatlik verification freshness politikası
 - yalnız uygun servisleri toplu retry
 - URL/token içermeyen tanılama ve health snapshot formatı
+- servis bazlı açıklanabilir hazırlık puanı ve risk sinyalleri
+
+## Operations Intelligence
+
+- doğrulama + erişim + runtime + latency + failure sinyallerini birleştiren 0–100 hazırlık endeksi
+- çok iyi / iyi / dikkat / kritik teknik sınıfları
+- en zayıf 5 ve en güçlü 3 servisin görünümü
+- çalışma durumuna göre operasyon önerileri
+- doğrudan Katmanlar / Servis Sağlığı / Query Studio / Workspace geçişleri
+- offline durumda son bilinen katalog ve sağlık snapshot'ı ile çalışma
 
 ## Sistem tanılama
 
@@ -151,6 +161,7 @@ Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 ## Kısayollar
 
 - `Ctrl/Cmd + K` — komut paleti
+- `O` — operasyon özeti
 - `L` — katman kataloğu
 - `D` — sorgu stüdyosu
 - `W` — çalışma alanı paketi
@@ -169,7 +180,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **9.0.0**
+Current application version: **10.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 

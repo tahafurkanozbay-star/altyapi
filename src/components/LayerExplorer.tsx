@@ -256,6 +256,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                         <div><dt>Erişim profili</dt><dd>{accessLabel(service)}</dd></div>
                         <div><dt>Doğrulama notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
                         <div><dt>Doğrulama zamanı</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                        <div><dt>Harici doğrulama gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
                         <div><dt>Devre kesici</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Açık"}</dd></div>
                         <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
                         <div><dt>Son canlı ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
