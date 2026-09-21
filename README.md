@@ -1,6 +1,22 @@
-# Başkent 3B CBS · Runtime Reliability Platform v11
+# Başkent 3B CBS · Adaptive Operations Platform v12
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
+
+## v12: Adaptive Operations Platform
+
+v12, v11 Runtime Reliability altyapısını operasyon seviyesinde daha otomatik ve açıklanabilir hale getirir.
+
+- **Adaptif Güvenli Mod:** riskli / ulaşılamayan / devre kesicideki görünür katmanları tek hamlede izole eder
+- sahne boş kalırsa en uygun doğrulanmış servislerden en fazla ikisini güvenli biçimde devreye alır
+- son 1 saat için hata, uyarı, toparlanma, P95 olay süresi ve güvenilirlik trendi hesaplar
+- Olay Günlüğü için zaman aralığı + önem + olay türü filtreleri
+- kontrollü PWA güncelleme akışı: yeni sürüm hazır olduğunda kullanıcıya bildirilir, kullanıcı onayıyla yeni service worker aktive edilir
+- service worker shell/data cache namespace'leri v12'ye taşındı
+- servis ve health snapshot için network-first offline fallback korunur
+- adaptif stabilizasyon ve reliability analytics için yeni regresyon testleri
+- v11'in race-safe layer orchestration, bounded timeout ve sanitizasyonlu incident journal altyapısı korunur
+
+Detay: [docs/ADAPTIVE_OPERATIONS.md](docs/ADAPTIVE_OPERATIONS.md)
 
 ## v11: Runtime Reliability Platform
 
@@ -47,7 +63,7 @@ Hazırlık puanı bir SLA veya resmi hizmet seviyesi değildir; tarayıcı istem
 - GitHub Actions — CI, CodeQL ve GitHub Pages
 - same-origin PWA / service worker
 
-Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile sırf değişiklik olsun diye taşımak; ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. Modernizasyon; strict TypeScript kontratları, React 19.3 View Transitions, ArcGIS Web Components, güvenli query builder, PWA stratejileri ve tip güvenli operasyon intelligence katmanında ilerler.
+Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile yalnızca "dil değişmiş olsun" diye taşımak ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. Modernizasyon; strict TypeScript kontratları, React 19.3 View Transitions, ArcGIS Web Components, güvenli query builder, PWA yaşam döngüsü, adaptif stabilizasyon ve tip güvenli operasyon intelligence katmanında ilerler.
 
 ## Yerel geliştirme
 
@@ -146,6 +162,16 @@ Bileşenler ihtiyaç halinde lazy import edilir.
 - doğrudan Katmanlar / Servis Sağlığı / Query Studio / Workspace geçişleri
 - offline durumda son bilinen katalog ve sağlık snapshot'ı ile çalışma
 
+## Adaptive Operations
+
+- tek tıkla çalışma alanı stabilizasyon planı
+- riskli görünür katmanların otomatik izolasyonu
+- sahne boşsa doğrulanmış ve uygun servislerden sınırlı aktivasyon
+- son 60 dakika güvenilirlik skoru ve trendi
+- recovery rate, P95 incident süresi ve zaman penceresi analitiği
+- incident panelinde zaman / önem / tür filtreleri
+- controlled service-worker update ve kullanıcı onaylı yeni sürüm aktivasyonu
+
 ## Runtime reliability
 
 - latest-intent-wins görünürlük politikası
@@ -210,7 +236,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **11.0.0**
+Current application version: **12.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 
