@@ -1,6 +1,7 @@
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
+import { groupServicesInStableOrder } from "../lib/layerOrdering";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import {
   formatScale,
@@ -49,18 +50,10 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
     return serviceMatches(service, deferredQuery);
   }), [services, kind, activeOnly, favoriteOnly, availability, deferredQuery]);
 
-  const groups = useMemo(() => {
-    const map = new Map<string, ServiceDefinition[]>();
-    for (const service of filtered) {
-      const list = map.get(service.organization) ?? [];
-      list.push(service);
-      map.set(service.organization, list);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => Number(b.visible) - Number(a.visible) || Number(b.favorite) - Number(a.favorite) || a.displayName.localeCompare(b.displayName, "tr"));
-    }
-    return [...map.entries()];
-  }, [filtered]);
+  const groups = useMemo(
+    () => groupServicesInStableOrder(filtered),
+    [filtered]
+  );
 
   const metrics = useMemo(() => ({
     active: services.filter((service) => service.visible).length,
