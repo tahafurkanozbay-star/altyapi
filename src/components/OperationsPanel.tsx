@@ -51,7 +51,7 @@ export function OperationsPanel(props: Props) {
       {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
       {props.panel === "workspace" && <WorkspacePanel {...props} />}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
-      {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} />}
+      {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} incidents={props.incidents} />}
       {props.panel === "help" && <HelpPanel performance={props.performance} />}
     </aside>
   );
@@ -233,7 +233,7 @@ function IncidentPanel({ incidents, onClearIncidents }: Props) {
   );
 }
 
-function DiagnosticsPanel({ services, performance }: { services: ServiceDefinition[]; performance: PerformanceProfile }) {
+function DiagnosticsPanel({ services, performance, incidents }: { services: ServiceDefinition[]; performance: PerformanceProfile; incidents: RuntimeIncident[] }) {
   const capabilities = useMemo(() => collectBrowserCapabilities(), []);
   const score = capabilityScore(capabilities);
   const ready = services.filter((service) => service.status === "ready").length;
@@ -248,6 +248,13 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
       performanceProfile: performance,
       capabilityScore: score,
       capabilities,
+      incidentSummary: {
+        total: incidents.length,
+        errors: incidents.filter((incident) => incident.severity === "error").length,
+        warnings: incidents.filter((incident) => incident.severity === "warning").length,
+        recovered: incidents.filter((incident) => incident.recovered).length
+      },
+      recentIncidents: incidents.slice(0, 20),
       services: services.map((service) => ({
         id: service.id,
         name: service.displayName,
@@ -288,6 +295,7 @@ function DiagnosticsPanel({ services, performance }: { services: ServiceDefiniti
         <Metric label="Servis hatası" value={errors} tone={errors > 0 ? "bad" : "neutral"} />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Grafik çalışma zamanı</strong><span>WebGL2: {capabilities.webgl2 ? "hazır" : "desteklenmiyor"} · DPR {capabilities.devicePixelRatio.toFixed(1)} · renk gamı {capabilities.colorGamut.toUpperCase()}</span></div></div>
+      <div className="health-note"><Icon name="activity" /><div><strong>Runtime reliability</strong><span>${incidents.length} sanitizasyonlu olay · ${incidents.filter((incident) => incident.severity === "error").length} hata · ${incidents.filter((incident) => incident.recovered).length} toparlanma kaydı</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Cihaz ve ağ</strong><span>{capabilities.deviceMemory ? `${capabilities.deviceMemory} GB tahmini bellek · ` : ""}{capabilities.connectionType ? `${capabilities.connectionType} bağlantı · ` : ""}{capabilities.saveData ? "Veri tasarrufu açık" : "Normal veri modu"}</span></div></div>
       <div className="health-note"><Icon name={capabilities.secureContext ? "check" : "warning"} /><div><strong>Güvenli bağlam</strong><span>{capabilities.secureContext ? "HTTPS/localhost güvenli bağlamı kullanılabilir." : "Bazı tarayıcı yetenekleri güvenli bağlam olmadığı için sınırlanabilir."}</span></div></div>
       <button type="button" className="primary-button full" onClick={downloadReport}><Icon name="download" /> Tanılama raporunu indir</button>
