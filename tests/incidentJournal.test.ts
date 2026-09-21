@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { RuntimeIncident } from "../src/types";
 import {
   MAX_INCIDENTS,
   appendIncident,
@@ -31,7 +32,7 @@ describe("incidentJournal", () => {
   });
 
   it("caps the journal and exports a safe JSON envelope", () => {
-    let incidents = [];
+    let incidents: RuntimeIncident[] = [];
     for (let index = 0; index < MAX_INCIDENTS + 12; index++) {
       incidents = appendIncident(incidents, createIncident({
         severity: "info",
