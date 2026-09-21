@@ -337,6 +337,7 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 }
 
 function panelTitle(panel: Props["panel"]): string {
+  if (panel === "overview") return "Operasyon Özeti";
   if (panel === "health") return "Servis Sağlığı";
   if (panel === "data") return "Sorgu Stüdyosu";
   if (panel === "workspace") return "Çalışma Alanı Paketi";
