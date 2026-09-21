@@ -1,7 +1,7 @@
 const SHELL_CACHE = "altyapi-shell-v12";
 const DATA_CACHE = "altyapi-data-v12";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
-const DATA_FILES = ["./services.json", "./service-health.json"];
+const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -53,7 +53,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith(".map")) return;
 
-  if (url.pathname.endsWith("services.json") || url.pathname.endsWith("service-health.json")) {
+  if (url.pathname.endsWith("services.json") || url.pathname.endsWith("service-health.json") || url.pathname.endsWith("service-navigation.json")) {
     event.respondWith(networkFirstData(request));
     return;
   }
