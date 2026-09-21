@@ -55,7 +55,7 @@ describe("v10 architecture guardrails", () => {
 
     expect(intelligence).toContain("summarizeOperationalReadiness");
     expect(intelligence).toContain("serviceReadiness");
-    expect(overview).toContain("Operasyon Hazırlık");
+    expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).toContain('useState<PanelId>("overview")');
     expect(serviceWorker).toContain("altyapi-data-v10");
     expect(serviceWorker).toContain("networkFirstData");
