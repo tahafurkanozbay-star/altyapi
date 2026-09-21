@@ -70,10 +70,16 @@ type ArcGISComponentElement = HTMLElement & {
   destroy?: () => Promise<void>;
 };
 
+export interface GraphicsRecoveryEvent {
+  state: "attempting" | "recovered" | "failed";
+  message: string;
+}
+
 export interface RuntimeCallbacks {
   onIdentify?: (result: IdentifyResult | null) => void;
   onTelemetry?: (telemetry: SceneTelemetry) => void;
   onCamera?: (camera: CameraState) => void;
+  onGraphicsRecovery?: (event: GraphicsRecoveryEvent) => void;
 }
 
 export interface LayerLoadResult {
@@ -112,6 +118,7 @@ export class ArcGISRuntime {
   private telemetryFrame = 0;
   private profile: PerformanceProfile;
   private destroyed = false;
+  private recoveringGraphics = false;
 
   constructor(profile: PerformanceProfile) {
     this.profile = profile;
@@ -151,7 +158,8 @@ export class ArcGISRuntime {
 
     container.append(scene);
     this.scene = scene;
-    await scene.viewOnReady?.();
+    if (!scene.viewOnReady) throw new Error("ArcGIS Scene bileşeni viewOnReady API'sini sunmuyor.");
+    await scene.viewOnReady();
 
     if (this.destroyed) {
       scene.remove();
@@ -390,9 +398,9 @@ export class ArcGISRuntime {
     if (!this.scene || this.destroyed || !service.renderScaleSensitive) return { moved: false };
 
     const camera = this.scene.camera;
-    const longitude = camera.position.longitude;
-    const latitude = camera.position.latitude;
-    const scale = this.scene.scale;
+    const longitude = camera?.position.longitude;
+    const latitude = camera?.position.latitude;
+    const scale = this.scene.scale ?? Number.NaN;
     const insideExtent =
       service.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
         ? operationalExtentContains(service, longitude!, latitude!)
@@ -519,6 +527,7 @@ export class ArcGISRuntime {
   getCamera(): CameraState {
     if (!this.scene || this.destroyed) return HOME_CAMERA;
     const camera = this.scene.camera;
+    if (!camera) return HOME_CAMERA;
     return {
       longitude: camera.position.longitude ?? HOME_CAMERA.longitude,
       latitude: camera.position.latitude ?? HOME_CAMERA.latitude,
@@ -557,6 +566,7 @@ export class ArcGISRuntime {
     this.loadingLayers.clear();
     this.desiredVisibility.clear();
     this.callbacks = {};
+    this.recoveringGraphics = false;
     const scene = this.scene;
     this.scene = undefined;
     this.map = undefined;
@@ -707,8 +717,8 @@ export class ArcGISRuntime {
 
     this.handles.push(
       domHandle(scene, "arcgisViewReadyError", () => {
-        if (this.destroyed || !this.scene?.fatalError || !this.scene.tryFatalErrorRecovery) return;
-        void this.scene.tryFatalErrorRecovery().catch(() => undefined);
+        if (this.destroyed || !this.scene?.fatalError) return;
+        void this.recoverGraphics();
       })
     );
   }
@@ -762,12 +772,30 @@ export class ArcGISRuntime {
   }
 
   async recoverGraphics(): Promise<boolean> {
-    if (!this.scene || this.destroyed || !this.scene.tryFatalErrorRecovery) return false;
+    if (!this.scene || this.destroyed || !this.scene.tryFatalErrorRecovery || this.recoveringGraphics) return false;
+    this.recoveringGraphics = true;
+    this.callbacks.onGraphicsRecovery?.({
+      state: "attempting",
+      message: "3B grafik bağlamı kaybedildi; otomatik kurtarma deneniyor."
+    });
     try {
       await this.scene.tryFatalErrorRecovery();
-      return !this.scene.fatalError;
+      const recovered = !this.scene.fatalError;
+      this.callbacks.onGraphicsRecovery?.({
+        state: recovered ? "recovered" : "failed",
+        message: recovered
+          ? "3B grafik bağlamı başarıyla kurtarıldı."
+          : "3B grafik bağlamı otomatik olarak kurtarılamadı."
+      });
+      return recovered;
     } catch {
+      this.callbacks.onGraphicsRecovery?.({
+        state: "failed",
+        message: "3B grafik bağlamı otomatik olarak kurtarılamadı."
+      });
       return false;
+    } finally {
+      this.recoveringGraphics = false;
     }
   }
 
