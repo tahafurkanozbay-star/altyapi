@@ -142,7 +142,7 @@ export class ArcGISRuntime {
     config.request.timeout = 30_000;
     container.replaceChildren();
 
-    const scene = document.createElement("arcgis-scene") as ArcGISSceneElement;
+    const scene = document.createElement("arcgis-scene") as unknown as ArcGISSceneElement;
     scene.id = "altyapi-main-scene";
     scene.className = "arcgis-scene-root";
     scene.autoDestroyDisabled = true;
