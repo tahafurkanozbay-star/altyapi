@@ -1,8 +1,24 @@
-# Başkent 3B CBS · Operations Intelligence Platform v10
+# Başkent 3B CBS · Runtime Reliability Platform v11
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
 
-## v10: Operations Intelligence Platform
+## v11: Runtime Reliability Platform
+
+v11, v10 Operations Intelligence katmanını korurken harita çalışma zamanındaki yarış koşullarını, uzun süren yüklemeleri ve tanılanması zor istemci hatalarını doğrudan mimari seviyede ele alır.
+
+- aynı katmana üst üste aç/kapat isteklerinde **latest intent wins** görünürlük modeli
+- eşzamanlı katman yüklemelerini tek promise altında birleştiren in-flight deduplication
+- katman oluşturma, layer load ve öznitelik sorgularında bounded timeout
+- stale async completion'ın yeni kullanıcı kararını geri çevirmesini engelleyen `superseded` sonucu
+- retry sırasında devam eden yüklemeyi güvenli biçimde söndüren reload akışı
+- URL/token/uzun secret benzeri değerleri maskelenen kalıcı **Olay Günlüğü**
+- ağ, katman load, retry, query ve boot olaylarının en fazla 80 kayıtla saklanması
+- olay günlüğünü güvenli JSON olarak dışa aktarma
+- sol komuta rayında ve komut paletinde **Olay Günlüğü**
+- `I` klavye kısayolu
+- v11 PWA cache namespace rotasyonu
+
+## v10 temeli
 
 v10, v9'un dayanıklı servis orkestrasyonunu kullanıcıya doğrudan karar desteği veren bir operasyon görünümüne dönüştürür.
 
@@ -130,6 +146,19 @@ Bileşenler ihtiyaç halinde lazy import edilir.
 - doğrudan Katmanlar / Servis Sağlığı / Query Studio / Workspace geçişleri
 - offline durumda son bilinen katalog ve sağlık snapshot'ı ile çalışma
 
+## Runtime reliability
+
+- latest-intent-wins görünürlük politikası
+- in-flight layer load deduplication
+- 12 sn layer factory, 22 sn layer load ve 25 sn query üst sınırları
+- yarış koşulu nedeniyle geçersiz kalan sonuçların `superseded` olarak işaretlenmesi
+- retry sırasında güvenli layer teardown
+- sanitizasyonlu persistent olay günlüğü
+- olay türleri: boot / network / layer-load / layer-retry / query / system
+- hata ve toparlanma geçmişinin JSON dışa aktarımı
+
+Detay: [docs/RUNTIME_RELIABILITY.md](docs/RUNTIME_RELIABILITY.md)
+
 ## Sistem tanılama
 
 - WebGL2
@@ -162,6 +191,7 @@ Detay: [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)
 
 - `Ctrl/Cmd + K` — komut paleti
 - `O` — operasyon özeti
+- `I` — olay günlüğü
 - `L` — katman kataloğu
 - `D` — sorgu stüdyosu
 - `W` — çalışma alanı paketi
@@ -180,7 +210,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **10.0.0**
+Current application version: **11.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 
