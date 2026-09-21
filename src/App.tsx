@@ -49,7 +49,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "12.0.0";
+const APP_VERSION = "12.1.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
