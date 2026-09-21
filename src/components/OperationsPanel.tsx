@@ -42,6 +42,7 @@ export function OperationsPanel(props: Props) {
           services={props.services}
           online={props.online}
           performance={props.performance}
+          incidents={props.incidents}
           onPanel={props.onNavigatePanel}
         />
       )}
