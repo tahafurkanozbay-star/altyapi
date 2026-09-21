@@ -1,12 +1,29 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v12.1 architecture guardrails", () => {
+describe("v13 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
     expect(runtime).toContain("@arcgis/map-components/components/arcgis-search");
     expect(runtime).toContain("@arcgis/map-components/components/arcgis-direct-line-measurement-3d");
+  });
+
+
+  it("uses the ArcGIS 5.1 component-first scene architecture", async () => {
+    const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
+    const runtimeCss = await readFile("src/styles/runtime.css", "utf8");
+
+    expect(runtime).toContain("@arcgis/map-components/components/arcgis-scene");
+    expect(runtime).toContain('document.createElement("arcgis-scene")');
+    expect(runtime).toContain("referenceElement = this.scene");
+    expect(runtime).toContain("arcgisViewClick");
+    expect(runtime).toContain("arcgisViewPointerMove");
+    expect(runtime).toContain("tryFatalErrorRecovery");
+    expect(runtime).not.toContain("@arcgis/core/views/SceneView.js");
+    expect(runtime).not.toContain("new SceneView");
+    expect(runtime).not.toContain("element.view =");
+    expect(runtimeCss).toContain(".arcgis-scene-root");
   });
 
   it("ships the comfort-white visual stack as the default", async () => {
@@ -57,7 +74,7 @@ describe("v12.1 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).toContain('useState<PanelId>("overview")');
-    expect(serviceWorker).toContain("altyapi-data-v12");
+    expect(serviceWorker).toContain("altyapi-data-v13");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -113,7 +130,7 @@ describe("v12.1 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v12"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v13"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
 
