@@ -43,6 +43,43 @@ export interface ServiceDefinition extends RawServiceDefinition {
   failureCount: number;
   lastFailureAt?: string;
   cooldownUntil?: string;
+  operationalExtent?: OperationalExtent;
+  operationalMinScale?: number;
+  operationalMaxScale?: number;
+  recommendedScale?: number;
+  renderScaleSensitive?: boolean;
+  navigationSource?: ServiceNavigationSource;
+  navigationVerifiedAt?: string;
+}
+
+export interface OperationalExtent {
+  xmin: number;
+  ymin: number;
+  xmax: number;
+  ymax: number;
+  wkid: 4326;
+}
+
+export type ServiceNavigationSource = "verified-query" | "declared-service" | "verified-render";
+
+export interface ServiceNavigationProfile {
+  index: number;
+  name: string;
+  kind: ServiceKind;
+  extent: OperationalExtent;
+  minScale?: number;
+  maxScale?: number;
+  recommendedScale?: number;
+  renderScaleSensitive?: boolean;
+  source: ServiceNavigationSource;
+  note?: string;
+}
+
+export interface ServiceNavigationSnapshot {
+  schemaVersion: 1;
+  verifiedAt: string;
+  source: string;
+  profiles: ServiceNavigationProfile[];
 }
 
 export interface CameraState {

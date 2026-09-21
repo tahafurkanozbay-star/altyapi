@@ -2,11 +2,18 @@ import { memo, useDeferredValue, useMemo, useState } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
+import {
+  formatScale,
+  isOperationalScale,
+  navigationSourceLabel,
+  operationalScaleLabel
+} from "../lib/serviceNavigation";
 import type { ServiceAvailability, ServiceDefinition, ServiceKind } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
   services: ServiceDefinition[];
+  currentScale?: number;
   onToggle: (service: ServiceDefinition, visible: boolean) => Promise<void>;
   onOpacity: (service: ServiceDefinition, opacity: number) => void;
   onFavorite: (service: ServiceDefinition) => void;
@@ -23,7 +30,7 @@ const kinds: Array<{ value: ServiceKind | "all"; label: string }> = [
   { value: "WFS", label: "WFS" }
 ];
 
-export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, onOpacity, onFavorite, onZoom, onRetry }: Props) {
+export const LayerExplorer = memo(function LayerExplorer({ services, currentScale, onToggle, onOpacity, onFavorite, onZoom, onRetry }: Props) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [kind, setKind] = useState<ServiceKind | "all">("all");
@@ -207,7 +214,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                       <div className="layer-meta-row">
                         <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{service.kind === "SceneServer" ? "3B SCENE" : service.kind}</span>
                         <span className={`status-dot status-${service.status}`} />
-                        <span>{statusLabel(service)}</span>
+                        <span>{statusLabel(service, currentScale)}</span>
                         <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
                         {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
                       </div>
@@ -231,7 +238,15 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                       />
                       <span>{Math.round(service.opacity * 100)}%</span>
                     </div>
-                    <button type="button" className="icon-ghost" onClick={() => onZoom(service)} disabled={!service.visible} title="Katmana yaklaş"><Icon name="zoom" size={15} /></button>
+                    <button
+                      type="button"
+                      className="icon-ghost"
+                      onClick={() => onZoom(service)}
+                      disabled={!service.visible && !service.operationalExtent}
+                      title={service.operationalExtent ? "Doğrulanmış çalışma kapsamına git" : "Katmana yaklaş"}
+                    >
+                      <Icon name="zoom" size={15} />
+                    </button>
                     <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi" aria-expanded={openInfo === service.id}><Icon name="info" size={15} /></button>
                     {service.status === "error" && (
                       <button
@@ -251,12 +266,17 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
                       <dl>
                         <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
                         <div><dt>Servis</dt><dd>{hostLabel(service.url)}</dd></div>
-                        <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service)}</dd></div>
+                        <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service, currentScale)}</dd></div>
                         <div><dt>Doğrulama</dt><dd>{availabilityLabel(service)}</dd></div>
                         <div><dt>Erişim profili</dt><dd>{accessLabel(service)}</dd></div>
                         <div><dt>Doğrulama notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
                         <div><dt>Doğrulama zamanı</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
                         <div><dt>Harici doğrulama gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
+                        <div><dt>Çalışma ölçeği</dt><dd>{operationalScaleLabel(service)}</dd></div>
+                        <div><dt>Önerilen açılış ölçeği</dt><dd>{service.recommendedScale ? `1:${formatScale(service.recommendedScale)}` : "—"}</dd></div>
+                        <div><dt>Çalışma kapsamı kaynağı</dt><dd>{navigationSourceLabel(service)}</dd></div>
+                        <div><dt>Kapsam doğrulaması</dt><dd>{service.navigationVerifiedAt ? new Date(service.navigationVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                        <div><dt>Geniş görünüm politikası</dt><dd>{service.renderScaleSensitive ? "Sunucu yükünü azaltmak için doğrulanmış çalışma ölçeği uygulanır." : "Ek ölçek kısıtı yok."}</dd></div>
                         <div><dt>Devre kesici</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Açık"}</dd></div>
                         <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
                         <div><dt>Son canlı ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
@@ -273,13 +293,16 @@ export const LayerExplorer = memo(function LayerExplorer({ services, onToggle, o
   );
 });
 
-function statusLabel(service: ServiceDefinition): string {
+function statusLabel(service: ServiceDefinition, currentScale?: number): string {
   if (service.status === "loading") return "Bağlanıyor";
-  if (service.status === "ready") return "Hazır";
   if (service.status === "error") {
     const remaining = cooldownRemaining(service);
     return remaining ? `Beklemede · ${remaining}` : "Hata";
   }
+  if (service.visible && service.renderScaleSensitive && !isOperationalScale(service, currentScale)) {
+    return "Ölçek dışında";
+  }
+  if (service.status === "ready") return "Hazır";
   return service.visible ? "Bekliyor" : "Kapalı";
 }
 

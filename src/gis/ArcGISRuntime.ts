@@ -5,6 +5,12 @@ import { createLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { normalizeAttributeValue } from "../lib/attributeTable";
 import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
+import {
+  isOperationalScale,
+  operationalExtentCenter,
+  operationalExtentContains,
+  recommendedActivationScale
+} from "../lib/serviceNavigation";
 import type {
   AttributeQueryOptions,
   AttributeTableResult,
@@ -40,6 +46,12 @@ export interface LayerLoadResult {
   error?: string;
   durationMs?: number;
   superseded?: boolean;
+}
+
+export interface OperationalNavigationResult {
+  moved: boolean;
+  reason?: "outside-extent" | "scale-too-far" | "scale-too-close";
+  targetScale?: number;
 }
 
 const HOME_CAMERA: CameraState = {
@@ -328,11 +340,86 @@ export class ArcGISRuntime {
     }
   }
 
-  async zoomToLayer(serviceId: string): Promise<boolean> {
-    if (!this.view || this.destroyed) return false;
-    const layer = this.layers.get(serviceId);
-    if (!layer) return false;
+  async prepareLayerActivation(service: ServiceDefinition): Promise<OperationalNavigationResult> {
+    if (!this.view || this.destroyed || !service.renderScaleSensitive) return { moved: false };
+
+    const camera = this.view.camera;
+    const longitude = camera.position.longitude;
+    const latitude = camera.position.latitude;
+    const scale = this.view.scale;
+    const insideExtent =
+      service.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? operationalExtentContains(service, longitude!, latitude!)
+        : true;
+    const insideScale = isOperationalScale(service, scale);
+
+    if (insideExtent && insideScale) return { moved: false };
+
+    let reason: OperationalNavigationResult["reason"];
+    if (!insideExtent) reason = "outside-extent";
+    else if (service.operationalMinScale && scale > service.operationalMinScale) reason = "scale-too-far";
+    else if (service.operationalMaxScale && scale < service.operationalMaxScale) reason = "scale-too-close";
+
+    const targetScale = targetOperationalScale(service, scale);
+    const targetCenter =
+      !insideExtent && service.operationalExtent
+        ? operationalExtentCenter(service.operationalExtent)
+        : {
+            longitude: longitude ?? HOME_CAMERA.longitude,
+            latitude: latitude ?? HOME_CAMERA.latitude
+          };
+
     try {
+      const { default: Point } = await import("@arcgis/core/geometry/Point.js");
+      if (!this.view || this.destroyed) return { moved: false };
+      const target = new Point({
+        longitude: targetCenter.longitude,
+        latitude: targetCenter.latitude,
+        spatialReference: { wkid: 4326 }
+      });
+      await this.view.goTo(
+        { target, scale: targetScale },
+        { duration: 780, easing: "ease-in-out" }
+      );
+      return { moved: true, reason, targetScale };
+    } catch {
+      return { moved: false };
+    }
+  }
+
+  async zoomToLayer(service: ServiceDefinition): Promise<boolean> {
+    if (!this.view || this.destroyed) return false;
+    try {
+      if (service.operationalExtent) {
+        const { default: Point } = await import("@arcgis/core/geometry/Point.js");
+        if (!this.view || this.destroyed) return false;
+        const center = operationalExtentCenter(service.operationalExtent);
+        const target = new Point({
+          longitude: center.longitude,
+          latitude: center.latitude,
+          spatialReference: { wkid: 4326 }
+        });
+        const scale = recommendedActivationScale(service);
+        if (scale) {
+          await this.view.goTo({ target, scale }, { duration: 850, easing: "ease-in-out" });
+          return true;
+        }
+
+        const { default: Extent } = await import("@arcgis/core/geometry/Extent.js");
+        if (!this.view || this.destroyed) return false;
+        const extent = new Extent({
+          xmin: service.operationalExtent.xmin,
+          ymin: service.operationalExtent.ymin,
+          xmax: service.operationalExtent.xmax,
+          ymax: service.operationalExtent.ymax,
+          spatialReference: { wkid: 4326 }
+        });
+        await this.view.goTo(extent.expand(1.08), { duration: 850, easing: "ease-in-out" });
+        return true;
+      }
+
+      const layer = this.layers.get(service.id);
+      if (!layer) return false;
       await layer.load();
       const extent = layer.fullExtent;
       if (!extent) return false;
@@ -648,6 +735,23 @@ function pointProperties(camera: CameraState) {
     z: camera.z,
     spatialReference: { wkid: 4326 }
   };
+}
+
+function targetOperationalScale(service: ServiceDefinition, currentScale: number): number {
+  const recommended = recommendedActivationScale(service);
+  if (!Number.isFinite(currentScale) || currentScale <= 0) return recommended ?? 250_000;
+
+  if (service.operationalMinScale && currentScale > service.operationalMinScale) {
+    return recommended && recommended <= service.operationalMinScale
+      ? recommended
+      : Math.round(service.operationalMinScale * 0.75);
+  }
+
+  if (service.operationalMaxScale && currentScale < service.operationalMaxScale) {
+    return Math.round(service.operationalMaxScale * 1.25);
+  }
+
+  return currentScale;
 }
 
 function clampOpacity(value: number): number {
