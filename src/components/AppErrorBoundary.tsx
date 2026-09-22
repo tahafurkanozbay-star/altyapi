@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { clearPreferences } from "../lib/storage";
+import { clearApplicationCachesAndReload } from "../lib/clientRecovery";
+import { buildLabel } from "../lib/buildInfo";
 
 interface Props {
   children: ReactNode;
@@ -28,6 +30,7 @@ export class AppErrorBoundary extends Component<Props, State> {
         <div aria-hidden="true" style={{ fontSize: 34 }}>⚠</div>
         <h1>Uygulama beklenmeyen bir hatayla durdu</h1>
         <p>{this.state.error.message || "Bilinmeyen bir istemci hatası oluştu."}</p>
+        <small style={{ color: "#718796", marginTop: -4 }}>{buildLabel()}</small>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
           <button type="button" className="primary-button" onClick={() => window.location.reload()}>
             Yeniden yükle
@@ -41,6 +44,13 @@ export class AppErrorBoundary extends Component<Props, State> {
             }}
           >
             Tercihleri sıfırla
+          </button>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => void clearApplicationCachesAndReload()}
+          >
+            Önbelleği temizle
           </button>
         </div>
         {import.meta.env.DEV && (
