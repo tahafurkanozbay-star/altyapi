@@ -1836,4 +1836,45 @@
     }
   }
 
+
+  /* v14 · Performance & Provenance */
+  .panel-loading {
+    overflow: hidden;
+  }
+
+  .panel-skeleton {
+    min-height: 260px;
+    border: 1px solid #e1e9ee;
+    border-radius: 14px;
+    background:
+      linear-gradient(90deg, transparent, rgba(255, 255, 255, .86), transparent) 0 0 / 180px 100% no-repeat,
+      repeating-linear-gradient(180deg, #f5f8fa 0 34px, #ffffff 34px 52px);
+    animation: panel-skeleton-scan 1.35s ease-in-out infinite;
+  }
+
+  .fatal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 9px;
+    margin-top: 8px;
+  }
+
+  .fatal-screen > small {
+    color: #718796;
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @keyframes panel-skeleton-scan {
+    0% { background-position: -180px 0, 0 0; }
+    100% { background-position: calc(100% + 180px) 0, 0 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .panel-skeleton {
+      animation: none;
+    }
+  }
+
 }
