@@ -1,13 +1,16 @@
-import { useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useMemo, useRef, useState } from "react";
 import { capabilityLabel, capabilityScore, collectBrowserCapabilities } from "../platform/capabilities";
 import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
-import { DataWorkbench } from "./DataWorkbench";
 import { incidentJournalToJson } from "../lib/incidentJournal";
 import { filterIncidents, reliabilityTrendLabel, summarizeIncidentReliability } from "../lib/sessionReliability";
 import { OperationsOverview } from "./OperationsOverview";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
+
+const DataWorkbench = lazy(() =>
+  import("./DataWorkbench").then((module) => ({ default: module.DataWorkbench }))
+);
 
 interface Props {
   panel: Exclude<PanelId, null | "layers">;
@@ -51,7 +54,11 @@ export function OperationsPanel(props: Props) {
       )}
       {props.panel === "health" && <HealthPanel {...props} />}
       {props.panel === "incidents" && <IncidentPanel {...props} />}
-      {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
+      {props.panel === "data" && (
+        <Suspense fallback={<div className="operations-body"><div className="panel-skeleton" aria-label="Sorgu stüdyosu hazırlanıyor" /></div>}>
+          <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />
+        </Suspense>
+      )}
       {props.panel === "workspace" && <WorkspacePanel {...props} />}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
       {props.panel === "diagnostics" && <DiagnosticsPanel services={props.services} performance={props.performance} incidents={props.incidents} />}
