@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v13 architecture guardrails", () => {
+describe("v14 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -132,6 +132,30 @@ describe("v13 architecture guardrails", () => {
     expect(main).toContain("controllerchange");
     expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v13"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
+  });
+
+
+  it("ships performance provenance, lazy workspaces and production budgets", async () => {
+    const app = await readFile("src/App.tsx", "utf8");
+    const operations = await readFile("src/components/OperationsPanel.tsx", "utf8");
+    const metrics = await readFile("src/lib/runtimePerformance.ts", "utf8");
+    const buildInfo = await readFile("src/lib/buildInfo.ts", "utf8");
+    const recovery = await readFile("src/lib/clientRecovery.ts", "utf8");
+    const vite = await readFile("vite.config.ts", "utf8");
+    const packageJson = await readFile("package.json", "utf8");
+    const budget = await readFile("scripts/check-build-budget.mjs", "utf8");
+    const serviceWorker = await readFile("public/sw.js", "utf8");
+
+    expect(app).toContain('lazy(() =>');
+    expect(app).toContain('markRuntimeMilestone("scene-ready")');
+    expect(operations).toContain('import("./DataWorkbench")');
+    expect(metrics).toContain("largest-contentful-paint");
+    expect(buildInfo).toContain("__BUILD_SHA__");
+    expect(recovery).toContain("clearApplicationCaches");
+    expect(vite).toContain("__BUILD_TIME__");
+    expect(packageJson).toContain("check-build-budget.mjs");
+    expect(budget).toContain("largestJsBytes");
+    expect(serviceWorker).toContain("altyapi-shell-v14");
   });
 
 });
