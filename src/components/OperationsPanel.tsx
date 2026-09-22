@@ -4,6 +4,8 @@ import { latencyLabel, summarizeServiceHealth } from "../lib/serviceMetrics";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import { incidentJournalToJson } from "../lib/incidentJournal";
 import { filterIncidents, reliabilityTrendLabel, summarizeIncidentReliability } from "../lib/sessionReliability";
+import { BUILD_INFO, buildLabel } from "../lib/buildInfo";
+import { getRuntimePerformanceSnapshot, runtimePerformanceScore } from "../lib/runtimePerformance";
 import { OperationsOverview } from "./OperationsOverview";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, PerformanceProfile, RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
@@ -285,6 +287,8 @@ function IncidentPanel({ incidents, onClearIncidents }: Props) {
 function DiagnosticsPanel({ services, performance, incidents }: { services: ServiceDefinition[]; performance: PerformanceProfile; incidents: RuntimeIncident[] }) {
   const capabilities = useMemo(() => collectBrowserCapabilities(), []);
   const score = capabilityScore(capabilities);
+  const runtimeMetrics = useMemo(() => getRuntimePerformanceSnapshot(), []);
+  const runtimeScore = runtimePerformanceScore(runtimeMetrics);
   const ready = services.filter((service) => service.status === "ready").length;
   const errors = services.filter((service) => service.status === "error").length;
 
@@ -292,10 +296,13 @@ function DiagnosticsPanel({ services, performance, incidents }: { services: Serv
     const report = {
       generatedAt: new Date().toISOString(),
       application: "Başkent 3B CBS",
-      version: "13.0.0",
+      version: BUILD_INFO.version,
+      build: BUILD_INFO,
       runtime: "React 19.3 + View Transitions + TypeScript 7 + Vite 8.3 + ArcGIS 5.1 component-first Scene + adaptive operations reliability",
       performanceProfile: performance,
       capabilityScore: score,
+      runtimePerformanceScore: runtimeScore,
+      runtimePerformance: runtimeMetrics,
       capabilities,
       incidentSummary: {
         total: incidents.length,
@@ -339,11 +346,13 @@ function DiagnosticsPanel({ services, performance, incidents }: { services: Serv
       </div>
       <div className="health-grid">
         <Metric label="WebGL2" value={capabilities.webgl2 ? 1 : 0} tone={capabilities.webgl2 ? "good" : "bad"} />
-        <Metric label="CPU çekirdeği" value={capabilities.hardwareConcurrency} tone="neutral" />
+        <Metric label="Runtime perf." value={runtimeScore} tone={runtimeScore >= 80 ? "good" : runtimeScore >= 55 ? "warn" : "bad"} />
         <Metric label="Hazır servis" value={ready} tone="good" />
         <Metric label="Servis hatası" value={errors} tone={errors > 0 ? "bad" : "neutral"} />
       </div>
       <div className="health-note"><Icon name="speed" /><div><strong>Grafik çalışma zamanı</strong><span>WebGL2: {capabilities.webgl2 ? "hazır" : "desteklenmiyor"} · DPR {capabilities.devicePixelRatio.toFixed(1)} · renk gamı {capabilities.colorGamut.toUpperCase()}</span></div></div>
+      <div className="health-note"><Icon name="activity" /><div><strong>Başlangıç performansı · {runtimeScore}/100</strong><span>FCP {metricMs(runtimeMetrics.firstContentfulPaintMs)} · LCP {metricMs(runtimeMetrics.largestContentfulPaintMs)} · Scene {metricMs(runtimeMetrics.sceneReadyMs)} · Workspace {metricMs(runtimeMetrics.workspaceReadyMs)} · {runtimeMetrics.longTaskCount} long task</span></div></div>
+      <div className="health-note"><Icon name="archive" /><div><strong>Build provenance · {buildLabel()}</strong><span>{BUILD_INFO.local ? "Yerel build" : `Commit ${BUILD_INFO.shortSha}`} · {new Date(BUILD_INFO.builtAt).toLocaleString("tr-TR")}</span></div></div>
       <div className="health-note"><Icon name="activity" /><div><strong>Runtime reliability</strong><span>{incidents.length} sanitizasyonlu olay · {incidents.filter((incident) => incident.severity === "error").length} hata · {incidents.filter((incident) => incident.recovered).length} toparlanma kaydı</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Cihaz ve ağ</strong><span>{capabilities.deviceMemory ? `${capabilities.deviceMemory} GB tahmini bellek · ` : ""}{capabilities.connectionType ? `${capabilities.connectionType} bağlantı · ` : ""}{capabilities.saveData ? "Veri tasarrufu açık" : "Normal veri modu"}</span></div></div>
       <div className="health-note"><Icon name={capabilities.secureContext ? "check" : "warning"} /><div><strong>Güvenli bağlam</strong><span>{capabilities.secureContext ? "HTTPS/localhost güvenli bağlamı kullanılabilir." : "Bazı tarayıcı yetenekleri güvenli bağlam olmadığı için sınırlanabilir."}</span></div></div>
@@ -458,6 +467,10 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
       <div className="health-note"><Icon name="info" /><div><strong>Yerel geliştirme</strong><span>Kaynak TSX dosyaları Vite ile çalıştırılır: npm run dev. Live Server yalnızca npm run build sonrasındaki dist/ çıktısını servis etmelidir.</span></div></div>
     </div>
   );
+}
+
+function metricMs(value: number | undefined): string {
+  return value === undefined ? "—" : `${value} ms`;
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
