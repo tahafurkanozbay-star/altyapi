@@ -14,6 +14,7 @@ import {
 } from "./lib/incidentJournal";
 import { buildStabilizationPlan } from "./lib/stabilization";
 import { BUILD_INFO } from "./lib/buildInfo";
+import { clearApplicationCachesAndReload } from "./lib/clientRecovery";
 import { markRuntimeMilestone } from "./lib/runtimePerformance";
 import {
   applyServiceHealthSnapshot,
@@ -797,7 +798,18 @@ export default function App() {
       )}
 
       {!ready && !bootError && <div className="boot-screen"><div className="boot-logo"><span>3B</span><i /></div><div><strong>Başkent 3B CBS hazırlanıyor</strong><span>Harita motoru ve servis kataloğu yükleniyor…</span></div><div className="boot-progress"><i /></div></div>}
-      {bootError && <div className="fatal-screen"><Icon name="warning" size={34} /><h1>Uygulama başlatılamadı</h1><p>{bootError}</p><button type="button" className="primary-button" onClick={() => location.reload()}><Icon name="refresh" /> Yeniden yükle</button></div>}
+      {bootError && (
+        <div className="fatal-screen">
+          <Icon name="warning" size={34} />
+          <h1>Uygulama başlatılamadı</h1>
+          <p>{bootError}</p>
+          <small>v{BUILD_INFO.version} · {BUILD_INFO.shortSha}</small>
+          <div className="fatal-actions">
+            <button type="button" className="primary-button" onClick={() => location.reload()}><Icon name="refresh" /> Yeniden yükle</button>
+            <button type="button" className="catalog-action" onClick={() => void clearApplicationCachesAndReload()}><Icon name="trash" /> Uygulama önbelleğini temizle</button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
