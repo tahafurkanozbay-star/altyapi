@@ -445,8 +445,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
     <div className="operations-body help-body">
       <div className="help-hero">
         <div className="help-orbit"><span /><span /><span /></div>
-        <h3>Başkent 3B CBS v13 · Component-First Scene</h3>
-        <p>React 19.3, TypeScript 7 ve ArcGIS 5.1 arcgis-scene Web Component üzerinde çalışan; referenceElement bağlantılı araçlar, otomatik WebGL kurtarma, adaptif güvenli mod ve ölçek-duyarlı katman orkestrasyonunu birleştiren Ankara 3B CBS platformu.</p>
+        <h3>Başkent 3B CBS v14 · Performance & Provenance</h3>
+        <p>ArcGIS 5.1 component-first Scene mimarisini; lazy operasyon yüzeyleri, ölçümlenebilir başlangıç performansı, build provenance, bundle bütçeleri ve güvenli PWA kurtarma akışıyla güçlendiren Ankara 3B CBS platformu.</p>
       </div>
       <div className="shortcut-list">
         <Shortcut keyName="⌘ K" label="Komut paleti" />
@@ -460,7 +460,8 @@ function HelpPanel({ performance }: { performance: PerformanceProfile }) {
         <Shortcut keyName="M" label="Harita odak modu" />
         <Shortcut keyName="Esc" label="Açık aracı / paneli kapat" />
       </div>
-      <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır.</span></div></div>
+      <div className="health-note"><Icon name="speed" /><div><strong>Aktif performans profili: {performance}</strong><span>GPU kalitesi, gölge ayrıntısı ve katman önbelleği cihaz kapasitesine göre ayarlanır; production build ayrıca bundle bütçesiyle korunur.</span></div></div>
+      <div className="health-note"><Icon name="archive" /><div><strong>Build kimliği: {buildLabel()}</strong><span>Tanılama raporu commit kimliği, build zamanı ve yerel performans ölçümlerini içerir; böylece cache/deploy uyuşmazlıkları daha hızlı ayırt edilir.</span></div></div>
       <div className="health-note"><Icon name="health" /><div><strong>Dayanıklı servis katmanı</strong><span>Harici doğrulama snapshot'ı, canlı tarayıcı telemetrisi ve üstel geri çekilmeli devre kesici birlikte çalışır; problemli servisler uygulamanın geri kalanını kilitlemez.</span></div></div>
       <div className="health-note"><Icon name="activity" /><div><strong>Adaptif operasyon</strong><span>Stabilizasyon planı riskli görünür katmanları izole eder, gerekirse en uygun doğrulanmış servisleri sınırlı sayıda devreye alır; olay günlüğü son saatler için güvenilirlik trendi üretir.</span></div></div>
       <div className="health-note"><Icon name="command" /><div><strong>Komuta odaklı kullanım</strong><span>Katman, sunucu sorgusu, çalışma alanı paketi, analiz aracı, sistem tanılama, servis sağlığı ve ekran görüntüsü işlemlerine sol komuta rayı veya Ctrl/Cmd + K üzerinden erişebilirsiniz. M tuşu panelleri geri çekip haritaya odaklanır.</span></div></div>
