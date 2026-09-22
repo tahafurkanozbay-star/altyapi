@@ -11,6 +11,8 @@ export interface RuntimePerformanceSnapshot {
   longTaskTotalMs: number;
 }
 
+const observers: PerformanceObserver[] = [];
+
 const observed = {
   lcp: undefined as number | undefined,
   longTaskCount: 0,
@@ -30,6 +32,7 @@ export function startRuntimePerformanceMonitoring(): void {
       for (const entry of list.getEntries()) observed.lcp = Math.round(entry.startTime);
     });
     observer.observe({ type: "largest-contentful-paint", buffered: true });
+    observers.push(observer);
   }
 
   if (supported.has("longtask")) {
@@ -40,6 +43,7 @@ export function startRuntimePerformanceMonitoring(): void {
       }
     });
     observer.observe({ type: "longtask", buffered: true });
+    observers.push(observer);
   }
 }
 
