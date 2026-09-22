@@ -1,4 +1,4 @@
-import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, ViewTransition, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArcGISRuntime } from "./gis/ArcGISRuntime";
 import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
@@ -13,6 +13,7 @@ import {
   type IncidentInput
 } from "./lib/incidentJournal";
 import { buildStabilizationPlan } from "./lib/stabilization";
+import { markRuntimeMilestone } from "./lib/runtimePerformance";
 import {
   applyServiceHealthSnapshot,
   failurePatch,
@@ -44,8 +45,6 @@ import { LayerExplorer } from "./components/LayerExplorer";
 import { ToolRail } from "./components/ToolRail";
 import { StatusBar } from "./components/StatusBar";
 import { DetailsPanel } from "./components/DetailsPanel";
-import { OperationsPanel } from "./components/OperationsPanel";
-import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
@@ -59,6 +58,13 @@ const basemaps = [
   ["dark-gray-vector", "Koyu Gri"],
   ["gray-vector", "Açık Gri"]
 ] as const;
+
+const OperationsPanel = lazy(() =>
+  import("./components/OperationsPanel").then((module) => ({ default: module.OperationsPanel }))
+);
+const CommandPalette = lazy(() =>
+  import("./components/CommandPalette").then((module) => ({ default: module.CommandPalette }))
+);
 
 export default function App() {
   const initialPreferences = useMemo(() => loadPreferences(), []);
@@ -236,6 +242,7 @@ export default function App() {
           return;
         }
         setReady(true);
+        markRuntimeMilestone("scene-ready");
 
         await mapWithConcurrency(restored.filter((service) => service.visible), 2, async (service) => {
           if (cancelled) return;
@@ -261,6 +268,7 @@ export default function App() {
         });
         if (cancelled) return;
         persistLayerPreferences(servicesRef.current);
+        markRuntimeMilestone("workspace-ready");
         pushToast(`${restored.length} servis katalogdan yüklendi · ${restored.filter((service) => service.availability === "verified").length} doğrulanmış.`, "success");
         if (suppressedRestores > 0) {
           pushToast(`${suppressedRestores} riskli servis başlangıçta otomatik açılmadı; Katmanlar panelinden manuel denenebilir.`, "info");
@@ -736,26 +744,28 @@ export default function App() {
               <LayerExplorer services={services} currentScale={telemetry.scale} onToggle={toggleLayer} onOpacity={setOpacity} onFavorite={toggleFavorite} onZoom={(service) => void zoomLayer(service)} onRetry={retryLayer} />
             </aside>
           ) : panel ? (
-            <OperationsPanel
-              key={panel}
-              panel={panel}
-              services={services}
-              bookmarks={preferences.bookmarks}
-              incidents={incidents}
-              performance={effectivePerformance}
-              online={online}
-              onClose={() => setPanel(null)}
-              onNavigatePanel={selectPanel}
-              onClearIncidents={clearIncidents}
-              onStabilizeWorkspace={stabilizeWorkspace}
-              onRetryErrors={retryErrors}
-              onAddBookmark={addBookmark}
-              onGoBookmark={(bookmark) => void goBookmark(bookmark)}
-              onDeleteBookmark={deleteBookmark}
-              onQueryAttributes={queryAttributes}
-              onExportWorkspace={exportWorkspace}
-              onImportWorkspace={importWorkspace}
-            />
+            <Suspense fallback={<aside className="operations-panel panel-loading" aria-busy="true"><div className="operations-heading"><div><span className="eyebrow">OPERASYON MERKEZİ</span><h2>Panel hazırlanıyor</h2></div></div><div className="operations-body"><div className="panel-skeleton" /></div></aside>}>
+              <OperationsPanel
+                key={panel}
+                panel={panel}
+                services={services}
+                bookmarks={preferences.bookmarks}
+                incidents={incidents}
+                performance={effectivePerformance}
+                online={online}
+                onClose={() => setPanel(null)}
+                onNavigatePanel={selectPanel}
+                onClearIncidents={clearIncidents}
+                onStabilizeWorkspace={stabilizeWorkspace}
+                onRetryErrors={retryErrors}
+                onAddBookmark={addBookmark}
+                onGoBookmark={(bookmark) => void goBookmark(bookmark)}
+                onDeleteBookmark={deleteBookmark}
+                onQueryAttributes={queryAttributes}
+                onExportWorkspace={exportWorkspace}
+                onImportWorkspace={importWorkspace}
+              />
+            </Suspense>
           ) : null}
         </ViewTransition>
       </div>
@@ -769,7 +779,11 @@ export default function App() {
 
       <DetailsPanel result={identify} onClose={() => setIdentify(null)} />
       <StatusBar telemetry={telemetry} services={services} performance={effectivePerformance} />
-      <CommandPalette open={commandOpen} services={services} onClose={() => setCommandOpen(false)} onLayer={(service) => void toggleLayer(service, !service.visible)} onTool={selectTool} onPanel={selectPanel} onHome={() => void runtimeRef.current?.goHome()} onScreenshot={() => void takeScreenshot()} />
+      {commandOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette open services={services} onClose={() => setCommandOpen(false)} onLayer={(service) => void toggleLayer(service, !service.visible)} onTool={selectTool} onPanel={selectPanel} onHome={() => void runtimeRef.current?.goHome()} onScreenshot={() => void takeScreenshot()} />
+        </Suspense>
+      )}
       <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
 
       {updateAvailable && (
