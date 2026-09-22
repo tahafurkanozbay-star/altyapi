@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { clearPreferences } from "../lib/storage";
 import { clearApplicationCachesAndReload } from "../lib/clientRecovery";
 import { buildLabel } from "../lib/buildInfo";
+import { sanitizeIncidentText } from "../lib/incidentJournal";
 
 interface Props {
   children: ReactNode;
@@ -29,7 +30,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       <main className="fatal-screen" role="alert">
         <div aria-hidden="true" style={{ fontSize: 34 }}>⚠</div>
         <h1>Uygulama beklenmeyen bir hatayla durdu</h1>
-        <p>{this.state.error.message || "Bilinmeyen bir istemci hatası oluştu."}</p>
+        <p>{sanitizeIncidentText(this.state.error.message || "Bilinmeyen bir istemci hatası oluştu.")}</p>
         <small style={{ color: "#718796", marginTop: -4 }}>{buildLabel()}</small>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
           <button type="button" className="primary-button" onClick={() => window.location.reload()}>
