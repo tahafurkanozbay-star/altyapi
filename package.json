@@ -1,14 +1,14 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "13.0.0",
+  "version": "14.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara odaklı, Comfort White arayüzlü, ArcGIS 5.1 component-first Scene mimarisi, adaptif stabilizasyon, doğrulanmış çalışma extentleri ve runtime güvenilirliği içeren profesyonel 3B CBS platformu.",
+  "description": "Ankara odaklı, ArcGIS 5.1 component-first Scene mimarisi, Operations Intelligence, runtime reliability, build provenance, performans bütçeleri ve ölçümlenebilir başlangıç telemetrisi içeren profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
     "start": "npm run dev",
-    "build": "tsc -b && vite build && node scripts/verify-build.mjs",
+    "build": "tsc -b && vite build && node scripts/verify-build.mjs && node scripts/check-build-budget.mjs",
     "build:watch": "vite build --watch",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "preview:host": "vite preview --host 0.0.0.0 --port 4173",
@@ -20,7 +20,8 @@
     "check": "npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "node scripts/validate-service-health.mjs",
     "probe:services": "node scripts/probe-service-health.mjs",
-    "validate:navigation": "node scripts/validate-service-navigation.mjs"
+    "validate:navigation": "node scripts/validate-service-navigation.mjs",
+    "check:budget": "node scripts/check-build-budget.mjs"
   },
   "dependencies": {
     "@arcgis/core": "^5.1.24",
