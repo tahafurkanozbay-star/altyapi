@@ -1,6 +1,23 @@
-# Başkent 3B CBS · Component-First Scene Platform v13
+# Başkent 3B CBS · Performance & Provenance Platform v14
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
+
+## v14: Performance & Provenance Platform
+
+v14, v13'ün component-first ArcGIS sahne mimarisini korurken deploy doğrulanabilirliği ve başlangıç performansını birinci sınıf ürün sinyaline dönüştürür.
+
+- build sırasında uygulama sürümü, commit SHA ve build zamanı tip güvenli sabitler olarak enjekte edilir
+- Sistem Tanılama paneli yayınlanan build'i commit kimliğiyle gösterir
+- tarayıcı içinde FCP, LCP, Scene Ready, Workspace Ready ve long-task ölçümleri yerel olarak izlenir
+- performans puanı yalnız istemci tanılaması için hesaplanır; dışarıya telemetri gönderilmez
+- Operasyon Merkezi ve Komut Paleti lazy-load edilir
+- Query Studio yalnız açıldığında ayrı chunk olarak yüklenir
+- production build için largest JS / total JS / entry JS / entry CSS bütçeleri CI kalite kapısına eklendi
+- fatal startup/render durumunda yalnız bu uygulamanın PWA cache'ini temizleyen güvenli kurtarma yolu eklendi
+- render hata mesajları kullanıcıya gösterilmeden önce URL/token benzeri içeriklerden arındırılır
+- PWA shell/data cache namespace'leri v14'e taşındı
+
+Detay: [docs/PERFORMANCE_PROVENANCE.md](docs/PERFORMANCE_PROVENANCE.md)
 
 ## v13: Component-First Scene Platform
 
@@ -96,7 +113,7 @@ Hazırlık puanı bir SLA veya resmi hizmet seviyesi değildir; tarayıcı istem
 - GitHub Actions — CI, CodeQL ve GitHub Pages
 - same-origin PWA / service worker
 
-Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile yalnızca "dil değişmiş olsun" diye taşımak ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. v13'te gerçek modernizasyon, doğrudan SceneView kurulumunu bırakıp ArcGIS 5.1'in component-first `arcgis-scene` modeline, `referenceElement` bağlantılı araçlara, strict TypeScript kontratlarına ve component-native event akışına geçmektir.
+Uygulamanın ana dili bilinçli olarak **TypeScript** kalır. Tarayıcı CBS uygulamasını Rust, Java veya C# gibi başka bir dile yalnızca "dil değişmiş olsun" diye taşımak ArcGIS web ekosistemini zayıflatır, bundle/interop karmaşıklığını artırır ve bakım maliyetini yükseltir. v14'te modernizasyon; ArcGIS 5.1 component-first `arcgis-scene`, strict TypeScript kontratları, lazy code-splitting, build provenance, performans bütçeleri ve native Performance API tabanlı tanılama üzerinden ilerler.
 
 ## Yerel geliştirme
 
@@ -269,7 +286,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **13.0.0**
+Current application version: **14.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 
