@@ -13,6 +13,7 @@ import {
   type IncidentInput
 } from "./lib/incidentJournal";
 import { buildStabilizationPlan } from "./lib/stabilization";
+import { BUILD_INFO } from "./lib/buildInfo";
 import { markRuntimeMilestone } from "./lib/runtimePerformance";
 import {
   applyServiceHealthSnapshot,
@@ -48,7 +49,7 @@ import { DetailsPanel } from "./components/DetailsPanel";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "13.0.0";
+const APP_VERSION = BUILD_INFO.version;
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
