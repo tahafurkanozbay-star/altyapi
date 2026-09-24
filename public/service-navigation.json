@@ -4,7 +4,7 @@
   "source": "GitHub Actions live ArcGIS query-extent and multi-scale export verification",
   "profiles": [
     {
-      "index": 10,
+      "index": 0,
       "name": "YAĞMUR SUYU ELEMAN",
       "kind": "MapServer",
       "extent": {
@@ -21,7 +21,7 @@
       "note": "1:400.000 export doğrulandı; geniş görünümlerde belirgin performans düşüşü ölçüldü."
     },
     {
-      "index": 11,
+      "index": 1,
       "name": "YAĞMUR SUYU BORU",
       "kind": "MapServer",
       "extent": {
@@ -38,7 +38,7 @@
       "note": "1:400.000 export doğrulandı; çalışma kapsamı query extent ile doğrulandı."
     },
     {
-      "index": 12,
+      "index": 2,
       "name": "PİS SU BORU",
       "kind": "MapServer",
       "extent": {
@@ -55,7 +55,7 @@
       "note": "1:400.000 export doğrulandı; çalışma kapsamı query extent ile doğrulandı."
     },
     {
-      "index": 13,
+      "index": 3,
       "name": "PİS SU ELEMAN",
       "kind": "MapServer",
       "extent": {
@@ -72,7 +72,7 @@
       "note": "1:400.000 export doğrulandı; çalışma kapsamı query extent ile doğrulandı."
     },
     {
-      "index": 14,
+      "index": 4,
       "name": "İÇME SUYU ELEMAN",
       "kind": "MapServer",
       "extent": {
@@ -89,7 +89,7 @@
       "note": "1:400.000 export 11 sn içinde doğrulandı; 1:600.000 isteği 16 sn sınırında zaman aşımına düştü."
     },
     {
-      "index": 15,
+      "index": 5,
       "name": "İÇME SUYU BORU",
       "kind": "MapServer",
       "extent": {
@@ -106,7 +106,7 @@
       "note": "1:400.000 export 11 sn içinde doğrulandı; 1:600.000 isteği 16 sn sınırında zaman aşımına düştü."
     },
     {
-      "index": 16,
+      "index": 6,
       "name": "UYGULAMA İMAR PLANI (UIP ESRI3)",
       "kind": "MapServer",
       "extent": {
@@ -124,7 +124,7 @@
       "note": "Servis metadata'sı görünürlük aralığını 1:2.311.162–1:1.128 olarak ilan ediyor."
     },
     {
-      "index": 17,
+      "index": 7,
       "name": "SINIRLAR",
       "kind": "FeatureServer",
       "extent": {
@@ -138,7 +138,7 @@
       "note": "returnExtentOnly sorgusu ile doğrulandı."
     },
     {
-      "index": 18,
+      "index": 8,
       "name": "3D1234 WFL1",
       "kind": "FeatureServer",
       "extent": {
@@ -152,7 +152,7 @@
       "note": "returnExtentOnly sorgusu ile doğrulandı."
     },
     {
-      "index": 19,
+      "index": 9,
       "name": "3D1234 WSL2",
       "kind": "SceneServer",
       "extent": {
