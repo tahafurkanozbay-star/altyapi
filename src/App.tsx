@@ -4,19 +4,10 @@ import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
-import { createWorkspaceSnapshot, parseWorkspaceSnapshot, workspaceSnapshotToJson } from "./lib/workspace";
-import {
-  appendIncident,
-  clearIncidentJournal,
-  createIncident,
-  loadIncidentJournal,
-  type IncidentInput
-} from "./lib/incidentJournal";
-import { buildStabilizationPlan } from "./lib/stabilization";
+import { appendIncident, createIncident, loadIncidentJournal, type IncidentInput } from "./lib/incidentJournal";
 import {
   applyServiceHealthSnapshot,
   failurePatch,
-  isServiceCoolingDown,
   loadServiceHealthSnapshot,
   shouldAutoLoadService,
   successPatch
@@ -45,11 +36,9 @@ import { ToolRail } from "./components/ToolRail";
 import { StatusBar } from "./components/StatusBar";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OperationsPanel } from "./components/OperationsPanel";
-import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "13.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -62,24 +51,21 @@ const basemaps = [
 
 export default function App() {
   const initialPreferences = useMemo(() => loadPreferences(), []);
+  const effectivePerformance: PerformanceProfile = useMemo(() => detectPerformanceProfile(), []);
   const [preferences, setPreferences] = useState<AppPreferences>(initialPreferences);
   const [services, setServices] = useState<ServiceDefinition[]>([]);
   const [ready, setReady] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<PanelId>("overview");
+  const [panel, setPanel] = useState<PanelId>("layers");
   const [activeTool, setActiveTool] = useState<ToolId>(null);
-  const [commandOpen, setCommandOpen] = useState(false);
   const [identify, setIdentify] = useState<IdentifyResult | null>(null);
   const [telemetry, setTelemetry] = useState<SceneTelemetry>({ altitude: DEFAULT_CAMERA.z, tilt: DEFAULT_CAMERA.tilt, heading: DEFAULT_CAMERA.heading });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
-  const [incidents, setIncidents] = useState<RuntimeIncident[]>(() => loadIncidentJournal());
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
-  const effectivePerformance: PerformanceProfile = preferences.performance === "auto" ? detectPerformanceProfile() : preferences.performance;
-  const initialPerformanceRef = useRef(effectivePerformance);
   const mapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigationRef = useRef<HTMLDivElement>(null);
@@ -87,6 +73,7 @@ export default function App() {
   const runtimeRef = useRef<ArcGISRuntime | null>(null);
   const navigationCleanupRef = useRef<(() => void) | null>(null);
   const servicesRef = useRef<ServiceDefinition[]>([]);
+  const incidentsRef = useRef<RuntimeIncident[]>(loadIncidentJournal());
 
   useEffect(() => { servicesRef.current = services; }, [services]);
 
@@ -97,14 +84,8 @@ export default function App() {
   }, []);
 
   const recordIncident = useCallback((input: IncidentInput) => {
-    setIncidents((current) => appendIncident(current, createIncident(input)));
+    incidentsRef.current = appendIncident(incidentsRef.current, createIncident(input));
   }, []);
-
-  const clearIncidents = useCallback(() => {
-    clearIncidentJournal();
-    setIncidents([]);
-    pushToast("Olay günlüğü temizlendi.", "success");
-  }, [pushToast]);
 
   const patchService = useCallback((id: string, patch: Partial<ServiceDefinition>) => {
     setServices((current) => current.map((service) => service.id === id ? { ...service, ...patch } : service));
@@ -137,18 +118,18 @@ export default function App() {
   const applyAppUpdate = useCallback(() => {
     window.dispatchEvent(new Event("altyapi:apply-update"));
     setUpdateAvailable(false);
-    pushToast("Yeni sürüm uygulanıyor…", "info");
+    pushToast("Kent Rehberi güncelleniyor…", "info");
   }, [pushToast]);
 
   useEffect(() => {
     const onOnline = () => {
       setOnline(true);
-      pushToast("Ağ bağlantısı yeniden kuruldu.", "success");
+      pushToast("İnternet bağlantısı yeniden kuruldu.", "success");
       recordIncident({ severity: "info", kind: "network", message: "Ağ bağlantısı yeniden kuruldu.", recovered: true });
     };
     const onOffline = () => {
       setOnline(false);
-      pushToast("Ağ bağlantısı kesildi. Harita servisleri geçici olarak kullanılamayabilir.", "error");
+      pushToast("İnternet bağlantısı kesildi. Bazı harita katmanları geçici olarak açılamayabilir.", "error");
       recordIncident({ severity: "warning", kind: "network", message: "Tarayıcı çevrimdışı duruma geçti." });
     };
     window.addEventListener("online", onOnline);
@@ -171,6 +152,7 @@ export default function App() {
           loadServiceNavigationSnapshot("./service-navigation.json", controller.signal)
         ]);
         if (cancelled || !mapRef.current) return;
+
         const share = decodeShareState(new URLSearchParams(location.search));
         const favoriteSet = new Set(initialPreferences.favorites);
         const sharedLayers = share ? new Set(share.layerIds) : null;
@@ -178,7 +160,9 @@ export default function App() {
         const enrichedCatalog = applyServiceNavigationSnapshot(healthCatalog, navigationSnapshot);
         let suppressedRestores = 0;
         const restored = enrichedCatalog.map((service) => {
-          const requestedVisible = sharedLayers ? sharedLayers.has(service.id) : (initialPreferences.layerVisibility[service.id] ?? false);
+          const requestedVisible = sharedLayers
+            ? sharedLayers.has(service.id)
+            : (initialPreferences.layerVisibility[service.id] ?? false);
           const visible = requestedVisible && shouldAutoLoadService(service);
           if (requestedVisible && !visible) suppressedRestores += 1;
           return {
@@ -200,7 +184,7 @@ export default function App() {
         setServices(restored);
         servicesRef.current = restored;
 
-        const runtime = new ArcGISRuntime(initialPerformanceRef.current);
+        const runtime = new ArcGISRuntime(effectivePerformance);
         runtimeRef.current = runtime;
         await runtime.initialize(
           mapRef.current,
@@ -212,7 +196,7 @@ export default function App() {
             onCamera: (camera) => saveCamera(camera),
             onGraphicsRecovery: (event) => {
               pushToast(
-                event.message,
+                event.state === "recovered" ? "Harita görüntüsü yeniden hazır." : event.message,
                 event.state === "recovered" ? "success" : event.state === "failed" ? "error" : "info"
               );
               recordIncident({
@@ -259,15 +243,15 @@ export default function App() {
             });
           }
         });
+
         if (cancelled) return;
         persistLayerPreferences(servicesRef.current);
-        pushToast(`${restored.length} servis katalogdan yüklendi · ${restored.filter((service) => service.availability === "verified").length} doğrulanmış.`, "success");
         if (suppressedRestores > 0) {
-          pushToast(`${suppressedRestores} riskli servis başlangıçta otomatik açılmadı; Katmanlar panelinden manuel denenebilir.`, "info");
+          pushToast(`${suppressedRestores} katman bağlantı durumuna göre başlangıçta açılmadı. İsterseniz Katmanlar bölümünden deneyebilirsiniz.`, "info");
         }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
-        const message = error instanceof Error ? error.message : "Uygulama başlatılamadı.";
+        const message = error instanceof Error ? error.message : "Kent Rehberi başlatılamadı.";
         setBootError(message);
         pushToast(message, "error");
         recordIncident({ severity: "error", kind: "boot", message });
@@ -283,11 +267,7 @@ export default function App() {
       runtimeRef.current = null;
       runtime?.destroy();
     };
-  }, [initialPreferences, patchService, persistLayerPreferences, pushToast, recordIncident]);
-
-  useEffect(() => {
-    runtimeRef.current?.setPerformanceProfile(effectivePerformance);
-  }, [effectivePerformance]);
+  }, [effectivePerformance, initialPreferences, patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   useEffect(() => {
     if (!ready) return;
@@ -296,7 +276,9 @@ export default function App() {
       return;
     }
     const frame = requestAnimationFrame(() => {
-      if (toolHostRef.current) void runtimeRef.current?.openTool(activeTool, toolHostRef.current).catch(() => pushToast("Harita aracı açılamadı.", "error"));
+      if (toolHostRef.current) {
+        void runtimeRef.current?.openTool(activeTool, toolHostRef.current).catch(() => pushToast("Harita aracı açılamadı.", "error"));
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [activeTool, ready, pushToast]);
@@ -304,17 +286,12 @@ export default function App() {
   const toggleLayer = useCallback(async (service: ServiceDefinition, visible: boolean) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
+
     if (visible) {
       patchService(service.id, { visible: true, status: "loading", error: undefined });
       const navigation = await runtime.prepareLayerActivation(service);
-      if (navigation.moved) {
-        pushToast(
-          `${service.displayName}: doğrulanmış çalışma görünümüne geçildi${navigation.targetScale ? ` · 1:${formatScale(navigation.targetScale)}` : ""}.`,
-          "info"
-        );
-      }
-      if (service.availability !== "verified") {
-        pushToast(`${service.displayName}: servis doğrulama durumu “${service.availability}”; manuel bağlantı deneniyor.`, "info");
+      if (navigation.moved && navigation.targetScale) {
+        pushToast(`${service.displayName} için uygun harita ölçeğine geçildi · 1:${formatScale(navigation.targetScale)}.`, "info");
       }
     } else {
       patchService(service.id, { visible: false });
@@ -337,7 +314,7 @@ export default function App() {
     persistLayerPreferences(next);
 
     if (!result.ok) {
-      pushToast(`${service.displayName}: ${result.error ?? "Servis yüklenemedi."}`, "error");
+      pushToast(`${service.displayName} şu anda açılamıyor. Daha sonra yeniden deneyebilirsiniz.`, "error");
       recordIncident({
         severity: "error",
         kind: "layer-load",
@@ -376,20 +353,14 @@ export default function App() {
 
   const zoomLayer = useCallback(async (service: ServiceDefinition) => {
     const ok = await runtimeRef.current?.zoomToLayer(service);
-    if (!ok) pushToast("Katmanın doğrulanmış çalışma kapsamı alınamadı.", "info");
+    if (!ok) pushToast("Bu katmanın harita kapsamı alınamadı.", "info");
   }, [pushToast]);
 
   const retryLayer = useCallback(async (service: ServiceDefinition) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
-    const navigation = await runtime.prepareLayerActivation(service);
-    if (navigation.moved) {
-      pushToast(
-        `${service.displayName}: yeniden denemeden önce çalışma ölçeğine geçildi${navigation.targetScale ? ` · 1:${formatScale(navigation.targetScale)}` : ""}.`,
-        "info"
-      );
-    }
+    await runtime.prepareLayerActivation(service);
     const result = await runtime.reloadLayer({ ...service, visible: true });
     if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
@@ -399,7 +370,7 @@ export default function App() {
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
-    pushToast(result.ok ? `${service.displayName} yeniden bağlandı.` : `${service.displayName} yeniden bağlanamadı.`, result.ok ? "success" : "error");
+    pushToast(result.ok ? `${service.displayName} açıldı.` : `${service.displayName} şu anda açılamıyor.`, result.ok ? "success" : "error");
     recordIncident({
       severity: result.ok ? "info" : "error",
       kind: "layer-retry",
@@ -411,20 +382,9 @@ export default function App() {
     });
   }, [patchService, persistLayerPreferences, pushToast, recordIncident]);
 
-  const retryErrors = useCallback(async () => {
-    const errors = servicesRef.current.filter(
-      (service) => service.status === "error" && service.availability !== "unavailable" && !isServiceCoolingDown(service)
-    );
-    const skipped = servicesRef.current.filter(
-      (service) => service.status === "error" && (service.availability === "unavailable" || isServiceCoolingDown(service))
-    ).length;
-    if (skipped > 0) pushToast(`${skipped} servis devre kesici / doğrulama politikası nedeniyle toplu denemede atlandı.`, "info");
-    await mapWithConcurrency(errors, 2, retryLayer);
-  }, [pushToast, retryLayer]);
-
   const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
-    if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
+    if (!runtime) throw new Error("Harita henüz hazır değil.");
     const startedAt = performance.now();
     try {
       return await runtime.queryAttributes(service, options);
@@ -432,7 +392,7 @@ export default function App() {
       recordIncident({
         severity: "error",
         kind: "query",
-        message: error instanceof Error ? error.message : "Öznitelik sorgusu başarısız oldu.",
+        message: error instanceof Error ? error.message : "Veri sorgusu başarısız oldu.",
         serviceId: service.id,
         serviceName: service.displayName,
         durationMs: Math.round(performance.now() - startedAt)
@@ -440,129 +400,6 @@ export default function App() {
       throw error;
     }
   }, [recordIncident]);
-
-  const exportWorkspace = useCallback(() => {
-    const runtime = runtimeRef.current;
-    if (!runtime) {
-      pushToast("Çalışma alanı dışa aktarılamadı: harita motoru hazır değil.", "error");
-      return;
-    }
-
-    const currentServices = servicesRef.current;
-    const snapshot = createWorkspaceSnapshot({
-      applicationVersion: APP_VERSION,
-      camera: runtime.getCamera(),
-      basemap: preferences.basemap,
-      layerVisibility: Object.fromEntries(currentServices.map((service) => [service.id, service.visible])),
-      layerOpacity: Object.fromEntries(currentServices.map((service) => [service.id, service.opacity])),
-      favorites: currentServices.filter((service) => service.favorite).map((service) => service.id),
-      bookmarks: preferences.bookmarks
-    });
-    const blob = new Blob([workspaceSnapshotToJson(snapshot)], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `baskent-3b-workspace-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    pushToast("Çalışma alanı paketi hazırlandı.", "success");
-  }, [preferences.basemap, preferences.bookmarks, pushToast]);
-
-  const importWorkspace = useCallback(async (value: unknown) => {
-    const runtime = runtimeRef.current;
-    if (!runtime) throw new Error("Harita motoru henüz hazır değil.");
-
-    const currentServices = servicesRef.current;
-    const allowedIds = new Set(currentServices.map((service) => service.id));
-    const snapshot = parseWorkspaceSnapshot(value, allowedIds);
-    const favorites = new Set(snapshot.favorites);
-    const outcomes = new Map<string, Awaited<ReturnType<ArcGISRuntime["setLayerVisible"]>>>();
-
-    await mapWithConcurrency(currentServices, 2, async (service) => {
-      const requestedVisible = snapshot.layerVisibility[service.id] ?? false;
-      const desiredVisible = requestedVisible && shouldAutoLoadService(service);
-      const desiredOpacity = snapshot.layerOpacity[service.id] ?? service.opacity;
-      runtime.setOpacity(service.id, desiredOpacity);
-      if (service.visible !== desiredVisible) {
-        outcomes.set(
-          service.id,
-          await runtime.setLayerVisible({ ...service, visible: desiredVisible, opacity: desiredOpacity }, desiredVisible)
-        );
-      }
-    });
-
-    const now = new Date().toISOString();
-    const nextServices = currentServices.map((service) => {
-      const requestedVisible = snapshot.layerVisibility[service.id] ?? false;
-      const desiredVisible = requestedVisible && shouldAutoLoadService(service);
-      const opacity = snapshot.layerOpacity[service.id] ?? service.opacity;
-      const outcome = outcomes.get(service.id);
-      if (outcome?.superseded) return service;
-      if (outcome && !outcome.ok) {
-        return {
-          ...service,
-          ...failurePatch(service, outcome.error, outcome.durationMs, Date.parse(now)),
-          opacity,
-          favorite: favorites.has(service.id)
-        };
-      }
-      return {
-        ...service,
-        visible: desiredVisible,
-        opacity,
-        favorite: favorites.has(service.id),
-        status: desiredVisible ? "ready" as const : service.status === "error" ? "idle" as const : service.status,
-        error: desiredVisible ? undefined : service.error,
-        ...(outcome?.durationMs !== undefined ? { latencyMs: outcome.durationMs, lastLoadedAt: now } : {})
-      };
-    });
-
-    setServices(nextServices);
-    servicesRef.current = nextServices;
-    runtime.setBasemap(snapshot.basemap);
-    await runtime.goTo(snapshot.camera);
-
-    setPreferences((current) => {
-      const next: AppPreferences = {
-        ...current,
-        basemap: snapshot.basemap,
-        layerVisibility: Object.fromEntries(nextServices.map((service) => [service.id, service.visible])),
-        layerOpacity: Object.fromEntries(nextServices.map((service) => [service.id, service.opacity])),
-        favorites: nextServices.filter((service) => service.favorite).map((service) => service.id),
-        camera: snapshot.camera,
-        bookmarks: snapshot.bookmarks
-      };
-      savePreferences(next);
-      return next;
-    });
-
-    pushToast("Çalışma alanı paketi uygulandı.", "success");
-  }, [pushToast]);
-
-  const stabilizeWorkspace = useCallback(async () => {
-    const snapshot = servicesRef.current;
-    const plan = buildStabilizationPlan(snapshot);
-    const hide = snapshot.filter((service) => plan.hideIds.includes(service.id));
-    const activate = snapshot.filter((service) => plan.activateIds.includes(service.id));
-
-    if (hide.length === 0 && activate.length === 0) {
-      pushToast("Çalışma alanı zaten stabil görünüyor.", "success");
-      return;
-    }
-
-    await mapWithConcurrency(hide, 2, async (service) => {
-      await toggleLayer(service, false);
-    });
-    await mapWithConcurrency(activate, 2, async (service) => {
-      await toggleLayer(service, true);
-    });
-
-    const message = `Stabilizasyon tamamlandı: ${hide.length} riskli katman kapatıldı, ${activate.length} doğrulanmış katman açıldı.`;
-    pushToast(message, "success");
-    recordIncident({ severity: "info", kind: "system", message, recovered: true });
-    setPanel("overview");
-    setMobilePanelsVisible(true);
-  }, [pushToast, recordIncident, toggleLayer]);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
     setPanel((current) => current === nextPanel ? null : nextPanel);
@@ -582,14 +419,6 @@ export default function App() {
     });
   }, []);
 
-  const changePerformance = useCallback((performance: PerformanceProfile | "auto") => {
-    setPreferences((current) => {
-      const next = { ...current, performance };
-      savePreferences(next);
-      return next;
-    });
-  }, []);
-
   const shareView = useCallback(async () => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
@@ -601,7 +430,7 @@ export default function App() {
     const url = `${location.origin}${location.pathname}?${params.toString()}`;
     try {
       await navigator.clipboard.writeText(url);
-      pushToast("Harita görünümü panoya kopyalandı.", "success");
+      pushToast("Harita bağlantısı panoya kopyalandı.", "success");
     } catch {
       history.replaceState(null, "", `?${params.toString()}`);
       pushToast("Paylaşım bağlantısı adres çubuğuna yazıldı.", "info");
@@ -616,15 +445,15 @@ export default function App() {
     }
     const link = document.createElement("a");
     link.href = dataUrl;
-    link.download = `baskent-3d-cbs-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+    link.download = `ankara-kent-rehberi-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
     link.click();
-    pushToast("Harita ekran görüntüsü hazırlandı.", "success");
+    pushToast("Ekran görüntüsü hazırlandı.", "success");
   }, [pushToast]);
 
   const addBookmark = useCallback(() => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    const suggested = `Görünüm ${preferences.bookmarks.length + 1}`;
+    const suggested = `Yer ${preferences.bookmarks.length + 1}`;
     const name = window.prompt("Yer imi adı", suggested)?.trim();
     if (!name) return;
     const bookmark: Bookmark = {
@@ -665,21 +494,14 @@ export default function App() {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = target?.matches("input, textarea, select, [contenteditable='true']");
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setCommandOpen(true);
-        return;
-      }
       if (typing) return;
       if (event.key.toLowerCase() === "h") void runtimeRef.current?.goHome();
-      if (event.key.toLowerCase() === "o") selectPanel("overview");
       if (event.key.toLowerCase() === "l") selectPanel("layers");
-      if (event.key.toLowerCase() === "i") selectPanel("incidents");
       if (event.key.toLowerCase() === "d") selectPanel("data");
-      if (event.key.toLowerCase() === "w") selectPanel("workspace");
       if (event.key.toLowerCase() === "m") setFocusMode((value) => !value);
       if (event.key.toLowerCase() === "f") {
-        void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
+        void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
+          .catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
       }
       if (event.key === "Escape") {
         if (activeTool) setActiveTool(null);
@@ -692,26 +514,22 @@ export default function App() {
 
   return (
     <main className={`app-shell ${focusMode ? "is-focus-mode" : ""}`}>
-      <div ref={mapRef} className="map-view" aria-label="3B harita" />
+      <div ref={mapRef} className="map-view" aria-label="Ankara 3B Kent Rehberi haritası" />
       <div className="map-vignette" aria-hidden="true" />
 
       <header className="topbar">
         <button type="button" className="mobile-menu" onClick={() => setMobilePanelsVisible((value) => !value)} aria-label="Menüyü aç/kapat"><Icon name="menu" /></button>
         <div className="brand">
           <div className="brand-symbol"><span>3B</span><i /></div>
-          <div><strong>Altyapı / Üstyapı Koordinasyon</strong><span>Coğrafi Bilgi Sistemleri · CBS Başkent</span></div>
+          <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi · 3B Kent Haritası</span></div>
         </div>
-        <div className={`live-chip ${online ? "" : "is-offline"}`} title={online ? "Ağ bağlantısı mevcut" : "Ağ bağlantısı yok"}><i /> {online ? "CANLI CBS" : "ÇEVRİMDIŞI"}</div>
+        <div className={`live-chip ${online ? "" : "is-offline"}`} title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "CANLI HARİTA" : "ÇEVRİMDIŞI"}</div>
         <div ref={searchRef} className="global-search" />
         <div className="top-actions">
-          <select className="compact-select" value={preferences.basemap} onChange={(event) => changeBasemap(event.target.value)} aria-label="Altlık harita">
+          <select className="compact-select" value={preferences.basemap} onChange={(event) => changeBasemap(event.target.value)} aria-label="Harita görünümü">
             {basemaps.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <select className="compact-select performance-select" value={preferences.performance} onChange={(event) => changePerformance(event.target.value as PerformanceProfile | "auto")} aria-label="Performans profili">
-            <option value="auto">Otomatik GPU</option><option value="high">Yüksek</option><option value="balanced">Dengeli</option><option value="eco">Eco</option>
-          </select>
-          <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Harita odak modu" aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
-          <button type="button" className="top-icon-button" onClick={() => setCommandOpen(true)} title="Komut paleti"><Icon name="command" /><kbd>⌘K</kbd></button>
+          <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Haritaya odaklan" aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
           <button type="button" className="primary-button share-button" onClick={() => void shareView()}><Icon name="share" /> Paylaş</button>
         </div>
       </header>
@@ -725,7 +543,6 @@ export default function App() {
         onTool={selectTool}
         onHome={() => void runtimeRef.current?.goHome()}
         onScreenshot={() => void takeScreenshot()}
-        onCommand={() => setCommandOpen(true)}
       />
 
       <div className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`}>
@@ -733,7 +550,15 @@ export default function App() {
           {panel === "layers" ? (
             <aside className="main-panel" key="layers">
               <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)}><Icon name="close" /></button>
-              <LayerExplorer services={services} currentScale={telemetry.scale} onToggle={toggleLayer} onOpacity={setOpacity} onFavorite={toggleFavorite} onZoom={(service) => void zoomLayer(service)} onRetry={retryLayer} />
+              <LayerExplorer
+                services={services}
+                currentScale={telemetry.scale}
+                onToggle={toggleLayer}
+                onOpacity={setOpacity}
+                onFavorite={toggleFavorite}
+                onZoom={(service) => void zoomLayer(service)}
+                onRetry={retryLayer}
+              />
             </aside>
           ) : panel ? (
             <OperationsPanel
@@ -741,20 +566,11 @@ export default function App() {
               panel={panel}
               services={services}
               bookmarks={preferences.bookmarks}
-              incidents={incidents}
-              performance={effectivePerformance}
-              online={online}
               onClose={() => setPanel(null)}
-              onNavigatePanel={selectPanel}
-              onClearIncidents={clearIncidents}
-              onStabilizeWorkspace={stabilizeWorkspace}
-              onRetryErrors={retryErrors}
               onAddBookmark={addBookmark}
               onGoBookmark={(bookmark) => void goBookmark(bookmark)}
               onDeleteBookmark={deleteBookmark}
               onQueryAttributes={queryAttributes}
-              onExportWorkspace={exportWorkspace}
-              onImportWorkspace={importWorkspace}
             />
           ) : null}
         </ViewTransition>
@@ -768,29 +584,47 @@ export default function App() {
       )}
 
       <DetailsPanel result={identify} onClose={() => setIdentify(null)} />
-      <StatusBar telemetry={telemetry} services={services} performance={effectivePerformance} />
-      <CommandPalette open={commandOpen} services={services} onClose={() => setCommandOpen(false)} onLayer={(service) => void toggleLayer(service, !service.visible)} onTool={selectTool} onPanel={selectPanel} onHome={() => void runtimeRef.current?.goHome()} onScreenshot={() => void takeScreenshot()} />
+      <StatusBar telemetry={telemetry} services={services} />
       <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
 
       {updateAvailable && (
         <div className="app-update-banner" role="status" aria-live="polite">
           <span className="app-update-icon"><Icon name="refresh" size={16} /></span>
-          <div><strong>Yeni Başkent 3B CBS sürümü hazır</strong><span>Güncelleme kontrollü olarak uygulanabilir; çalışma alanı tercihlerin korunur.</span></div>
+          <div><strong>Kent Rehberi güncellemesi hazır</strong><span>Yeni sürüm uygulanabilir; harita tercihleriniz korunur.</span></div>
           <button type="button" className="primary-button" onClick={applyAppUpdate}>Güncelle</button>
           <button type="button" className="icon-ghost" onClick={() => setUpdateAvailable(false)} aria-label="Güncelleme bildirimini kapat"><Icon name="close" size={14} /></button>
         </div>
       )}
 
-      {!ready && !bootError && <div className="boot-screen"><div className="boot-logo"><span>3B</span><i /></div><div><strong>Başkent 3B CBS hazırlanıyor</strong><span>Harita motoru ve servis kataloğu yükleniyor…</span></div><div className="boot-progress"><i /></div></div>}
-      {bootError && <div className="fatal-screen"><Icon name="warning" size={34} /><h1>Uygulama başlatılamadı</h1><p>{bootError}</p><button type="button" className="primary-button" onClick={() => location.reload()}><Icon name="refresh" /> Yeniden yükle</button></div>}
+      {!ready && !bootError && (
+        <div className="boot-screen">
+          <div className="boot-logo"><span>3B</span><i /></div>
+          <div><strong>Ankara Kent Rehberi hazırlanıyor</strong><span>Harita ve katmanlar yükleniyor…</span></div>
+          <div className="boot-progress"><i /></div>
+        </div>
+      )}
+      {bootError && (
+        <div className="fatal-screen">
+          <Icon name="warning" size={34} />
+          <h1>Kent Rehberi açılamadı</h1>
+          <p>{bootError}</p>
+          <button type="button" className="primary-button" onClick={() => location.reload()}><Icon name="refresh" /> Yeniden dene</button>
+        </div>
+      )}
     </main>
   );
 }
 
 function toolTitle(tool: Exclude<ToolId, null>): string {
   const labels: Record<Exclude<ToolId, null>, string> = {
-    legend: "Lejant", basemap: "Altlık Galerisi", distance: "3B Mesafe", area: "3B Alan", daylight: "Gün Işığı",
-    slice: "Kesit", lineOfSight: "Görüş Hattı", elevation: "Yükseklik Profili"
+    legend: "Lejant",
+    basemap: "Altlık Galerisi",
+    distance: "Mesafe Ölç",
+    area: "Alan Ölç",
+    daylight: "Gün Işığı",
+    slice: "3B Kesit",
+    lineOfSight: "Görüş Hattı",
+    elevation: "Yükseklik Profili"
   };
   return labels[tool];
 }
