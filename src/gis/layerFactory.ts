@@ -1,5 +1,6 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
+import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
 
 export function parseMapServerUrl(url: string): { root: string; sublayerId?: number } {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
@@ -31,6 +32,13 @@ export function featureLayerVisualStyle(service: Pick<ServiceDefinition, "displa
 }
 
 export async function createLayer(service: ServiceDefinition): Promise<Layer> {
+  if (isUnconfiguredTucbsUrl(service.url)) {
+    window.dispatchEvent(new CustomEvent("altyapi:tucbs-access-required", {
+      detail: { serviceId: service.id, serviceName: service.displayName, kind: service.kind }
+    }));
+    throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
+  }
+
   const common = {
     id: `svc-${service.id}`,
     title: service.displayName,
