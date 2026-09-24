@@ -1,14 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v13 architecture guardrails", () => {
+describe("v14 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
     expect(runtime).toContain("@arcgis/map-components/components/arcgis-search");
     expect(runtime).toContain("@arcgis/map-components/components/arcgis-direct-line-measurement-3d");
   });
-
 
   it("uses the ArcGIS 5.1 component-first scene architecture", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
@@ -93,7 +92,8 @@ describe("v13 architecture guardrails", () => {
     expect(app).toContain("loadIncidentJournal");
     expect(operations).toContain("Olay Günlüğü");
   });
-  it("ships verified operational extents and scale-aware layer activation", async () => {
+
+  it("ships verified operational extents and continuously enforced scale guardrails", async () => {
     const navigation = await readFile("src/lib/serviceNavigation.ts", "utf8");
     const snapshot = await readFile("public/service-navigation.json", "utf8");
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
@@ -104,15 +104,22 @@ describe("v13 architecture guardrails", () => {
 
     expect(navigation).toContain("isOperationalScale");
     expect(navigation).toContain("recommendedActivationScale");
+    expect(navigation).toContain("activeOperationalScaleRange");
+    expect(navigation).toContain("clampScaleToOperationalRange");
     expect(snapshot).not.toContain("tokenUrl");
     expect(snapshot).not.toContain("http://");
     expect(snapshot).not.toContain("https://");
     expect(runtime).toContain("prepareLayerActivation");
     expect(runtime).toContain("operationalExtentCenter");
+    expect(runtime).toContain("activeScaleServices");
+    expect(runtime).toContain("enforceScaleGuard");
+    expect(runtime).toContain("arcgisViewChange");
     expect(factory).toContain("operationalMinScale");
+    expect(factory).toContain("operationalMaxScale");
     expect(app).toContain("loadServiceNavigationSnapshot");
     expect(serviceWorker).toContain("service-navigation.json");
     expect(packageJson).toContain("validate:navigation");
+    expect(packageJson).toContain("audit:scales");
   });
 
   it("ships adaptive stabilization, session analytics and controlled PWA updates", async () => {
@@ -133,5 +140,4 @@ describe("v13 architecture guardrails", () => {
     expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v13"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
-
 });
