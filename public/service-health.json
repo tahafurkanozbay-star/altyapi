@@ -1,97 +1,27 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-24T08:20:00.000Z",
-  "source": "Public Ankara Kent Rehberi service baseline",
+  "generatedAt": "2026-09-24T08:32:00.000Z",
+  "source": "IP-aware Ankara Kent Rehberi service baseline",
   "services": [
-    {
-      "index": 0,
-      "name": "YAĞMUR SUYU ELEMAN",
-      "kind": "MapServer",
-      "availability": "degraded",
-      "access": "network-restricted",
-      "browserCompatible": null,
-      "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
-    },
-    {
-      "index": 1,
-      "name": "YAĞMUR SUYU BORU",
-      "kind": "MapServer",
-      "availability": "degraded",
-      "access": "network-restricted",
-      "browserCompatible": null,
-      "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
-    },
-    {
-      "index": 2,
-      "name": "PİS SU BORU",
-      "kind": "MapServer",
-      "availability": "degraded",
-      "access": "network-restricted",
-      "browserCompatible": null,
-      "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
-    },
-    {
-      "index": 3,
-      "name": "PİS SU ELEMAN",
-      "kind": "MapServer",
-      "availability": "degraded",
-      "access": "network-restricted",
-      "browserCompatible": null,
-      "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
-    },
-    {
-      "index": 4,
-      "name": "İÇME SUYU ELEMAN",
-      "kind": "MapServer",
-      "availability": "degraded",
-      "access": "network-restricted",
-      "browserCompatible": null,
-      "reason": "Public runner bağlantı zaman aşımı"
-    },
-    {
-      "index": 5,
-      "name": "İÇME SUYU BORU",
-      "kind": "MapServer",
-      "availability": "degraded",
-      "access": "network-restricted",
-      "browserCompatible": null,
-      "reason": "Public runner bağlantı zaman aşımı"
-    },
-    {
-      "index": 6,
-      "name": "UYGULAMA İMAR PLANI (UIP ESRI3)",
-      "kind": "MapServer",
-      "availability": "verified",
-      "access": "public-browser",
-      "browserCompatible": true,
-      "reason": "Metadata + export + GitHub Pages origin CORS doğrulandı"
-    },
-    {
-      "index": 7,
-      "name": "SINIRLAR",
-      "kind": "FeatureServer",
-      "availability": "verified",
-      "access": "public-browser",
-      "browserCompatible": true,
-      "reason": "Metadata + count query + GitHub Pages origin CORS doğrulandı"
-    },
-    {
-      "index": 8,
-      "name": "3D1234 WFL1",
-      "kind": "FeatureServer",
-      "availability": "verified",
-      "access": "public-browser",
-      "browserCompatible": true,
-      "reason": "Metadata + count query + GitHub Pages origin CORS doğrulandı"
-    },
-    {
-      "index": 9,
-      "name": "3D1234 WSL2",
-      "kind": "SceneServer",
-      "availability": "verified",
-      "access": "public-browser",
-      "browserCompatible": true,
-      "reason": "Scene layer metadata + GitHub Pages origin CORS doğrulandı"
-    }
+    {"index":0,"name":"DOĞALGAZ DAĞITIM İSTASYONU","kind":"WMS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":1,"name":"DOĞALGAZ DAĞITIM İSTASYONU","kind":"WFS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":2,"name":"DOĞALGAZ DEPOLAMA TESİSİ","kind":"WFS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":3,"name":"DOĞALGAZ DEPOLAMA TESİSİ","kind":"WMS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":4,"name":"DOĞALGAZ HATTI","kind":"WMS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":5,"name":"DOĞALGAZ HATTI","kind":"WFS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":6,"name":"DOĞALGAZ SERVİS KUTUSU","kind":"WFS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":7,"name":"DOĞALGAZ SERVİS KUTUSU","kind":"WMS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":8,"name":"DOĞALGAZ VANA","kind":"WFS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":9,"name":"DOĞALGAZ VANA","kind":"WMS","availability":"unknown","access":"network-restricted","browserCompatible":null,"reason":"IP yetkili TUCBS servisi; yetkili istemci IP'sinden doğrulanır"},
+    {"index":10,"name":"YAĞMUR SUYU ELEMAN","kind":"MapServer","availability":"degraded","access":"network-restricted","browserCompatible":null,"reason":"Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"},
+    {"index":11,"name":"YAĞMUR SUYU BORU","kind":"MapServer","availability":"degraded","access":"network-restricted","browserCompatible":null,"reason":"Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"},
+    {"index":12,"name":"PİS SU BORU","kind":"MapServer","availability":"degraded","access":"network-restricted","browserCompatible":null,"reason":"Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"},
+    {"index":13,"name":"PİS SU ELEMAN","kind":"MapServer","availability":"degraded","access":"network-restricted","browserCompatible":null,"reason":"Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"},
+    {"index":14,"name":"İÇME SUYU ELEMAN","kind":"MapServer","availability":"degraded","access":"network-restricted","browserCompatible":null,"reason":"Public runner bağlantı zaman aşımı"},
+    {"index":15,"name":"İÇME SUYU BORU","kind":"MapServer","availability":"degraded","access":"network-restricted","browserCompatible":null,"reason":"Public runner bağlantı zaman aşımı"},
+    {"index":16,"name":"UYGULAMA İMAR PLANI (UIP ESRI3)","kind":"MapServer","availability":"verified","access":"public-browser","browserCompatible":true,"reason":"Metadata + export + GitHub Pages origin CORS doğrulandı"},
+    {"index":17,"name":"SINIRLAR","kind":"FeatureServer","availability":"verified","access":"public-browser","browserCompatible":true,"reason":"Metadata + count query + GitHub Pages origin CORS doğrulandı"},
+    {"index":18,"name":"3D1234 WFL1","kind":"FeatureServer","availability":"verified","access":"public-browser","browserCompatible":true,"reason":"Metadata + count query + GitHub Pages origin CORS doğrulandı"},
+    {"index":19,"name":"3D1234 WSL2","kind":"SceneServer","availability":"verified","access":"public-browser","browserCompatible":true,"reason":"Scene layer metadata + GitHub Pages origin CORS doğrulandı"}
   ]
 }
