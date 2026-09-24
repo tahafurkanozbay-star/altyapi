@@ -12,6 +12,7 @@ const TILE_SIZE = 96;
 const TIMEOUT_MS = 18_000;
 const EARTH_RESOLUTION = 156543.03392804097;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
+const ZOOM_CONCURRENCY = 4;
 
 function addQuery(url, params) {
   const target = new URL(url);
@@ -177,7 +178,7 @@ function pngHasDrawnPixels(buffer) {
     } else {
       for (let x = 0; x < stride; x += channels) {
         let nonWhite = false;
-        for (let c = 0; c < channels; c++) if (current[x + c] < 248) nonWhite = true;
+        for (let channel = 0; channel < channels; channel++) if (current[x + channel] < 248) nonWhite = true;
         if (nonWhite) drawn++;
       }
     }
@@ -186,7 +187,7 @@ function pngHasDrawnPixels(buffer) {
   return drawn >= 3;
 }
 
-async function exportAtZoom(service, index, zoom, samplePoint) {
+async function exportAtZoom(service, zoom, samplePoint) {
   const { root, sublayerId } = parseMapServer(service.tokenUrl);
   const center = webMercator(samplePoint.longitude, samplePoint.latitude);
   const resolution = EARTH_RESOLUTION / 2 ** zoom;
@@ -221,6 +222,19 @@ async function exportAtZoom(service, index, zoom, samplePoint) {
   }
 }
 
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
 function deriveContiguousRange(tests) {
   const drawn = tests.filter((test) => test.drawn).map((test) => test.zoom);
   if (!drawn.length) return {};
@@ -245,8 +259,7 @@ async function probeMapServer(service, index) {
   const declaredMinScale = parseScale(metadata.data?.minScale);
   const declaredMaxScale = parseScale(metadata.data?.maxScale);
   const sample = await samplePointForMapService(service, index);
-  const tests = [];
-  for (const zoom of TEST_ZOOMS) tests.push(await exportAtZoom(service, index, zoom, sample));
+  const tests = await mapWithConcurrency(TEST_ZOOMS, ZOOM_CONCURRENCY, (zoom) => exportAtZoom(service, zoom, sample));
   const range = deriveContiguousRange(tests);
 
   return {
@@ -286,8 +299,8 @@ async function probeFeatureOrScene(service) {
 }
 
 function findScaleDenominators(xml) {
-  const mins = [...xml.matchAll(/<MinScaleDenominator>([^<]+)<\/MinScaleDenominator>/gi)].map((m) => Number(m[1])).filter(Number.isFinite);
-  const maxs = [...xml.matchAll(/<MaxScaleDenominator>([^<]+)<\/MaxScaleDenominator>/gi)].map((m) => Number(m[1])).filter(Number.isFinite);
+  const mins = [...xml.matchAll(/<MinScaleDenominator>([^<]+)<\/MinScaleDenominator>/gi)].map((match) => Number(match[1])).filter(Number.isFinite);
+  const maxs = [...xml.matchAll(/<MaxScaleDenominator>([^<]+)<\/MaxScaleDenominator>/gi)].map((match) => Number(match[1])).filter(Number.isFinite);
   return {
     minDenominator: mins.length ? Math.min(...mins) : undefined,
     maxDenominator: maxs.length ? Math.max(...maxs) : undefined
@@ -342,4 +355,4 @@ const report = {
   results
 };
 await writeFile("service-zoom-report.json", JSON.stringify(report, null, 2) + "\n", "utf8");
-console.log(`SUMMARY ${JSON.stringify(Object.fromEntries([...new Set(results.map((r) => r.status))].map((status) => [status, results.filter((r) => r.status === status).length])))}`);
+console.log(`SUMMARY ${JSON.stringify(Object.fromEntries([...new Set(results.map((result) => result.status))].map((status) => [status, results.filter((result) => result.status === status).length])))}`);
