@@ -15,6 +15,15 @@ function addQuery(url, params) {
   return target.toString();
 }
 
+function isRuntimeTucbsService(service) {
+  try {
+    const target = new URL(service.tokenUrl);
+    return target.hostname.toLowerCase() === "ucbp-api.tucbs.gov.tr" && target.pathname.startsWith("/__runtime__/");
+  } catch {
+    return false;
+  }
+}
+
 async function request(url, accept = "*/*") {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -185,6 +194,18 @@ async function probeArcGis(service) {
 }
 
 async function probe(service, index) {
+  if (isRuntimeTucbsService(service)) {
+    return {
+      index,
+      name: service.cografiVeriKatmanAdi,
+      kind: service.servisTuruAdi,
+      availability: "unknown",
+      access: "network-restricted",
+      browserCompatible: null,
+      reason: "IP yetkili TUCBS servisi; public runner yerine yetkili istemci IP'sinden doğrulanır"
+    };
+  }
+
   let result;
   if (service.servisTuruAdi === "WMS") result = await probeWms(service);
   else if (service.servisTuruAdi === "WFS") result = await probeWfs(service);
