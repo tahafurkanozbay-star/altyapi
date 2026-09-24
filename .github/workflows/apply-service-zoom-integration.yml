@@ -1,0 +1,36 @@
+name: Apply Service Zoom Integration
+
+on:
+  push:
+    branches: [service-zoom-audit-20260924]
+    paths:
+      - scripts/apply-service-zoom-integration.mjs
+      - .github/workflows/apply-service-zoom-integration.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-service-zoom-integration
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Apply deterministic source patches
+        run: node scripts/apply-service-zoom-integration.mjs
+      - name: Commit generated integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: integrate verified service zoom limits"
+          git push origin HEAD:service-zoom-audit-20260924
