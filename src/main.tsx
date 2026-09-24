@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { installActiveLayerScaleLock } from "./gis/activeScaleLock";
 import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
@@ -28,6 +29,9 @@ createRoot(root).render(
     <App />
   </AppErrorBoundary>
 );
+
+const disposeScaleLock = installActiveLayerScaleLock();
+if (import.meta.hot) import.meta.hot.dispose(disposeScaleLock);
 
 document.documentElement.dataset.appReady = "true";
 if (window.__ALTYAPI_BOOT_TIMER__ !== undefined) {
