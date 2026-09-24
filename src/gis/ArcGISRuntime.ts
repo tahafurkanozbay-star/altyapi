@@ -1,7 +1,7 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type ArcGISMap from "@arcgis/core/Map.js";
 import type Camera from "@arcgis/core/Camera.js";
-import { createLayer } from "./layerFactory";
+import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { normalizeAttributeValue } from "../lib/attributeTable";
 import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
@@ -13,6 +13,16 @@ import {
   recommendedActivationScale,
   resolveOperationalScaleRange
 } from "../lib/serviceNavigation";
+import {
+  classifyServiceError,
+  friendlyServiceError,
+  serviceRetryDelayMs,
+  serviceRuntimePolicy,
+  shouldRetryServiceError,
+  sleepRuntime,
+  withRuntimeTimeout,
+  type ServiceFailureClass
+} from "../lib/serviceRuntime";
 import type {
   AttributeQueryOptions,
   AttributeTableResult,
@@ -89,6 +99,9 @@ export interface LayerLoadResult {
   error?: string;
   durationMs?: number;
   superseded?: boolean;
+  attempts?: number;
+  recovered?: boolean;
+  failureClass?: ServiceFailureClass;
 }
 
 export interface OperationalNavigationResult {
@@ -144,7 +157,7 @@ export class ArcGISRuntime {
     ]);
     if (this.destroyed) return;
 
-    config.request.timeout = 30_000;
+    config.request.timeout = 60_000;
     container.replaceChildren();
 
     const scene = document.createElement("arcgis-scene") as unknown as ArcGISSceneElement;
@@ -608,47 +621,119 @@ export class ArcGISRuntime {
 
   private async loadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
     const startedAt = performance.now();
-    let layer: Layer | undefined;
+    const policy = serviceRuntimePolicy(service);
+    let lastError: unknown;
+    let attempts = 0;
 
-    try {
-      layer = await withTimeout(createLayer(service), 12_000, "Katman bileşeni oluşturma");
-      if (this.destroyed) {
-        layer.destroy();
-        return { ok: false, error: "Harita oturumu kapatıldı.", durationMs: Math.round(performance.now() - startedAt) };
+    for (let attempt = 1; attempt <= policy.maxAttempts; attempt += 1) {
+      attempts = attempt;
+      let layer: Layer | undefined;
+      try {
+        layer = await withRuntimeTimeout(
+          createLayer(service),
+          policy.createTimeoutMs,
+          "Katman bileşeni oluşturma"
+        );
+
+        if (this.destroyed) {
+          layer.destroy();
+          return {
+            ok: false,
+            error: "Harita oturumu kapatıldı.",
+            durationMs: Math.round(performance.now() - startedAt),
+            attempts
+          };
+        }
+
+        if (this.desiredVisibility.get(service.id) !== true) {
+          layer.destroy();
+          return {
+            ok: true,
+            durationMs: Math.round(performance.now() - startedAt),
+            superseded: true,
+            attempts
+          };
+        }
+
+        // Never attach a half-loaded remote layer to the live map. ArcGIS load()
+        // is single-flight, so each retry deliberately creates a fresh Layer instance.
+        await withRuntimeTimeout(
+          layer.load(),
+          policy.loadTimeoutMs,
+          "Katman yükleme",
+          () => {
+            try { layer?.cancelLoad(); } catch { /* cancellation is best-effort */ }
+          }
+        );
+        finalizeLoadedLayer(service, layer);
+
+        if (this.destroyed) {
+          layer.destroy();
+          return {
+            ok: false,
+            error: "Harita oturumu kapatıldı.",
+            durationMs: Math.round(performance.now() - startedAt),
+            attempts
+          };
+        }
+
+        if (this.desiredVisibility.get(service.id) !== true) {
+          layer.destroy();
+          return {
+            ok: true,
+            durationMs: Math.round(performance.now() - startedAt),
+            superseded: true,
+            attempts
+          };
+        }
+
+        layer.opacity = clampOpacity(service.opacity);
+        layer.visible = true;
+        this.layers.set(service.id, layer);
+        this.map?.add(layer);
+        this.pruneLayerCache();
+        return {
+          ok: true,
+          durationMs: Math.round(performance.now() - startedAt),
+          attempts,
+          recovered: attempts > 1
+        };
+      } catch (error) {
+        lastError = error;
+        if (layer) {
+          try { layer.cancelLoad(); } catch { /* cancellation is best-effort */ }
+          this.cleanupLayer(service.id, layer);
+        }
+
+        if (this.destroyed) {
+          return {
+            ok: false,
+            error: "Harita oturumu kapatıldı.",
+            durationMs: Math.round(performance.now() - startedAt),
+            attempts
+          };
+        }
+        if (this.desiredVisibility.get(service.id) !== true) {
+          return {
+            ok: true,
+            durationMs: Math.round(performance.now() - startedAt),
+            superseded: true,
+            attempts
+          };
+        }
+        if (!shouldRetryServiceError(error, attempt, policy)) break;
+        await sleepRuntime(serviceRetryDelayMs(service.id, attempt, policy));
       }
-
-      if (this.desiredVisibility.get(service.id) !== true) {
-        layer.destroy();
-        return { ok: true, durationMs: Math.round(performance.now() - startedAt), superseded: true };
-      }
-
-      this.layers.set(service.id, layer);
-      this.map?.add(layer);
-      await withTimeout(layer.load(), 22_000, "Katman yükleme");
-
-      if (this.destroyed) {
-        this.cleanupLayer(service.id, layer);
-        return { ok: false, error: "Harita oturumu kapatıldı.", durationMs: Math.round(performance.now() - startedAt) };
-      }
-
-      layer.opacity = clampOpacity(service.opacity);
-      if (this.desiredVisibility.get(service.id) !== true) {
-        layer.visible = false;
-        return { ok: true, durationMs: Math.round(performance.now() - startedAt), superseded: true };
-      }
-
-      layer.visible = true;
-      this.pruneLayerCache();
-      return { ok: true, durationMs: Math.round(performance.now() - startedAt) };
-    } catch (error) {
-      this.setScaleGuard(service, false);
-      if (layer) this.cleanupLayer(service.id, layer);
-      return {
-        ok: false,
-        error: readableError(error),
-        durationMs: Math.round(performance.now() - startedAt)
-      };
     }
+
+    this.setScaleGuard(service, false);
+    return {
+      ok: false,
+      error: friendlyServiceError(service, lastError),
+      durationMs: Math.round(performance.now() - startedAt),
+      attempts,
+      failureClass: classifyServiceError(lastError)
+    };
   }
 
   private cleanupLayer(serviceId: string, layer: Layer): void {
@@ -944,17 +1029,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   } finally {
     window.clearTimeout(timer);
   }
-}
-
-function readableError(error: unknown): string {
-  if (error instanceof Error) {
-    const message = error.message || "Servis yüklenemedi.";
-    if (/cors|cross-origin/i.test(message)) return "Servis CORS politikasına tarayıcı erişimi vermiyor.";
-    if (/timeout/i.test(message)) return "Servis zaman aşımına uğradı.";
-    if (/401|403|unauthor|forbidden/i.test(message)) return "Servis kimlik doğrulaması veya yetkilendirme istiyor.";
-    return message.length > 190 ? `${message.slice(0, 187)}…` : message;
-  }
-  return "Servis yüklenemedi.";
 }
 
 function formatValue(value: unknown): string {
