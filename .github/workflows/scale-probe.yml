@@ -1,0 +1,36 @@
+name: Service Scale Probe
+
+on:
+  pull_request:
+    paths:
+      - "public/services.json"
+      - "scripts/probe-service-scales.mjs"
+      - ".github/workflows/scale-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scale-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Probe every service at verified scales
+        run: npm run probe:scales
+      - name: Upload sanitized scale report
+        uses: actions/upload-artifact@v6
+        with:
+          name: service-scale-probe
+          path: service-scale-probe.json
+          if-no-files-found: error
+          retention-days: 7

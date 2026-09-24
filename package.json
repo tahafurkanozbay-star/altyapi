@@ -20,6 +20,7 @@
     "check": "npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "node scripts/validate-service-health.mjs",
     "probe:services": "node scripts/probe-service-health.mjs",
+    "probe:scales": "node scripts/probe-service-scales.mjs",
     "validate:navigation": "node scripts/validate-service-navigation.mjs"
   },
   "dependencies": {

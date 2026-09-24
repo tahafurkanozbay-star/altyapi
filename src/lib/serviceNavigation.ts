@@ -8,6 +8,13 @@ import type {
 
 const SOURCES = new Set<ServiceNavigationSource>(["verified-query", "declared-service", "verified-render"]);
 
+export interface OperationalScaleRange {
+  minScale?: number;
+  maxScale?: number;
+  serviceIds: string[];
+  compatible: boolean;
+}
+
 export async function loadServiceNavigationSnapshot(
   url = "./service-navigation.json",
   signal?: AbortSignal
@@ -99,6 +106,35 @@ export function isOperationalScale(service: ServiceDefinition, scale: number | u
   return true;
 }
 
+export function effectiveOperationalScaleRange(
+  services: readonly Pick<ServiceDefinition, "id" | "renderScaleSensitive" | "operationalMinScale" | "operationalMaxScale">[]
+): OperationalScaleRange {
+  const restricted = services.filter(
+    (service) => service.renderScaleSensitive && (service.operationalMinScale || service.operationalMaxScale)
+  );
+  const minScales = restricted
+    .map((service) => service.operationalMinScale)
+    .filter((value): value is number => Number.isFinite(value) && Boolean(value));
+  const maxScales = restricted
+    .map((service) => service.operationalMaxScale)
+    .filter((value): value is number => Number.isFinite(value) && Boolean(value));
+  const minScale = minScales.length ? Math.min(...minScales) : undefined;
+  const maxScale = maxScales.length ? Math.max(...maxScales) : undefined;
+  return {
+    minScale,
+    maxScale,
+    serviceIds: restricted.map((service) => service.id),
+    compatible: !(minScale && maxScale && maxScale > minScale)
+  };
+}
+
+export function clampScaleToOperationalRange(scale: number, range: OperationalScaleRange): number {
+  if (!Number.isFinite(scale) || scale <= 0 || !range.compatible) return scale;
+  if (range.minScale && scale > range.minScale) return range.minScale;
+  if (range.maxScale && scale < range.maxScale) return range.maxScale;
+  return scale;
+}
+
 export function operationalScaleLabel(service: ServiceDefinition): string {
   const min = service.operationalMinScale;
   const max = service.operationalMaxScale;
@@ -106,6 +142,14 @@ export function operationalScaleLabel(service: ServiceDefinition): string {
   if (min) return `1:${formatScale(min)} ve daha yakın`;
   if (max) return `1:${formatScale(max)} ve daha uzak`;
   return "Ölçek kısıtı yok";
+}
+
+export function operationalScaleRangeLabel(range: OperationalScaleRange): string {
+  if (!range.compatible) return "Uyumsuz ölçek aralığı";
+  if (range.minScale && range.maxScale) return `1:${formatScale(range.minScale)} – 1:${formatScale(range.maxScale)}`;
+  if (range.minScale) return `1:${formatScale(range.minScale)} ve daha yakın`;
+  if (range.maxScale) return `1:${formatScale(range.maxScale)} ve daha uzak`;
+  return "Zoom kilidi yok";
 }
 
 export function navigationSourceLabel(service: ServiceDefinition): string {
