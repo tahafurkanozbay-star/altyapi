@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeOperationalScaleRange,
   applyServiceNavigationSnapshot,
+  clampScaleToOperationalRange,
   isOperationalScale,
   navigationSourceLabel,
   operationalExtentContains,
@@ -96,5 +98,31 @@ describe("serviceNavigation", () => {
     const scale = recommendedActivationScale(enriched);
     expect(scale).toBeGreaterThanOrEqual(1000);
     expect(scale).toBeLessThanOrEqual(2000000);
+  });
+
+  it("intersects active layer ranges using ArcGIS denominator semantics", () => {
+    const range = activeOperationalScaleRange([
+      service({ id: "infra", operationalMinScale: 400000 }),
+      service({ id: "plan", operationalMinScale: 2311162, operationalMaxScale: 1128 })
+    ]);
+    expect(range.minScale).toBe(400000);
+    expect(range.maxScale).toBe(1128);
+    expect(range.conflict).toBe(false);
+    expect(range.constrainedServiceIds).toEqual(["infra", "plan"]);
+  });
+
+  it("clamps zoom-out and zoom-in attempts into the active intersection", () => {
+    const range = { minScale: 400000, maxScale: 1128 };
+    expect(clampScaleToOperationalRange(900000, range)).toBe(400000);
+    expect(clampScaleToOperationalRange(500, range)).toBe(1128);
+    expect(clampScaleToOperationalRange(125000, range)).toBe(125000);
+  });
+
+  it("detects impossible simultaneous ranges", () => {
+    const range = activeOperationalScaleRange([
+      service({ id: "a", operationalMinScale: 1000 }),
+      service({ id: "b", operationalMaxScale: 5000 })
+    ]);
+    expect(range.conflict).toBe(true);
   });
 });
