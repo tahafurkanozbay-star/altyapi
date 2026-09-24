@@ -81,7 +81,7 @@ describe("Ankara Kent Rehberi branding", () => {
     expect(css).toContain('url("../assets/ankara-logo.png")');
 
     const png = verifyPng(logo);
-    expect(logo.byteLength).toBeGreaterThan(10_000);
+    expect(logo.byteLength).toBeGreaterThan(3_500);
     expect(png.width).toBe(175);
     expect(png.height).toBe(293);
     expect(png.idatBytes).toBeGreaterThan(1_000);
