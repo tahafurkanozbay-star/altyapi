@@ -93,7 +93,7 @@ describe("v14 architecture guardrails", () => {
     expect(operations).toContain("Olay Günlüğü");
   });
 
-  it("ships verified operational extents and continuously enforced scale guardrails", async () => {
+  it("ships verified operational extents and atomic continuous scale guardrails", async () => {
     const navigation = await readFile("src/lib/serviceNavigation.ts", "utf8");
     const snapshot = await readFile("public/service-navigation.json", "utf8");
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
@@ -101,10 +101,12 @@ describe("v14 architecture guardrails", () => {
     const app = await readFile("src/App.tsx", "utf8");
     const serviceWorker = await readFile("public/sw.js", "utf8");
     const packageJson = await readFile("package.json", "utf8");
+    const monitor = await readFile(".github/workflows/service-health.yml", "utf8");
 
     expect(navigation).toContain("isOperationalScale");
     expect(navigation).toContain("recommendedActivationScale");
     expect(navigation).toContain("activeOperationalScaleRange");
+    expect(navigation).toContain("resolveOperationalScaleRange");
     expect(navigation).toContain("clampScaleToOperationalRange");
     expect(snapshot).not.toContain("tokenUrl");
     expect(snapshot).not.toContain("http://");
@@ -113,6 +115,8 @@ describe("v14 architecture guardrails", () => {
     expect(runtime).toContain("operationalExtentCenter");
     expect(runtime).toContain("activeScaleServices");
     expect(runtime).toContain("enforceScaleGuard");
+    expect(runtime).toContain("intent time");
+    expect(runtime).toContain("resolveOperationalScaleRange([...this.activeScaleServices.values()], service)");
     expect(runtime).toContain("arcgisViewChange");
     expect(factory).toContain("operationalMinScale");
     expect(factory).toContain("operationalMaxScale");
@@ -120,6 +124,21 @@ describe("v14 architecture guardrails", () => {
     expect(serviceWorker).toContain("service-navigation.json");
     expect(packageJson).toContain("validate:navigation");
     expect(packageJson).toContain("audit:scales");
+    expect(monitor).toContain("npm run audit:scales");
+    expect(monitor).toContain("service-scale-audit.json");
+  });
+
+  it("keeps credential-bearing service URLs out of the public catalog", async () => {
+    const catalog = await readFile("public/services.json", "utf8");
+    const validator = await readFile("scripts/validate-services.mjs", "utf8");
+    const security = await readFile("docs/SECURE_SERVICES.md", "utf8");
+
+    expect(catalog).not.toMatch(/\/ucbp\.[A-Za-z0-9_-]{20,}/i);
+    expect(catalog).not.toMatch(/[?&](?:token|api_?key|secret)=/i);
+    expect(catalog).toContain("YOUR-SECURE-PROXY.example");
+    expect(validator).toContain("embeddedTokenPath");
+    expect(validator).toContain("secretQueryKey");
+    expect(security).toContain("API Gateway / Proxy");
   });
 
   it("ships adaptive stabilization, session analytics and controlled PWA updates", async () => {

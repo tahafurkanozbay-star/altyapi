@@ -15,7 +15,7 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -26,25 +26,47 @@ jobs:
         run: npm run probe:services
       - name: Validate sanitized snapshot
         run: npm run validate:health
+      - name: Audit service scale metadata
+        run: npm run audit:scales
+      - name: Validate sanitized scale audit
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("service-scale-audit.json", "utf8"));
+          const serialized = JSON.stringify(report);
+          if (report.schemaVersion !== 1 || !Array.isArray(report.results) || report.results.length !== report.total) {
+            throw new Error("Scale audit schema is invalid.");
+          }
+          if (/tokenUrl|https?:\/\//i.test(serialized)) {
+            throw new Error("Scale audit contains an endpoint or token-like URL and is not safe to publish as an artifact.");
+          }
+          NODE
       - name: Write summary
         shell: bash
         run: |
           node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           const fs = require("node:fs");
           const h = JSON.parse(fs.readFileSync("public/service-health.json", "utf8"));
+          const s = JSON.parse(fs.readFileSync("service-scale-audit.json", "utf8"));
           const states = ["verified", "degraded", "unavailable", "unknown"];
-          console.log("## Başkent 3B CBS · Service Health");
+          console.log("## Başkent 3B CBS · Service Observability");
           console.log("");
-          console.log(`Measured: **${h.generatedAt}**`);
+          console.log(`Health measured: **${h.generatedAt}**`);
+          console.log(`Scale audited: **${s.auditedAt}**`);
           console.log("");
           for (const state of states) {
-            console.log(`- **${state}**: ${h.services.filter(s => s.availability === state).length}`);
+            console.log(`- **${state}**: ${h.services.filter(service => service.availability === state).length}`);
           }
+          console.log(`- **scale metadata reachable**: ${s.reachable}/${s.total}`);
+          console.log(`- **explicit server scale limits**: ${s.explicitScaleLimits}`);
           NODE
-      - name: Upload sanitized health snapshot
+      - name: Upload sanitized observability snapshots
         uses: actions/upload-artifact@v4
         with:
-          name: service-health-snapshot
-          path: public/service-health.json
+          name: service-observability-snapshots
+          path: |
+            public/service-health.json
+            service-scale-audit.json
           if-no-files-found: error
           retention-days: 14

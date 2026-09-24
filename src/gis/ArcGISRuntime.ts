@@ -6,13 +6,12 @@ import { profileToSceneQuality } from "../lib/performance";
 import { normalizeAttributeValue } from "../lib/attributeTable";
 import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
 import {
-  activeOperationalScaleRange,
   clampScaleToOperationalRange,
   hasOperationalScaleConstraint,
-  isOperationalScale,
   operationalExtentCenter,
   operationalExtentContains,
-  recommendedActivationScale
+  recommendedActivationScale,
+  resolveOperationalScaleRange
 } from "../lib/serviceNavigation";
 import type {
   AttributeQueryOptions,
@@ -254,6 +253,10 @@ export class ArcGISRuntime {
       return { ok: true, durationMs: 0 };
     }
 
+    // Register the guard at intent time, not after a potentially slow network load.
+    // This makes startup restore, workspace import and manual activation share the same atomic zoom policy.
+    this.setScaleGuard(service, true);
+
     const existingLoad = this.loadingLayers.get(service.id);
     if (existingLoad) {
       const result = await existingLoad;
@@ -264,7 +267,6 @@ export class ArcGISRuntime {
       if (result.ok && loaded) {
         loaded.opacity = clampOpacity(service.opacity);
         loaded.visible = true;
-        this.setScaleGuard(service, true);
       }
       return result;
     }
@@ -273,7 +275,6 @@ export class ArcGISRuntime {
     if (existing) {
       existing.opacity = clampOpacity(service.opacity);
       existing.visible = true;
-      this.setScaleGuard(service, true);
       return { ok: true, durationMs: 0 };
     }
 
@@ -419,16 +420,25 @@ export class ArcGISRuntime {
       service.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
         ? operationalExtentContains(service, longitude!, latitude!)
         : true;
-    const insideScale = isOperationalScale(service, scale);
+
+    // Plan against the currently active constrained layers plus the candidate before loading it.
+    // This prevents a second corrective snap after the layer becomes active.
+    const range = resolveOperationalScaleRange([...this.activeScaleServices.values()], service);
+    const clampedCurrentScale = clampScaleToOperationalRange(scale, range);
+    const insideScale =
+      !Number.isFinite(scale) ||
+      scale <= 0 ||
+      Math.abs(clampedCurrentScale - scale) / scale < 0.002;
 
     if (insideExtent && insideScale) return { moved: false };
 
     let reason: OperationalNavigationResult["reason"];
     if (!insideExtent) reason = "outside-extent";
-    else if (service.operationalMinScale && scale > service.operationalMinScale) reason = "scale-too-far";
-    else if (service.operationalMaxScale && scale < service.operationalMaxScale) reason = "scale-too-close";
+    else if (range.minScale && scale > range.minScale) reason = "scale-too-far";
+    else if (range.maxScale && scale < range.maxScale) reason = "scale-too-close";
 
-    const targetScale = targetOperationalScale(service, scale);
+    const preferredScale = targetOperationalScale(service, scale);
+    const targetScale = clampScaleToOperationalRange(preferredScale, range);
     const targetCenter =
       !insideExtent && service.operationalExtent
         ? operationalExtentCenter(service.operationalExtent)
@@ -470,6 +480,7 @@ export class ArcGISRuntime {
         const scale = recommendedActivationScale(service);
         if (scale) {
           await this.scene.goTo?.({ target, scale }, { duration: 850, easing: "ease-in-out" });
+          this.enforceScaleGuard();
           return true;
         }
 
@@ -483,6 +494,7 @@ export class ArcGISRuntime {
           spatialReference: { wkid: 4326 }
         });
         await this.scene.goTo?.(extent.expand(1.08), { duration: 850, easing: "ease-in-out" });
+        this.enforceScaleGuard();
         return true;
       }
 
@@ -492,6 +504,7 @@ export class ArcGISRuntime {
       const extent = layer.fullExtent;
       if (!extent) return false;
       await this.scene.goTo?.(extent.expand(1.2), { duration: 900, easing: "ease-in-out" });
+      this.enforceScaleGuard();
       return true;
     } catch {
       return false;
@@ -536,6 +549,7 @@ export class ArcGISRuntime {
       tilt: camera.tilt
     });
     await this.scene.goTo?.(target, { duration: 950, easing: "ease-in-out" });
+    this.enforceScaleGuard();
     this.scheduleScaleGuard();
   }
 
@@ -624,7 +638,6 @@ export class ArcGISRuntime {
       }
 
       layer.visible = true;
-      this.setScaleGuard(service, true);
       this.pruneLayerCache();
       return { ok: true, durationMs: Math.round(performance.now() - startedAt) };
     } catch (error) {
@@ -662,6 +675,7 @@ export class ArcGISRuntime {
       // Reinsert so Map iteration preserves most-recent activation priority for impossible intersections.
       this.activeScaleServices.delete(service.id);
       this.activeScaleServices.set(service.id, service);
+      this.enforceScaleGuard();
     } else {
       this.activeScaleServices.delete(service.id);
     }
@@ -678,14 +692,7 @@ export class ArcGISRuntime {
     const scene = this.scene;
     if (!scene || this.destroyed || this.scaleGuardApplying || this.activeScaleServices.size === 0) return;
 
-    const constrained = [...this.activeScaleServices.values()];
-    let range = activeOperationalScaleRange(constrained);
-    if (range.conflict) {
-      const latest = constrained.at(-1);
-      if (!latest) return;
-      range = activeOperationalScaleRange([latest]);
-    }
-
+    const range = resolveOperationalScaleRange([...this.activeScaleServices.values()]);
     const currentScale = scene.scale;
     if (!Number.isFinite(currentScale) || !currentScale || currentScale <= 0) return;
     const targetScale = clampScaleToOperationalRange(currentScale, range);
