@@ -7,6 +7,7 @@ import "./styles/app.css";
 import "./styles/runtime.css";
 import "./styles/comfort-white.css";
 import "./styles/ankara-brand.css";
+import "./styles/tucbs-access.css";
 
 declare global {
   interface Window {
