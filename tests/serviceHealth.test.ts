@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SERVICE_HEALTH_MAX_AGE_MS,
   applyServiceHealthSnapshot,
+  availabilityLabel,
   failurePatch,
   isServiceCoolingDown,
   isServiceHealthSnapshotFresh,
@@ -79,6 +80,29 @@ describe("serviceHealth", () => {
     const [enriched] = applyServiceHealthSnapshot([service()], staleSnapshot, now);
     expect(enriched?.verificationStale).toBe(true);
     expect(enriched && shouldAutoLoadService(enriched, now)).toBe(true);
+  });
+
+  it("requires local configuration for a TUCBS runtime sentinel but allows a configured IP-scoped URL", () => {
+    const sentinel = service({
+      kind: "WMS",
+      servisTuruAdi: "WMS",
+      displayName: "DOĞALGAZ HATTI",
+      cografiVeriKatmanAdi: "DOĞALGAZ HATTI",
+      url: "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-hatti.wms",
+      tokenUrl: "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-hatti.wms",
+      availability: "unknown",
+      access: "network-restricted"
+    });
+    expect(shouldAutoLoadService(sentinel)).toBe(false);
+    expect(availabilityLabel(sentinel)).toBe("Yetkili bağlantı gerekli");
+
+    const direct = service({
+      ...sentinel,
+      url: "https://ucbp-api.tucbs.gov.tr/geoservice/spatial/TEST/wms/demo/test",
+      tokenUrl: "https://ucbp-api.tucbs.gov.tr/geoservice/spatial/TEST/wms/demo/test"
+    });
+    expect(shouldAutoLoadService(direct)).toBe(true);
+    expect(availabilityLabel(direct)).toBe("IP yetkili erişim");
   });
 
   it("implements exponential cooldown after repeated failures", () => {

@@ -1,6 +1,76 @@
 {
   "services": [
     {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ DAĞITIM İSTASYONU",
+      "servisTuruAdi": "WMS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-dagitim-istasyonu.wms"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ DAĞITIM İSTASYONU",
+      "servisTuruAdi": "WFS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-dagitim-istasyonu.wfs"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ DEPOLAMA TESİSİ",
+      "servisTuruAdi": "WFS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-depolama-tesisi.wfs"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ DEPOLAMA TESİSİ",
+      "servisTuruAdi": "WMS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-depolama-tesisi.wms"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ HATTI",
+      "servisTuruAdi": "WMS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-hatti.wms"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ HATTI",
+      "servisTuruAdi": "WFS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-hatti.wfs"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ SERVİS KUTUSU",
+      "servisTuruAdi": "WFS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-servis-kutusu.wfs"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ SERVİS KUTUSU",
+      "servisTuruAdi": "WMS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-servis-kutusu.wms"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ VANA",
+      "servisTuruAdi": "WFS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-vana.wfs"
+    },
+    {
+      "ustKurumAdi": "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      "metaveriSahibiKurumAdi": "ENERJİ PİYASASI DÜZENLEME KURUMU BAŞKANLIĞI",
+      "cografiVeriKatmanAdi": "DOĞALGAZ VANA",
+      "servisTuruAdi": "WMS",
+      "tokenUrl": "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-vana.wms"
+    },
+    {
       "ustKurumAdi": "ANKARA BÜYÜKŞEHİR BELEDİYESİ",
       "metaveriSahibiKurumAdi": "ANKARA BÜYÜKŞEHİR BELEDİYESİ",
       "cografiVeriKatmanAdi": "YAĞMUR SUYU ELEMAN",

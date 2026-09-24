@@ -5,6 +5,7 @@ import type {
   ServiceHealthSnapshot,
   ServiceVerificationEntry
 } from "../types";
+import { isDirectTucbsUrl, isUnconfiguredTucbsUrl } from "./tucbsAccess";
 
 const AVAILABILITY = new Set<ServiceAvailability>(["verified", "degraded", "unavailable", "unknown"]);
 const ACCESS = new Set<ServiceAccess>(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
@@ -91,6 +92,7 @@ export function applyServiceHealthSnapshot(
 }
 
 export function shouldAutoLoadService(service: ServiceDefinition, now = Date.now()): boolean {
+  if (isUnconfiguredTucbsUrl(service.url)) return false;
   if (isServiceCoolingDown(service, now)) return false;
   if (service.verificationStale) return true;
   return service.availability === "verified" || service.availability === "unknown";
@@ -144,6 +146,9 @@ export function successPatch(durationMs: number | undefined, now = Date.now()): 
 }
 
 export function availabilityLabel(service: ServiceDefinition): string {
+  if (isUnconfiguredTucbsUrl(service.url)) return "Yetkili bağlantı gerekli";
+  if (isDirectTucbsUrl(service.url) && service.access === "network-restricted") return "IP yetkili erişim";
+
   const suffix = service.verificationStale ? " · eski" : "";
   if (service.availability === "verified") return `Doğrulandı${suffix}`;
   if (service.availability === "degraded") return `Kısıtlı erişim${suffix}`;

@@ -1,11 +1,13 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
 import "./styles/comfort-white.css";
 import "./styles/ankara-brand.css";
+import "./styles/tucbs-access.css";
 
 declare global {
   interface Window {
@@ -27,6 +29,7 @@ window.addEventListener("unhandledrejection", (event) => {
 createRoot(root).render(
   <AppErrorBoundary>
     <App />
+    <TucbsAccessSetupHost />
   </AppErrorBoundary>
 );
 

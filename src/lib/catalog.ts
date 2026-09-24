@@ -1,4 +1,5 @@
 import type { RawServiceDefinition, ServiceDefinition, ServiceKind } from "../types";
+import { loadTucbsEndpoints, resolveTucbsRuntimeUrl, runtimeEndpointKeyFromUrl } from "./tucbsAccess";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 const requiredFields = ["ustKurumAdi", "metaveriSahibiKurumAdi", "cografiVeriKatmanAdi", "servisTuruAdi", "tokenUrl"] as const;
@@ -44,11 +45,13 @@ export function parseServicesDocument(input: unknown): RawServiceDefinition[] {
   });
 }
 
-export function normalizeService(raw: RawServiceDefinition, index: number): ServiceDefinition {
+export function normalizeService(raw: RawServiceDefinition, index: number, tucbsEndpoints = loadTucbsEndpoints()): ServiceDefinition {
   const kind = inferKind(raw);
   const displayName = raw.cografiVeriKatmanAdi.trim();
-  const normalizedUrl = normalizeHttpUrl(raw.tokenUrl);
-  const identity = `${raw.ustKurumAdi.trim()}|${displayName}|${kind}|${safeUrlIdentity(normalizedUrl)}|${index}`;
+  const runtimeKey = runtimeEndpointKeyFromUrl(raw.tokenUrl);
+  const normalizedUrl = normalizeHttpUrl(resolveTucbsRuntimeUrl(raw.tokenUrl, tucbsEndpoints));
+  const identityTarget = runtimeKey ? `tucbs-runtime:${runtimeKey}` : safeUrlIdentity(normalizedUrl);
+  const identity = `${raw.ustKurumAdi.trim()}|${displayName}|${kind}|${identityTarget}|${index}`;
   const prefix = slugify(displayName).slice(0, 48) || "layer";
   return {
     ...raw,
@@ -73,7 +76,8 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
   const response = await fetch(url, { cache: "no-store", signal });
   if (!response.ok) throw new Error(`Servis kataloğu yüklenemedi (HTTP ${response.status}).`);
   const document: unknown = await response.json();
-  return parseServicesDocument(document).map(normalizeService);
+  const tucbsEndpoints = loadTucbsEndpoints();
+  return parseServicesDocument(document).map((service, index) => normalizeService(service, index, tucbsEndpoints));
 }
 
 export function serviceMatches(service: ServiceDefinition, query: string): boolean {
@@ -86,6 +90,8 @@ export function serviceMatches(service: ServiceDefinition, query: string): boole
 }
 
 export function hostLabel(url: string): string {
+  const runtimeKey = runtimeEndpointKeyFromUrl(url);
+  if (runtimeKey) return "TUCBS · yetkili servis adresi bu tarayıcıda tanımlı değil";
   try {
     const parsed = new URL(url);
     const path = parsed.pathname.replace(/\/[a-zA-Z0-9._~-]{60,}(?=\/|$)/g, "/••••");
