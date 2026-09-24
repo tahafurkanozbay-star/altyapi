@@ -3,6 +3,7 @@ import type { ServiceKind } from "../types";
 const SESSION_KEY = "altyapi:tucbs-endpoints:session:v1";
 const PERSISTENT_KEY = "altyapi:tucbs-endpoints:local:v1";
 const TUCBS_HOST = "ucbp-api.tucbs.gov.tr";
+const RUNTIME_PREFIX = `https://${TUCBS_HOST}/__runtime__/`;
 const MAX_ENDPOINTS = 40;
 const MAX_IMPORT_BYTES = 128_000;
 
@@ -90,6 +91,42 @@ export function parseTucbsEndpointImport(text: string): TucbsEndpointMap {
 
 export function endpointKeyFor(name: string, kind: ServiceKind | string): string | undefined {
   return knownEndpointKeys.get(`${name.trim().toLocaleUpperCase("tr-TR")}|${String(kind).toUpperCase()}`);
+}
+
+export function runtimeTucbsUrl(endpointKey: string): string {
+  if (!isTucbsEndpointKey(endpointKey)) throw new Error("Geçersiz TUCBS endpoint anahtarı.");
+  return `${RUNTIME_PREFIX}${encodeURIComponent(endpointKey)}`;
+}
+
+export function runtimeEndpointKeyFromUrl(value: string): string | undefined {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== TUCBS_HOST) return undefined;
+    if (!parsed.pathname.startsWith("/__runtime__/")) return undefined;
+    const rawKey = decodeURIComponent(parsed.pathname.slice("/__runtime__/".length));
+    return isTucbsEndpointKey(rawKey) ? rawKey : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveTucbsRuntimeUrl(value: string, endpoints = loadTucbsEndpoints()): string {
+  const endpointKey = runtimeEndpointKeyFromUrl(value);
+  if (!endpointKey) return value;
+  return endpoints[endpointKey] ?? value;
+}
+
+export function isUnconfiguredTucbsUrl(value: string): boolean {
+  return runtimeEndpointKeyFromUrl(value) !== undefined;
+}
+
+export function isDirectTucbsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && parsed.hostname.toLowerCase() === TUCBS_HOST && /^\/geoservice\/spatial\//i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
 }
 
 export function isTucbsEndpointKey(value: string): boolean {
