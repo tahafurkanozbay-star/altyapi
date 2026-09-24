@@ -1,0 +1,28 @@
+name: Scale Audit Temporary
+
+on:
+  push:
+    branches: [v14-scale-guardrails]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Audit all service scale metadata
+        run: node scripts/audit-service-scales.mjs
+      - name: Upload sanitized scale audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-scale-audit
+          path: service-scale-audit.json
+          if-no-files-found: ignore
