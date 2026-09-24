@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseTucbsEndpointImport, saveTucbsEndpoints } from "../lib/tucbsAccess";
 import { Icon } from "./Icon";
 
@@ -6,6 +6,24 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onApplied: (count: number) => void;
+}
+
+export function TucbsAccessSetupHost() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openSetup = () => setOpen(true);
+    window.addEventListener("altyapi:tucbs-access-required", openSetup);
+    return () => window.removeEventListener("altyapi:tucbs-access-required", openSetup);
+  }, []);
+
+  return (
+    <TucbsAccessSetup
+      open={open}
+      onClose={() => setOpen(false)}
+      onApplied={() => window.location.reload()}
+    />
+  );
 }
 
 export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
