@@ -10,6 +10,15 @@ function addQuery(url, params) {
   return target.toString();
 }
 
+function isRuntimeTucbsService(service) {
+  try {
+    const target = new URL(service.tokenUrl);
+    return target.hostname.toLowerCase() === "ucbp-api.tucbs.gov.tr" && target.pathname.startsWith("/__runtime__/");
+  } catch {
+    return false;
+  }
+}
+
 async function fetchText(url, accept = "*/*") {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -18,7 +27,7 @@ async function fetchText(url, accept = "*/*") {
     const response = await fetch(url, {
       redirect: "follow",
       signal: controller.signal,
-      headers: { Accept: accept, "User-Agent": "altyapi-scale-audit/1.0" }
+      headers: { Accept: accept, "User-Agent": "altyapi-scale-audit/2.0" }
     });
     return {
       ok: response.ok,
@@ -117,7 +126,6 @@ async function auditMapServer(service) {
   let derived = false;
 
   if (!minScale && !maxScale && childRanges.length) {
-    // For a service with multiple sublayers, this is the broad envelope where at least one declared sublayer may be visible.
     const mins = childRanges.map((item) => item.minScale).filter(Boolean);
     const maxs = childRanges.map((item) => item.maxScale).filter(Boolean);
     minScale = mins.length ? Math.max(...mins) : undefined;
@@ -191,8 +199,8 @@ async function auditWms(service) {
     return { reachable: false, source: "wms-capabilities", http: caps.status, latencyMs: caps.ms, note: safeNote(caps.error || `GetCapabilities HTTP ${caps.status}`) };
   }
   const layer = wmsNamedLayer(caps.text);
-  const operationalMaxScale = layer?.minDenominator; // closest zoom-in denominator
-  const operationalMinScale = layer?.maxDenominator; // farthest zoom-out denominator
+  const operationalMaxScale = layer?.minDenominator;
+  const operationalMinScale = layer?.maxDenominator;
   return {
     reachable: true,
     source: "wms-capabilities",
@@ -226,6 +234,14 @@ async function auditWfs(service) {
 }
 
 async function audit(service) {
+  if (isRuntimeTucbsService(service)) {
+    return {
+      reachable: false,
+      source: "client-ip-required",
+      explicitScaleLimit: false,
+      note: "IP yetkili TUCBS servisi; ölçek denetimi public runner yerine yetkili istemci IP'sine bırakıldı."
+    };
+  }
   if (service.servisTuruAdi === "MapServer") return auditMapServer(service);
   if (service.servisTuruAdi === "FeatureServer") return auditFeatureServer(service);
   if (service.servisTuruAdi === "SceneServer") return auditSceneServer(service);
@@ -246,7 +262,7 @@ for (let index = 0; index < services.length; index++) {
   };
   results.push(row);
   const range = row.minScale || row.maxScale ? ` range=${row.minScale ?? 0}..${row.maxScale ?? 0}` : " range=none";
-  console.log(`[${String(index + 1).padStart(2, "0")}/${services.length}] ${row.reachable ? "REACH" : "FAIL "} ${row.kind.padEnd(13)} ${row.name}${range} · ${row.note}`);
+  console.log(`[${String(index + 1).padStart(2, "0")}/${services.length}] ${row.reachable ? "REACH" : "SKIP "} ${row.kind.padEnd(13)} ${row.name}${range} · ${row.note}`);
 }
 
 const report = {
@@ -255,8 +271,9 @@ const report = {
   total: results.length,
   reachable: results.filter((item) => item.reachable).length,
   explicitScaleLimits: results.filter((item) => item.explicitScaleLimit).length,
+  clientIpRequired: results.filter((item) => item.source === "client-ip-required").length,
   results
 };
 
 await writeFile("service-scale-audit.json", JSON.stringify(report, null, 2) + "\n", "utf8");
-console.log(`SUMMARY ${JSON.stringify({ total: report.total, reachable: report.reachable, explicitScaleLimits: report.explicitScaleLimits })}`);
+console.log(`SUMMARY ${JSON.stringify({ total: report.total, reachable: report.reachable, explicitScaleLimits: report.explicitScaleLimits, clientIpRequired: report.clientIpRequired })}`);

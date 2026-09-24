@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { parseTucbsEndpointImport, saveTucbsEndpoints } from "../lib/tucbsAccess";
+import { parseTucbsEndpointImport, saveTucbsEndpoints, verifyTucbsEndpoints } from "../lib/tucbsAccess";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -31,6 +31,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   const [text, setText] = useState("");
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   if (!open) return null;
@@ -38,11 +39,21 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   const applyText = async (value: string) => {
     setBusy(true);
     setError(null);
+    setStatus("Yetkili servisler bu bağlantı üzerinden doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
+      const report = await verifyTucbsEndpoints(endpoints);
+      if (report.verified === 0) {
+        throw new Error(
+          "TUCBS servislerinden hiçbiri bu tarayıcıdan doğrulanamadı. Onaylı dış IP'nizi ve güncel yetkili servis JSON'unu kontrol edin."
+        );
+      }
+
       saveTucbsEndpoints(endpoints, remember);
+      setStatus(`${report.verified}/${report.total} TUCBS servisi doğrulandı. Harita yenileniyor…`);
       onApplied(Object.keys(endpoints).length);
     } catch (cause) {
+      setStatus(null);
       setError(cause instanceof Error ? cause.message : "TUCBS servis bilgileri okunamadı.");
     } finally {
       setBusy(false);
@@ -68,7 +79,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
 
   return (
     <div className="tucbs-access-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.currentTarget === event.target) onClose();
+      if (event.currentTarget === event.target && !busy) onClose();
     }}>
       <section className="tucbs-access-dialog" role="dialog" aria-modal="true" aria-labelledby="tucbs-access-title">
         <header>
@@ -77,13 +88,13 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
             <strong id="tucbs-access-title">TUCBS yetkili erişimi</strong>
             <span>Onaylı dış IP üzerinden doğrudan WMS/WFS bağlantısı</span>
           </div>
-          <button type="button" className="icon-ghost" onClick={onClose} aria-label="Kapat"><Icon name="close" size={15} /></button>
+          <button type="button" className="icon-ghost" onClick={onClose} disabled={busy} aria-label="Kapat"><Icon name="close" size={15} /></button>
         </header>
 
         <div className="tucbs-access-body">
           <p>
             TUCBS servis adreslerini içeren JSON dosyanızı bu tarayıcıya tanımlayın. Bilgiler GitHub'a veya başka bir sunucuya gönderilmez;
-            yalnızca bu tarayıcıda kullanılır ve istekler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> adresine gider.
+            servisler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> üzerinden ve mevcut dış IP'nizle doğrulanır.
           </p>
 
           <input
@@ -106,21 +117,23 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
               onChange={(event) => setText(event.target.value)}
               placeholder={'{"services":[{"cografiVeriKatmanAdi":"DOĞALGAZ HATTI","servisTuruAdi":"WMS","tokenUrl":"https://ucbp-api.tucbs.gov.tr/..."}]}' }
               spellCheck={false}
+              disabled={busy}
             />
           </label>
 
           <label className="tucbs-remember">
-            <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
+            <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} disabled={busy} />
             <span>Bu cihazda hatırla</span>
           </label>
 
-          {error && <div className="tucbs-access-error"><Icon name="warning" size={15} /><span>{error}</span></div>}
+          {status && <div className="tucbs-access-status" role="status"><Icon name="layers" size={15} /><span>{status}</span></div>}
+          {error && <div className="tucbs-access-error" role="alert"><Icon name="warning" size={15} /><span>{error}</span></div>}
         </div>
 
         <footer>
-          <button type="button" className="catalog-action" onClick={onClose}>Vazgeç</button>
+          <button type="button" className="catalog-action" onClick={onClose} disabled={busy}>Vazgeç</button>
           <button type="button" className="primary-button" onClick={() => void applyText(text)} disabled={busy || !text.trim()}>
-            {busy ? "Doğrulanıyor…" : "Bağlantıyı etkinleştir"}
+            {busy ? "Servisler doğrulanıyor…" : "Bağlantıyı etkinleştir"}
           </button>
         </footer>
       </section>

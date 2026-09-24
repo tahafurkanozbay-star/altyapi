@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { featureLayerVisualStyle, parseMapServerUrl } from "../src/gis/layerFactory";
+import { featureLayerVisualStyle, ogcLayerMatchScore, parseMapServerUrl } from "../src/gis/layerFactory";
 
 describe("ArcGIS ESM layer factory", () => {
   it("separates a MapServer sublayer id from the service root", () => {
@@ -33,5 +33,16 @@ describe("ArcGIS ESM layer factory", () => {
   it("does not override other feature-layer symbology", () => {
     expect(featureLayerVisualStyle({ kind: "FeatureServer", displayName: "3D1234 WFL1" })).toBeUndefined();
     expect(featureLayerVisualStyle({ kind: "MapServer", displayName: "SINIRLAR" })).toBeUndefined();
+  });
+
+  it("matches OGC WMS sublayers using Turkish-normalized catalogue names", () => {
+    expect(ogcLayerMatchScore("DOĞALGAZ DAĞITIM İSTASYONU", {
+      title: "Doğalgaz Dağıtım İstasyonu",
+      name: "epdk:dogalgaz_dagitim_istasyonu"
+    })).toBe(100);
+    expect(ogcLayerMatchScore("DOĞALGAZ VANA", {
+      title: "Doğalgaz Hattı",
+      name: "epdk:dogalgaz_hatti"
+    })).toBeLessThan(70);
   });
 });

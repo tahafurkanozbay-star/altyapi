@@ -118,6 +118,11 @@
   box-shadow: 0 0 0 3px rgba(22, 119, 210, .14);
 }
 
+.tucbs-access-paste textarea:disabled {
+  cursor: progress;
+  opacity: .72;
+}
+
 .tucbs-remember {
   display: inline-flex;
   align-items: center;
@@ -126,17 +131,27 @@
   font-size: 11px;
 }
 
+.tucbs-access-status,
 .tucbs-access-error {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   padding: 10px 11px;
-  border: 1px solid #efc8cf;
   border-radius: 11px;
-  background: #fff7f8;
-  color: #b43d51;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.tucbs-access-status {
+  border: 1px solid #b9d9ee;
+  background: #f2f9fd;
+  color: #16689d;
+}
+
+.tucbs-access-error {
+  border: 1px solid #efc8cf;
+  background: #fff7f8;
+  color: #b43d51;
 }
 
 .tucbs-access-dialog > footer {

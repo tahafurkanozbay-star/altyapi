@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v15 architecture guardrails", () => {
+describe("v16 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -95,24 +95,40 @@ describe("v15 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).not.toContain("OperationsOverview");
-    expect(serviceWorker).toContain("altyapi-data-v15");
+    expect(serviceWorker).toContain("altyapi-data-v16");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
-  it("ships race-safe layer orchestration and background incident diagnostics", async () => {
+  it("ships fresh-instance adaptive layer recovery instead of attaching half-loaded layers", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
+    const policy = await readFile("src/lib/serviceRuntime.ts", "utf8");
+    const factory = await readFile("src/gis/layerFactory.ts", "utf8");
     const incidents = await readFile("src/lib/incidentJournal.ts", "utf8");
     const app = await readFile("src/App.tsx", "utf8");
 
     expect(runtime).toContain("loadingLayers");
     expect(runtime).toContain("desiredVisibility");
-    expect(runtime).toContain("withTimeout");
-    expect(runtime).toContain("superseded");
+    expect(runtime).toContain("serviceRuntimePolicy");
+    expect(runtime).toContain("shouldRetryServiceError");
+    expect(runtime).toContain("serviceRetryDelayMs");
+    expect(runtime).toContain("cancelLoad");
+    expect(runtime).toContain("finalizeLoadedLayer");
+    expect(runtime).toContain("each retry deliberately creates a fresh Layer instance");
+    expect(policy).toContain("KIND_POLICY");
+    expect(policy).toContain("MAX_LOAD_TIMEOUT_MS");
+    expect(policy).toContain("classifyServiceError");
+    expect(factory).toContain("ogcLayerMatchScore");
+    expect(factory).toContain("allSublayers");
     expect(incidents).toContain("sanitizeIncidentText");
     expect(incidents).toContain("MAX_INCIDENTS = 80");
     expect(app).toContain("loadIncidentJournal");
     expect(app).toContain("incidentsRef");
     expect(app).not.toContain('selectPanel("incidents")');
+
+    const loadPosition = runtime.indexOf("layer.load()");
+    const addPosition = runtime.indexOf("this.map?.add(layer)", loadPosition);
+    expect(loadPosition).toBeGreaterThan(-1);
+    expect(addPosition).toBeGreaterThan(loadPosition);
   });
 
   it("ships verified operational extents and atomic continuous scale guardrails", async () => {
@@ -153,11 +169,13 @@ describe("v15 architecture guardrails", () => {
   it("supports direct TUCBS access from an approved client IP without publishing signed endpoints", async () => {
     const catalog = await readFile("public/services.json", "utf8");
     const tucbs = await readFile("src/lib/tucbsAccess.ts", "utf8");
+    const setup = await readFile("src/components/TucbsAccessSetup.tsx", "utf8");
     const factory = await readFile("src/gis/layerFactory.ts", "utf8");
-    const probe = await readFile("scripts/probe-service-health.mjs", "utf8");
+    const probe = await readFile("scripts/probe-service-health.ts", "utf8");
+    const audit = await readFile("scripts/audit-service-scales.ts", "utf8");
     const entry = await readFile("src/main.tsx", "utf8");
     const privateExample = await readFile("public/services.private.example.json", "utf8");
-    const validator = await readFile("scripts/validate-services.mjs", "utf8");
+    const validator = await readFile("scripts/validate-services.ts", "utf8");
 
     expect(catalog).toContain("ucbp-api.tucbs.gov.tr/__runtime__/");
     expect(catalog).not.toMatch(/\/ucbp\.[A-Za-z0-9_-]{20,}/i);
@@ -167,13 +185,27 @@ describe("v15 architecture guardrails", () => {
     expect(tucbs).toContain("sessionStorage");
     expect(tucbs).toContain("localStorage");
     expect(tucbs).toContain("sanitizeTucbsUrl");
+    expect(tucbs).toContain("verifyTucbsEndpoints");
+    expect(tucbs).toContain("GetCapabilities");
+    expect(setup).toContain("await verifyTucbsEndpoints(endpoints)");
     expect(factory).toContain("altyapi:tucbs-access-required");
     expect(probe).toContain("isRuntimeTucbsService");
     expect(probe).toContain('access: "network-restricted"');
+    expect(audit).toContain('source: "client-ip-required"');
     expect(entry).toContain("TucbsAccessSetupHost");
     expect(privateExample).toContain("YOUR-SECURE-PROXY.example");
     expect(validator).toContain("embeddedTokenPath");
     expect(validator).toContain("secretQueryKey");
+  });
+
+  it("uses TypeScript for application, tests and engineering service tooling", async () => {
+    const packageJson = await readFile("package.json", "utf8");
+    const scripts = await readdir("scripts");
+    expect(packageJson).toContain('"tsx": "^4.23.15"');
+    expect(packageJson).not.toContain("scripts/verify-build.mjs");
+    expect(packageJson).not.toContain("scripts/probe-service-health.mjs");
+    expect(scripts.filter((name) => name.endsWith(".mjs"))).toEqual([]);
+    expect(scripts.filter((name) => name.endsWith(".ts")).length).toBeGreaterThanOrEqual(6);
   });
 
   it("keeps adaptive reliability and controlled PWA updates in the background", async () => {
@@ -190,7 +222,7 @@ describe("v15 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v15"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v16"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
 });
