@@ -4,10 +4,10 @@ import { Icon, type IconName } from "./Icon";
 export const mapTools: ToolDefinition[] = [
   { id: "legend", label: "Lejant", icon: "legend", keywords: ["lejant", "sembol"] },
   { id: "basemap", label: "Altlık galerisi", icon: "basemap", keywords: ["altlık", "uydu", "harita"] },
-  { id: "distance", label: "3B mesafe", icon: "distance", keywords: ["ölç", "mesafe", "uzunluk"] },
-  { id: "area", label: "3B alan", icon: "area", keywords: ["ölç", "alan"] },
+  { id: "distance", label: "Mesafe ölç", icon: "distance", keywords: ["ölç", "mesafe", "uzunluk"] },
+  { id: "area", label: "Alan ölç", icon: "area", keywords: ["ölç", "alan"] },
   { id: "daylight", label: "Gün ışığı", icon: "daylight", keywords: ["güneş", "gölge", "saat"] },
-  { id: "slice", label: "Kesit", icon: "slice", keywords: ["kesit", "slice"] },
+  { id: "slice", label: "3B kesit", icon: "slice", keywords: ["kesit", "slice"] },
   { id: "lineOfSight", label: "Görüş hattı", icon: "sight", keywords: ["görüş", "hat"] },
   { id: "elevation", label: "Yükseklik profili", icon: "elevation", keywords: ["profil", "yükseklik", "eğim"] }
 ];
@@ -19,23 +19,17 @@ interface Props {
   onTool: (tool: Exclude<ToolId, null>) => void;
   onHome: () => void;
   onScreenshot: () => void;
-  onCommand: () => void;
 }
 
-export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onScreenshot, onCommand }: Props) {
+export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onScreenshot }: Props) {
   return (
-    <nav className="tool-rail" aria-label="CBS komuta araçları">
+    <nav className="tool-rail" aria-label="Kent rehberi araçları">
       <div className="tool-rail-mark" aria-hidden="true"><span>3B</span></div>
 
-      <div className="tool-group" aria-label="Çalışma alanı">
-        <span className="tool-group-label">Çalışma alanı</span>
-        <ToolButton icon="dashboard" label="Operasyon özeti" shortcut="O" active={activePanel === "overview"} onClick={() => onPanel("overview")} />
-        <ToolButton icon="layers" label="Katman kataloğu" shortcut="L" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
-        <ToolButton icon="table" label="Sorgu stüdyosu" shortcut="D" active={activePanel === "data"} onClick={() => onPanel("data")} />
-        <ToolButton icon="archive" label="Çalışma alanı paketi" shortcut="W" active={activePanel === "workspace"} onClick={() => onPanel("workspace")} />
-        <ToolButton icon="health" label="Servis sağlığı" active={activePanel === "health"} onClick={() => onPanel("health")} />
-        <ToolButton icon="activity" label="Olay günlüğü" shortcut="I" active={activePanel === "incidents"} onClick={() => onPanel("incidents")} />
-        <ToolButton icon="speed" label="Sistem tanılama" active={activePanel === "diagnostics"} onClick={() => onPanel("diagnostics")} />
+      <div className="tool-group" aria-label="Kent rehberi">
+        <span className="tool-group-label">Kent rehberi</span>
+        <ToolButton icon="layers" label="Katmanlar" shortcut="L" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
+        <ToolButton icon="table" label="Harita verisi" shortcut="D" active={activePanel === "data"} onClick={() => onPanel("data")} />
         <ToolButton icon="bookmark" label="Yer imleri" active={activePanel === "bookmarks"} onClick={() => onPanel("bookmarks")} />
       </div>
 
@@ -44,8 +38,8 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
         <ToolButton icon="home" label="Ankara başlangıç görünümü" shortcut="H" onClick={onHome} />
       </div>
 
-      <div className="tool-group tool-group-analysis" aria-label="3B analiz araçları">
-        <span className="tool-group-label">3B analiz</span>
+      <div className="tool-group tool-group-analysis" aria-label="Harita araçları">
+        <span className="tool-group-label">Harita araçları</span>
         {mapTools.map((tool) => (
           <ToolButton
             key={tool.id}
@@ -57,11 +51,10 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
         ))}
       </div>
 
-      <div className="tool-group tool-group-bottom" aria-label="Oturum araçları">
-        <span className="tool-group-label">Oturum</span>
-        <ToolButton icon="camera" label="Harita ekran görüntüsü" onClick={onScreenshot} />
-        <ToolButton icon="command" label="Komut paleti" shortcut="⌘K" onClick={onCommand} />
-        <ToolButton icon="help" label="Yardım ve kısayollar" active={activePanel === "help"} onClick={() => onPanel("help")} />
+      <div className="tool-group tool-group-bottom" aria-label="Diğer araçlar">
+        <span className="tool-group-label">Diğer</span>
+        <ToolButton icon="camera" label="Ekran görüntüsü" onClick={onScreenshot} />
+        <ToolButton icon="help" label="Yardım" active={activePanel === "help"} onClick={() => onPanel("help")} />
       </div>
     </nav>
   );
