@@ -1,0 +1,64 @@
+/* Ankara Kent Rehberi public branding.
+   The original uploaded Ankara logo is bundled locally and reused for every visible brand mark. */
+.brand-symbol,
+.tool-rail-mark,
+.boot-logo {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  background-image: url("../assets/ankara-logo.png") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
+  box-shadow: none !important;
+  color: transparent !important;
+}
+
+.brand-symbol {
+  width: 30px;
+  height: 46px;
+  flex: 0 0 30px;
+}
+
+.brand-symbol::after {
+  content: none !important;
+}
+
+.tool-rail-mark {
+  width: 42px;
+  height: 54px;
+  flex: 0 0 54px;
+  margin-bottom: 3px;
+}
+
+.boot-logo {
+  width: 76px;
+  height: 128px;
+}
+
+.brand-symbol > span,
+.brand-symbol > i,
+.tool-rail-mark > span,
+.boot-logo > span,
+.boot-logo > i {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .brand-symbol {
+    width: 27px;
+    height: 42px;
+    flex-basis: 27px;
+  }
+
+  .tool-rail-mark {
+    width: 36px;
+    height: 48px;
+    flex-basis: 48px;
+  }
+
+  .boot-logo {
+    width: 66px;
+    height: 110px;
+  }
+}
