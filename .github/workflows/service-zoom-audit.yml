@@ -1,0 +1,27 @@
+name: Service Zoom Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Probe every service across zoom levels
+        run: node scripts/probe-service-zoom.mjs
+      - name: Upload sanitized zoom report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-zoom-report
+          path: service-zoom-report.json
+          if-no-files-found: ignore
