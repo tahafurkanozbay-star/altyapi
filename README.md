@@ -1,6 +1,17 @@
-# Başkent 3B CBS · Component-First Scene Platform v13
+# Başkent 3B CBS · Verified Zoom Policy v14
 
 Ankara odaklı profesyonel 3B altyapı / üstyapı koordinasyon ve CBS operasyon platformu. ArcGIS REST (`FeatureServer`, `SceneServer`, `MapServer`) ile OGC (`WMS`, `WFS`) servislerini modern, göz konforuna odaklı beyaz bir çalışma alanında yönetir.
+
+## v14: Verified Zoom Policy
+
+- 20 katalog servisi zoom/ölçek davranışı açısından tek tek doğrulandı.
+- MapServer katmanları zoom 5–22 arasında gerçek PNG piksel testiyle tarandı.
+- İÇME SUYU ELEMAN zoom 8–22, İÇME SUYU BORU zoom 9–22 ile sınırlandırıldı.
+- UYGULAMA İMAR PLANI için servis metadata hard aralığı zoom 8–19 uygulandı.
+- Yağmur/pis su MapServer katmanlarında doğrulanmış zoom 5–22 uygulanır.
+- FeatureServer / SceneServer katmanlarında hard zoom limiti uydurulmaz.
+- EPDK/UCBP WMS/WFS servisleri HTTP 500 verdiği için zoom sınırı uydurulmadan “doğrulanamadı” olarak tutulur.
+- Runtime ArcGIS minScale/maxScale değerlerini bu sanitizasyonlu service-zoom.json snapshot'ından alır.
 
 ## v13: Component-First Scene Platform
 
@@ -269,7 +280,7 @@ Bu repo GitHub Pages üzerinde statik ve public çalışır. Bu nedenle `public/
 
 ## Sürüm
 
-Current application version: **13.0.0**
+Current application version: **14.0.0**
 
 MIT lisansı. Harita ve veri servislerinin kendi lisans/kullanım koşulları ayrıca geçerlidir.
 

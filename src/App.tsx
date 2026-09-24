@@ -26,6 +26,7 @@ import {
   formatScale,
   loadServiceNavigationSnapshot
 } from "./lib/serviceNavigation";
+import { applyServiceZoomSnapshot, loadServiceZoomSnapshot } from "./lib/serviceZoom";
 import type {
   AppPreferences,
   AttributeQueryOptions,
@@ -49,7 +50,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
-const APP_VERSION = "13.0.0";
+const APP_VERSION = "14.0.0";
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 const basemaps = [
   ["hybrid", "Hibrit"],
@@ -165,17 +166,19 @@ export default function App() {
 
     void (async () => {
       try {
-        const [catalog, healthSnapshot, navigationSnapshot] = await Promise.all([
+        const [catalog, healthSnapshot, navigationSnapshot, zoomSnapshot] = await Promise.all([
           loadServiceCatalog("./services.json", controller.signal),
           loadServiceHealthSnapshot("./service-health.json", controller.signal),
-          loadServiceNavigationSnapshot("./service-navigation.json", controller.signal)
+          loadServiceNavigationSnapshot("./service-navigation.json", controller.signal),
+          loadServiceZoomSnapshot("./service-zoom.json", controller.signal)
         ]);
         if (cancelled || !mapRef.current) return;
         const share = decodeShareState(new URLSearchParams(location.search));
         const favoriteSet = new Set(initialPreferences.favorites);
         const sharedLayers = share ? new Set(share.layerIds) : null;
         const healthCatalog = applyServiceHealthSnapshot(catalog, healthSnapshot);
-        const enrichedCatalog = applyServiceNavigationSnapshot(healthCatalog, navigationSnapshot);
+        const navigationCatalog = applyServiceNavigationSnapshot(healthCatalog, navigationSnapshot);
+        const enrichedCatalog = applyServiceZoomSnapshot(navigationCatalog, zoomSnapshot);
         let suppressedRestores = 0;
         const restored = enrichedCatalog.map((service) => {
           const requestedVisible = sharedLayers ? sharedLayers.has(service.id) : (initialPreferences.layerVisibility[service.id] ?? false);
