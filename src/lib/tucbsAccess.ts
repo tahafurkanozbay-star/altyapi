@@ -9,6 +9,20 @@ const MAX_IMPORT_BYTES = 128_000;
 
 export type TucbsEndpointMap = Record<string, string>;
 
+export interface TucbsEndpointVerification {
+  key: string;
+  ok: boolean;
+  latencyMs?: number;
+  reason?: string;
+}
+
+export interface TucbsVerificationReport {
+  total: number;
+  verified: number;
+  failed: number;
+  results: TucbsEndpointVerification[];
+}
+
 const knownEndpointKeys = new Map<string, string>([
   ["DOĞALGAZ DAĞITIM İSTASYONU|WMS", "tucbs.dogalgaz-dagitim-istasyonu.wms"],
   ["DOĞALGAZ DAĞITIM İSTASYONU|WFS", "tucbs.dogalgaz-dagitim-istasyonu.wfs"],
@@ -89,6 +103,71 @@ export function parseTucbsEndpointImport(text: string): TucbsEndpointMap {
   return sanitized;
 }
 
+/**
+ * Verifies imported TUCBS endpoints from the actual browser. This matters for
+ * installations restricted by source IP: a GitHub runner cannot prove that an
+ * endpoint reachable from the approved citizen/operator network is healthy.
+ * Returned diagnostics intentionally never include the signed endpoint URL.
+ */
+export async function verifyTucbsEndpoints(
+  endpoints: TucbsEndpointMap,
+  options: { timeoutMs?: number; concurrency?: number } = {}
+): Promise<TucbsVerificationReport> {
+  const sanitized = sanitizeEndpointMap(endpoints);
+  const entries = Object.entries(sanitized);
+  const timeoutMs = clampInteger(options.timeoutMs ?? 12_000, 3_000, 30_000);
+  const concurrency = clampInteger(options.concurrency ?? 3, 1, 6);
+
+  const results = await mapWithConcurrency(entries, concurrency, async ([key, url]) => {
+    const startedAt = performance.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const target = tucbsCapabilitiesUrl(key, url);
+      const response = await fetch(target, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { Accept: "application/xml,text/xml,*/*" }
+      });
+      const text = await response.text();
+      const latencyMs = Math.round(performance.now() - startedAt);
+
+      if (!response.ok) {
+        return { key, ok: false, latencyMs, reason: `HTTP ${response.status}` } satisfies TucbsEndpointVerification;
+      }
+      if (/ServiceException|ExceptionReport|ExceptionText|ows:Exception/i.test(text)) {
+        return { key, ok: false, latencyMs, reason: "OGC servis hata yanıtı döndürdü" } satisfies TucbsEndpointVerification;
+      }
+
+      const valid = key.endsWith(".wms")
+        ? /WMS_Capabilities|WMT_MS_Capabilities/i.test(text)
+        : /WFS_Capabilities/i.test(text);
+      return valid
+        ? { key, ok: true, latencyMs } satisfies TucbsEndpointVerification
+        : { key, ok: false, latencyMs, reason: "Capabilities yanıtı beklenen OGC biçiminde değil" } satisfies TucbsEndpointVerification;
+    } catch (error) {
+      const latencyMs = Math.round(performance.now() - startedAt);
+      const reason = error instanceof DOMException && error.name === "AbortError"
+        ? "Zaman aşımı"
+        : "Tarayıcıdan ağ erişimi kurulamadı";
+      return { key, ok: false, latencyMs, reason } satisfies TucbsEndpointVerification;
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
+  return {
+    total: results.length,
+    verified: results.filter((item) => item.ok).length,
+    failed: results.filter((item) => !item.ok).length,
+    results
+  };
+}
+
 export function endpointKeyFor(name: string, kind: ServiceKind | string): string | undefined {
   return knownEndpointKeys.get(`${name.trim().toLocaleUpperCase("tr-TR")}|${String(kind).toUpperCase()}`);
 }
@@ -147,6 +226,14 @@ export function sanitizeTucbsUrl(value: string): string {
   return parsed.toString();
 }
 
+function tucbsCapabilitiesUrl(key: string, value: string): string {
+  const target = new URL(value);
+  target.searchParams.set("SERVICE", key.endsWith(".wms") ? "WMS" : "WFS");
+  target.searchParams.set("REQUEST", "GetCapabilities");
+  target.searchParams.set("VERSION", key.endsWith(".wms") ? "1.3.0" : "2.0.0");
+  return target.toString();
+}
+
 function sanitizeEndpointMap(value: TucbsEndpointMap): TucbsEndpointMap {
   const output: TucbsEndpointMap = {};
   let count = 0;
@@ -157,6 +244,23 @@ function sanitizeEndpointMap(value: TucbsEndpointMap): TucbsEndpointMap {
     if (count >= MAX_ENDPOINTS) break;
   }
   return output;
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
 
 function readStoredMap(key: string, storage: Storage | null): TucbsEndpointMap {
