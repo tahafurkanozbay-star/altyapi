@@ -8,7 +8,8 @@ import {
   operationalExtentContains,
   operationalScaleLabel,
   parseServiceNavigationSnapshot,
-  recommendedActivationScale
+  recommendedActivationScale,
+  resolveOperationalScaleRange
 } from "../src/lib/serviceNavigation";
 import type { ServiceDefinition, ServiceNavigationSnapshot } from "../src/types";
 
@@ -109,6 +110,32 @@ describe("serviceNavigation", () => {
     expect(range.maxScale).toBe(1128);
     expect(range.conflict).toBe(false);
     expect(range.constrainedServiceIds).toEqual(["infra", "plan"]);
+  });
+
+  it("resolves a pending activation against the already-active intersection", () => {
+    const range = resolveOperationalScaleRange(
+      [
+        service({ id: "infra", operationalMinScale: 400000 }),
+        service({ id: "candidate", operationalMinScale: 999999 })
+      ],
+      service({ id: "candidate", operationalMinScale: 2311162, operationalMaxScale: 1128 })
+    );
+    expect(range.minScale).toBe(400000);
+    expect(range.maxScale).toBe(1128);
+    expect(range.conflict).toBe(false);
+    expect(range.constrainedServiceIds).toEqual(["infra", "candidate"]);
+  });
+
+  it("gives the latest activation deterministic priority for impossible ranges", () => {
+    const range = resolveOperationalScaleRange(
+      [service({ id: "legacy", operationalMinScale: 1000 })],
+      service({ id: "candidate", operationalMaxScale: 5000 })
+    );
+    expect(range.conflict).toBe(true);
+    expect(range.fallbackServiceId).toBe("candidate");
+    expect(range.minScale).toBeUndefined();
+    expect(range.maxScale).toBe(5000);
+    expect(range.constrainedServiceIds).toEqual(["legacy", "candidate"]);
   });
 
   it("clamps zoom-out and zoom-in attempts into the active intersection", () => {
