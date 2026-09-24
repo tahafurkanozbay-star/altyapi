@@ -8,6 +8,13 @@ import type {
 
 const SOURCES = new Set<ServiceNavigationSource>(["verified-query", "declared-service", "verified-render"]);
 
+export interface ActiveOperationalScaleRange {
+  minScale?: number;
+  maxScale?: number;
+  constrainedServiceIds: string[];
+  conflict: boolean;
+}
+
 export async function loadServiceNavigationSnapshot(
   url = "./service-navigation.json",
   signal?: AbortSignal
@@ -136,6 +143,44 @@ export function recommendedActivationScale(service: ServiceDefinition): number |
   if (service.operationalMinScale) return Math.max(1, Math.round(service.operationalMinScale * 0.75));
   if (service.operationalMaxScale) return Math.round(service.operationalMaxScale * 1.25);
   return undefined;
+}
+
+export function hasOperationalScaleConstraint(service: ServiceDefinition): boolean {
+  return Boolean(service.operationalMinScale || service.operationalMaxScale);
+}
+
+export function activeOperationalScaleRange(services: ServiceDefinition[]): ActiveOperationalScaleRange {
+  const constrained = services.filter(hasOperationalScaleConstraint);
+  const minScales = constrained
+    .map((service) => service.operationalMinScale)
+    .filter((value): value is number => Number.isFinite(value) && Boolean(value));
+  const maxScales = constrained
+    .map((service) => service.operationalMaxScale)
+    .filter((value): value is number => Number.isFinite(value) && Boolean(value));
+
+  // ArcGIS terminology is intentionally counter-intuitive:
+  // minScale is the largest allowed denominator (furthest zoom-out), while
+  // maxScale is the smallest allowed denominator (closest zoom-in).
+  // The strict intersection therefore uses the smallest minScale and largest maxScale.
+  const minScale = minScales.length ? Math.min(...minScales) : undefined;
+  const maxScale = maxScales.length ? Math.max(...maxScales) : undefined;
+
+  return {
+    minScale,
+    maxScale,
+    constrainedServiceIds: constrained.map((service) => service.id),
+    conflict: Boolean(minScale && maxScale && maxScale > minScale)
+  };
+}
+
+export function clampScaleToOperationalRange(
+  scale: number,
+  range: Pick<ActiveOperationalScaleRange, "minScale" | "maxScale">
+): number {
+  if (!Number.isFinite(scale) || scale <= 0) return scale;
+  if (range.minScale && scale > range.minScale) return range.minScale;
+  if (range.maxScale && scale < range.maxScale) return range.maxScale;
+  return scale;
 }
 
 export function formatScale(scale: number): string {
