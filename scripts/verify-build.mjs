@@ -25,7 +25,7 @@ for (const source of localScripts) {
   }
 }
 
-for (const required of ["services.json", "service-health.json", "service-navigation.json", "manifest.webmanifest", "favicon.svg", "sw.js", "health.html"]) {
+for (const required of ["services.json", "service-health.json", "service-navigation.json", "service-zoom.json", "manifest.webmanifest", "favicon.svg", "sw.js", "health.html"]) {
   try {
     await access(resolve(dist, required));
   } catch {

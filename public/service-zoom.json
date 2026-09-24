@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-24T05:06:41.406Z",
+  "scaleModel": "WebMercator standard LOD · scale(z)=591657527.591555/2^z",
+  "profiles": [
+    { "index": 0, "name": "DOĞALGAZ DAĞITIM İSTASYONU", "kind": "WMS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 1, "name": "DOĞALGAZ DAĞITIM İSTASYONU", "kind": "WFS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 2, "name": "DOĞALGAZ DEPOLAMA TESİSİ", "kind": "WFS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 3, "name": "DOĞALGAZ DEPOLAMA TESİSİ", "kind": "WMS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 4, "name": "DOĞALGAZ HATTI", "kind": "WMS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 5, "name": "DOĞALGAZ HATTI", "kind": "WFS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 6, "name": "DOĞALGAZ SERVİS KUTUSU", "kind": "WFS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 7, "name": "DOĞALGAZ SERVİS KUTUSU", "kind": "WMS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 8, "name": "DOĞALGAZ VANA", "kind": "WFS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 9, "name": "DOĞALGAZ VANA", "kind": "WMS", "status": "unavailable", "source": "capabilities", "testedMinZoom": 5, "testedMaxZoom": 22, "note": "GetCapabilities HTTP 500; zoom aralığı doğrulanamadı." },
+    { "index": 10, "name": "YAĞMUR SUYU ELEMAN", "kind": "MapServer", "status": "verified-range", "source": "multi-zoom-render", "minZoom": 5, "maxZoom": 22, "testedMinZoom": 5, "testedMaxZoom": 22, "note": "Zoom 5–22 arasında her seviyede gerçek PNG pikseli doğrulandı." },
+    { "index": 11, "name": "YAĞMUR SUYU BORU", "kind": "MapServer", "status": "verified-range", "source": "multi-zoom-render", "minZoom": 5, "maxZoom": 22, "testedMinZoom": 5, "testedMaxZoom": 22, "note": "Zoom 5–22 arasında her seviyede gerçek PNG pikseli doğrulandı." },
+    { "index": 12, "name": "PİS SU BORU", "kind": "MapServer", "status": "verified-range", "source": "multi-zoom-render", "minZoom": 5, "maxZoom": 22, "testedMinZoom": 5, "testedMaxZoom": 22, "note": "Zoom 5–22 arasında her seviyede gerçek PNG pikseli doğrulandı." },
+    { "index": 13, "name": "PİS SU ELEMAN", "kind": "MapServer", "status": "verified-range", "source": "multi-zoom-render", "minZoom": 5, "maxZoom": 22, "testedMinZoom": 5, "testedMaxZoom": 22, "note": "Zoom 5–22 arasında her seviyede gerçek PNG pikseli doğrulandı." },
+    { "index": 14, "name": "İÇME SUYU ELEMAN", "kind": "MapServer", "status": "verified-range", "source": "multi-zoom-render", "minZoom": 8, "maxZoom": 22, "testedMinZoom": 5, "testedMaxZoom": 22, "note": "Zoom 5–7 istekleri 18 sn zaman aşımına düştü; zoom 8–22 gerçek PNG ile doğrulandı." },
+    { "index": 15, "name": "İÇME SUYU BORU", "kind": "MapServer", "status": "verified-range", "source": "multi-zoom-render", "minZoom": 9, "maxZoom": 22, "testedMinZoom": 5, "testedMaxZoom": 22, "note": "Zoom 5–8 istekleri 18 sn zaman aşımına düştü; zoom 9–22 gerçek PNG ile doğrulandı." },
+    { "index": 16, "name": "UYGULAMA İMAR PLANI (UIP ESRI3)", "kind": "MapServer", "status": "declared-range", "source": "service-metadata", "minZoom": 8, "maxZoom": 19, "testedMinZoom": 5, "testedMaxZoom": 22, "declaredMinScale": 2311162, "declaredMaxScale": 1128, "note": "Servis metadata hard aralığı zoom 8–19. Tek örnek merkez renderında veri zoom 11–13'te görüldü; kapsam bağımlı blank sonuçlar hard sınırı daraltmak için kullanılmadı." },
+    { "index": 17, "name": "SINIRLAR", "kind": "FeatureServer", "status": "no-hard-limit", "source": "service-metadata", "note": "FeatureServer metadata hard min/maxScale bildirmiyor; sorgu zoomdan bağımsız." },
+    { "index": 18, "name": "3D1234 WFL1", "kind": "FeatureServer", "status": "no-hard-limit", "source": "service-metadata", "note": "FeatureServer metadata hard min/maxScale bildirmiyor; sorgu zoomdan bağımsız." },
+    { "index": 19, "name": "3D1234 WSL2", "kind": "SceneServer", "status": "no-hard-limit", "source": "service-metadata", "note": "SceneServer adaptif LOD kullanıyor; metadata hard min/maxScale bildirmiyor." }
+  ]
+}

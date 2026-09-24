@@ -9,6 +9,7 @@ import {
   navigationSourceLabel,
   operationalScaleLabel
 } from "../lib/serviceNavigation";
+import { currentZoomFromScale, isOperationalZoom, zoomAuditSourceLabel, zoomRangeLabel } from "../lib/serviceZoom";
 import type { ServiceAvailability, ServiceDefinition, ServiceKind } from "../types";
 import { Icon } from "./Icon";
 
@@ -266,6 +267,10 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                         <div><dt>Doğrulama zamanı</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
                         <div><dt>Harici doğrulama gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
                         <div><dt>Çalışma ölçeği</dt><dd>{operationalScaleLabel(service)}</dd></div>
+                        <div><dt>Doğrulanmış zoom aralığı</dt><dd>{zoomRangeLabel(service)}</dd></div>
+                        <div><dt>Zoom doğrulama kaynağı</dt><dd>{zoomAuditSourceLabel(service)}</dd></div>
+                        <div><dt>Zoom doğrulama zamanı</dt><dd>{service.zoomVerifiedAt ? new Date(service.zoomVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                        <div><dt>Zoom doğrulama notu</dt><dd>{service.zoomAuditNote ?? "—"}</dd></div>
                         <div><dt>Önerilen açılış ölçeği</dt><dd>{service.recommendedScale ? `1:${formatScale(service.recommendedScale)}` : "—"}</dd></div>
                         <div><dt>Çalışma kapsamı kaynağı</dt><dd>{navigationSourceLabel(service)}</dd></div>
                         <div><dt>Kapsam doğrulaması</dt><dd>{service.navigationVerifiedAt ? new Date(service.navigationVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
@@ -287,6 +292,11 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
 });
 
 function statusLabel(service: ServiceDefinition, currentScale?: number): string {
+  const currentZoom = currentZoomFromScale(currentScale);
+  if (!isOperationalZoom(service, currentZoom)) {
+    if (service.operationalMinZoom !== undefined && currentZoom !== undefined && currentZoom < service.operationalMinZoom) return `Yaklaşın · zoom ≥ ${service.operationalMinZoom}`;
+    if (service.operationalMaxZoom !== undefined && currentZoom !== undefined && currentZoom > service.operationalMaxZoom) return `Uzaklaşın · zoom ≤ ${service.operationalMaxZoom}`;
+  }
   if (service.status === "loading") return "Bağlanıyor";
   if (service.status === "error") {
     const remaining = cooldownRemaining(service);

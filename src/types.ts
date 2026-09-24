@@ -50,6 +50,12 @@ export interface ServiceDefinition extends RawServiceDefinition {
   renderScaleSensitive?: boolean;
   navigationSource?: ServiceNavigationSource;
   navigationVerifiedAt?: string;
+  operationalMinZoom?: number;
+  operationalMaxZoom?: number;
+  zoomAuditStatus?: ServiceZoomStatus;
+  zoomAuditSource?: ServiceZoomSource;
+  zoomVerifiedAt?: string;
+  zoomAuditNote?: string;
 }
 
 export interface OperationalExtent {
@@ -80,6 +86,31 @@ export interface ServiceNavigationSnapshot {
   verifiedAt: string;
   source: string;
   profiles: ServiceNavigationProfile[];
+}
+
+export type ServiceZoomStatus = "verified-range" | "declared-range" | "no-hard-limit" | "unavailable" | "metadata-only";
+export type ServiceZoomSource = "multi-zoom-render" | "service-metadata" | "capabilities" | "metadata";
+
+export interface ServiceZoomProfile {
+  index: number;
+  name: string;
+  kind: ServiceKind;
+  status: ServiceZoomStatus;
+  source: ServiceZoomSource;
+  minZoom?: number;
+  maxZoom?: number;
+  testedMinZoom?: number;
+  testedMaxZoom?: number;
+  declaredMinScale?: number;
+  declaredMaxScale?: number;
+  note?: string;
+}
+
+export interface ServiceZoomSnapshot {
+  schemaVersion: 1;
+  verifiedAt: string;
+  scaleModel: string;
+  profiles: ServiceZoomProfile[];
 }
 
 export interface CameraState {
@@ -144,7 +175,6 @@ export interface BrowserCapabilities {
   connectionType?: string;
   saveData?: boolean;
 }
-
 
 export type AttributeValue = string | number | boolean | null;
 export type AttributeRow = Record<string, AttributeValue>;
@@ -265,7 +295,6 @@ export interface ServiceHealthSnapshot {
   source: string;
   services: ServiceVerificationEntry[];
 }
-
 
 export interface WorkspaceSnapshot {
   schemaVersion: 1;

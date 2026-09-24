@@ -1,14 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v13 architecture guardrails", () => {
+describe("v14 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
     expect(runtime).toContain("@arcgis/map-components/components/arcgis-search");
     expect(runtime).toContain("@arcgis/map-components/components/arcgis-direct-line-measurement-3d");
   });
-
 
   it("uses the ArcGIS 5.1 component-first scene architecture", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
@@ -74,7 +73,7 @@ describe("v13 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).toContain('useState<PanelId>("overview")');
-    expect(serviceWorker).toContain("altyapi-data-v13");
+    expect(serviceWorker).toContain("altyapi-data-v14");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -93,6 +92,7 @@ describe("v13 architecture guardrails", () => {
     expect(app).toContain("loadIncidentJournal");
     expect(operations).toContain("Olay Günlüğü");
   });
+
   it("ships verified operational extents and scale-aware layer activation", async () => {
     const navigation = await readFile("src/lib/serviceNavigation.ts", "utf8");
     const snapshot = await readFile("public/service-navigation.json", "utf8");
@@ -115,6 +115,28 @@ describe("v13 architecture guardrails", () => {
     expect(packageJson).toContain("validate:navigation");
   });
 
+  it("ships verified per-service zoom policies as native ArcGIS scale bounds", async () => {
+    const zoom = await readFile("src/lib/serviceZoom.ts", "utf8");
+    const snapshot = await readFile("public/service-zoom.json", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+    const explorer = await readFile("src/components/LayerExplorer.tsx", "utf8");
+    const factory = await readFile("src/gis/layerFactory.ts", "utf8");
+    const serviceWorker = await readFile("public/sw.js", "utf8");
+    const packageJson = await readFile("package.json", "utf8");
+
+    expect(zoom).toContain("applyServiceZoomSnapshot");
+    expect(zoom).toContain("WEB_MERCATOR_SCALE_AT_ZOOM_0");
+    expect(snapshot).not.toContain("tokenUrl");
+    expect(snapshot).not.toContain("http://");
+    expect(snapshot).not.toContain("https://");
+    expect(app).toContain("loadServiceZoomSnapshot");
+    expect(explorer).toContain("Doğrulanmış zoom aralığı");
+    expect(factory).toContain("minScale: service.operationalMinScale");
+    expect(factory).toContain("maxScale: service.operationalMaxScale");
+    expect(serviceWorker).toContain("service-zoom.json");
+    expect(packageJson).toContain("validate:zoom");
+  });
+
   it("ships adaptive stabilization, session analytics and controlled PWA updates", async () => {
     const stabilization = await readFile("src/lib/stabilization.ts", "utf8");
     const reliability = await readFile("src/lib/sessionReliability.ts", "utf8");
@@ -130,8 +152,7 @@ describe("v13 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v13"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v14"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
-
 });
