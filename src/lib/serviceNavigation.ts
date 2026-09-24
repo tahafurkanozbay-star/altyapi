@@ -15,6 +15,10 @@ export interface ActiveOperationalScaleRange {
   conflict: boolean;
 }
 
+export interface ResolvedOperationalScaleRange extends ActiveOperationalScaleRange {
+  fallbackServiceId?: string;
+}
+
 export async function loadServiceNavigationSnapshot(
   url = "./service-navigation.json",
   signal?: AbortSignal
@@ -170,6 +174,27 @@ export function activeOperationalScaleRange(services: ServiceDefinition[]): Acti
     maxScale,
     constrainedServiceIds: constrained.map((service) => service.id),
     conflict: Boolean(minScale && maxScale && maxScale > minScale)
+  };
+}
+
+export function resolveOperationalScaleRange(
+  activeServices: ServiceDefinition[],
+  candidate?: ServiceDefinition
+): ResolvedOperationalScaleRange {
+  const ordered = activeServices.filter((service) => service.id !== candidate?.id);
+  if (candidate) ordered.push(candidate);
+
+  const range = activeOperationalScaleRange(ordered);
+  if (!range.conflict) return range;
+
+  const latest = [...ordered].reverse().find(hasOperationalScaleConstraint);
+  if (!latest) return range;
+  const fallback = activeOperationalScaleRange([latest]);
+  return {
+    ...fallback,
+    conflict: true,
+    constrainedServiceIds: range.constrainedServiceIds,
+    fallbackServiceId: latest.id
   };
 }
 
