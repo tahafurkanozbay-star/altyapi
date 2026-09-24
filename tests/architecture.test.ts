@@ -95,7 +95,7 @@ describe("v14 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).not.toContain("OperationsOverview");
-    expect(serviceWorker).toContain("altyapi-data-v13");
+    expect(serviceWorker).toContain("altyapi-data-v14");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -150,14 +150,16 @@ describe("v14 architecture guardrails", () => {
     expect(monitor).toContain("service-scale-audit.json");
   });
 
-  it("keeps credential-bearing service URLs out of the public catalog", async () => {
+  it("keeps restricted TUCBS endpoints out of the public citizen catalog", async () => {
     const catalog = await readFile("public/services.json", "utf8");
+    const privateExample = await readFile("public/services.private.example.json", "utf8");
     const validator = await readFile("scripts/validate-services.mjs", "utf8");
     const security = await readFile("docs/SECURE_SERVICES.md", "utf8");
 
     expect(catalog).not.toMatch(/\/ucbp\.[A-Za-z0-9_-]{20,}/i);
     expect(catalog).not.toMatch(/[?&](?:token|api_?key|secret)=/i);
-    expect(catalog).toContain("YOUR-SECURE-PROXY.example");
+    expect(catalog).not.toContain("YOUR-SECURE-PROXY.example");
+    expect(privateExample).toContain("YOUR-SECURE-PROXY.example");
     expect(validator).toContain("embeddedTokenPath");
     expect(validator).toContain("secretQueryKey");
     expect(security).toContain("API Gateway / Proxy");
@@ -177,7 +179,7 @@ describe("v14 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v13"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v14"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
 });
