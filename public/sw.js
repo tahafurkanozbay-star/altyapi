@@ -1,6 +1,6 @@
 const SHELL_CACHE = "altyapi-shell-v13";
 const DATA_CACHE = "altyapi-data-v13";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg", "./ankara-logo.png"];
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
 
 self.addEventListener("install", (event) => {
