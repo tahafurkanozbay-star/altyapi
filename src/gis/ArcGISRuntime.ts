@@ -6,6 +6,9 @@ import { profileToSceneQuality } from "../lib/performance";
 import { normalizeAttributeValue } from "../lib/attributeTable";
 import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
 import {
+  activeOperationalScaleRange,
+  clampScaleToOperationalRange,
+  hasOperationalScaleConstraint,
   isOperationalScale,
   operationalExtentCenter,
   operationalExtentContains,
@@ -109,16 +112,19 @@ export class ArcGISRuntime {
   private readonly layers = new Map<string, Layer>();
   private readonly loadingLayers = new Map<string, Promise<LayerLoadResult>>();
   private readonly desiredVisibility = new Map<string, boolean>();
+  private readonly activeScaleServices = new Map<string, ServiceDefinition>();
   private activeWidget?: ArcGISComponentElement;
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
   private handles: Removable[] = [];
   private callbacks: RuntimeCallbacks = {};
   private cameraTimer = 0;
+  private scaleGuardTimer = 0;
   private telemetryFrame = 0;
   private profile: PerformanceProfile;
   private destroyed = false;
   private recoveringGraphics = false;
+  private scaleGuardApplying = false;
 
   constructor(profile: PerformanceProfile) {
     this.profile = profile;
@@ -242,6 +248,7 @@ export class ArcGISRuntime {
     this.desiredVisibility.set(service.id, visible);
 
     if (!visible) {
+      this.setScaleGuard(service, false);
       const existing = this.layers.get(service.id);
       if (existing) existing.visible = false;
       return { ok: true, durationMs: 0 };
@@ -257,6 +264,7 @@ export class ArcGISRuntime {
       if (result.ok && loaded) {
         loaded.opacity = clampOpacity(service.opacity);
         loaded.visible = true;
+        this.setScaleGuard(service, true);
       }
       return result;
     }
@@ -265,6 +273,7 @@ export class ArcGISRuntime {
     if (existing) {
       existing.opacity = clampOpacity(service.opacity);
       existing.visible = true;
+      this.setScaleGuard(service, true);
       return { ok: true, durationMs: 0 };
     }
 
@@ -285,6 +294,7 @@ export class ArcGISRuntime {
   async reloadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
     if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
 
+    this.setScaleGuard(service, false);
     this.desiredVisibility.set(service.id, false);
     const inFlight = this.loadingLayers.get(service.id);
     if (inFlight) await inFlight.catch(() => undefined);
@@ -395,7 +405,11 @@ export class ArcGISRuntime {
   }
 
   async prepareLayerActivation(service: ServiceDefinition): Promise<OperationalNavigationResult> {
-    if (!this.scene || this.destroyed || !service.renderScaleSensitive) return { moved: false };
+    if (
+      !this.scene ||
+      this.destroyed ||
+      (!service.renderScaleSensitive && !hasOperationalScaleConstraint(service))
+    ) return { moved: false };
 
     const camera = this.scene.camera;
     const longitude = camera?.position.longitude;
@@ -522,6 +536,7 @@ export class ArcGISRuntime {
       tilt: camera.tilt
     });
     await this.scene.goTo?.(target, { duration: 950, easing: "ease-in-out" });
+    this.scheduleScaleGuard();
   }
 
   getCamera(): CameraState {
@@ -554,6 +569,7 @@ export class ArcGISRuntime {
     if (this.destroyed) return;
     this.destroyed = true;
     window.clearTimeout(this.cameraTimer);
+    window.clearTimeout(this.scaleGuardTimer);
     cancelAnimationFrame(this.telemetryFrame);
     this.closeTool();
     this.disposeComponent(this.searchWidget);
@@ -565,8 +581,10 @@ export class ArcGISRuntime {
     this.layers.clear();
     this.loadingLayers.clear();
     this.desiredVisibility.clear();
+    this.activeScaleServices.clear();
     this.callbacks = {};
     this.recoveringGraphics = false;
+    this.scaleGuardApplying = false;
     const scene = this.scene;
     this.scene = undefined;
     this.map = undefined;
@@ -606,9 +624,11 @@ export class ArcGISRuntime {
       }
 
       layer.visible = true;
+      this.setScaleGuard(service, true);
       this.pruneLayerCache();
       return { ok: true, durationMs: Math.round(performance.now() - startedAt) };
     } catch (error) {
+      this.setScaleGuard(service, false);
       if (layer) this.cleanupLayer(service.id, layer);
       return {
         ok: false,
@@ -630,6 +650,55 @@ export class ArcGISRuntime {
     } catch {
       // ArcGIS layer destruction is best-effort during cancellation/teardown.
     }
+  }
+
+  private setScaleGuard(service: ServiceDefinition, active: boolean): void {
+    if (!hasOperationalScaleConstraint(service)) {
+      this.activeScaleServices.delete(service.id);
+      return;
+    }
+
+    if (active) {
+      // Reinsert so Map iteration preserves most-recent activation priority for impossible intersections.
+      this.activeScaleServices.delete(service.id);
+      this.activeScaleServices.set(service.id, service);
+    } else {
+      this.activeScaleServices.delete(service.id);
+    }
+    this.scheduleScaleGuard();
+  }
+
+  private scheduleScaleGuard(): void {
+    if (!this.scene || this.destroyed) return;
+    window.clearTimeout(this.scaleGuardTimer);
+    this.scaleGuardTimer = window.setTimeout(() => this.enforceScaleGuard(), 110);
+  }
+
+  private enforceScaleGuard(): void {
+    const scene = this.scene;
+    if (!scene || this.destroyed || this.scaleGuardApplying || this.activeScaleServices.size === 0) return;
+
+    const constrained = [...this.activeScaleServices.values()];
+    let range = activeOperationalScaleRange(constrained);
+    if (range.conflict) {
+      const latest = constrained.at(-1);
+      if (!latest) return;
+      range = activeOperationalScaleRange([latest]);
+    }
+
+    const currentScale = scene.scale;
+    if (!Number.isFinite(currentScale) || !currentScale || currentScale <= 0) return;
+    const targetScale = clampScaleToOperationalRange(currentScale, range);
+    if (!Number.isFinite(targetScale) || targetScale <= 0) return;
+
+    const relativeDifference = Math.abs(targetScale - currentScale) / currentScale;
+    if (relativeDifference < 0.002) return;
+
+    this.scaleGuardApplying = true;
+    scene.scale = targetScale;
+    window.setTimeout(() => {
+      this.scaleGuardApplying = false;
+    }, 90);
   }
 
   private destroyNavigation(): void {
@@ -708,6 +777,7 @@ export class ArcGISRuntime {
     this.handles.push(
       domHandle(scene, "arcgisViewChange", () => {
         if (this.destroyed) return;
+        this.scheduleScaleGuard();
         window.clearTimeout(this.cameraTimer);
         this.cameraTimer = window.setTimeout(() => {
           if (!this.destroyed) this.callbacks.onCamera?.(this.getCamera());
@@ -899,7 +969,6 @@ function coordinateLabel(point: { latitude?: number | null; longitude?: number |
   if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) return undefined;
   return `${point.latitude!.toFixed(5)}° N · ${point.longitude!.toFixed(5)}° E`;
 }
-
 
 function domHandle(target: EventTarget, type: string, listener: EventListener): Removable {
   target.addEventListener(type, listener);
