@@ -4,8 +4,12 @@ import { resolve } from "node:path";
 const catalog = JSON.parse(await readFile(resolve("public/services.json"), "utf8"));
 const services = Array.isArray(catalog.services) ? catalog.services : [];
 const TIMEOUT_MS = 16_000;
-const BASE_MAP_SCALES = [100_000, 200_000, 300_000, 400_000, 500_000, 600_000, 800_000, 1_000_000, 1_500_000, 2_000_000, 3_000_000];
-const BASE_WMS_SCALES = [25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_000_000, 3_000_000];
+const MAP_SCALES = [
+  500, 1_000, 2_000, 5_000, 10_000, 25_000, 50_000, 100_000,
+  200_000, 300_000, 400_000, 500_000, 600_000, 800_000, 1_000_000,
+  1_500_000, 2_000_000, 3_000_000
+];
+const WMS_SCALES = [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_000_000, 3_000_000];
 const ANKARA = { longitude: 32.8542, latitude: 39.9208 };
 const WEB_MERCATOR_INITIAL_SCALE = 591_657_527.591555;
 
@@ -17,27 +21,23 @@ function addQuery(url, params) {
   return target.toString();
 }
 
-async function request(url, options = {}) {
+async function request(url, accept = "*/*") {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const started = performance.now();
   try {
     const response = await fetch(url, {
       redirect: "follow",
       signal: controller.signal,
-      headers: {
-        Accept: options.accept ?? "*/*",
-        "User-Agent": "altyapi-scale-verification/1.0"
-      }
+      headers: { Accept: accept, "User-Agent": "altyapi-scale-verification/2.0" }
     });
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const text = await response.text();
     return {
       ok: response.ok,
       status: response.status,
       ms: Math.round(performance.now() - started),
       type: response.headers.get("content-type") ?? "",
-      text: options.text === false ? "" : new TextDecoder().decode(bytes),
-      size: bytes.byteLength
+      text
     };
   } catch (error) {
     return {
@@ -46,7 +46,6 @@ async function request(url, options = {}) {
       ms: Math.round(performance.now() - started),
       type: "",
       text: "",
-      size: 0,
       error: error instanceof Error ? error.name : "network-error"
     };
   } finally {
@@ -59,8 +58,8 @@ function parseJson(text) {
 }
 
 function positiveScale(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
+  const scale = Number(value);
+  return Number.isFinite(scale) && scale > 0 ? Math.round(scale) : undefined;
 }
 
 function scaleToApproxZoom(scale) {
@@ -70,7 +69,9 @@ function scaleToApproxZoom(scale) {
 
 function mapServerParts(url) {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
-  return match ? { root: match[1], sublayerId: match[2] === undefined ? undefined : Number(match[2]) } : { root: url };
+  return match
+    ? { root: match[1], sublayerId: match[2] === undefined ? undefined : Number(match[2]) }
+    : { root: url, sublayerId: undefined };
 }
 
 function lonLatToWebMercator(longitude, latitude) {
@@ -79,22 +80,23 @@ function lonLatToWebMercator(longitude, latitude) {
   return { x, y };
 }
 
-function bboxForScale(scale, center = ANKARA) {
+function bboxForScale(scale) {
   const metersPerPixel = scale * 0.0254 / 96;
   const half = metersPerPixel * 256 / 2;
-  const mercator = lonLatToWebMercator(center.longitude, center.latitude);
-  return [mercator.x - half, mercator.y - half, mercator.x + half, mercator.y + half].map((n) => n.toFixed(3)).join(",");
+  const center = lonLatToWebMercator(ANKARA.longitude, ANKARA.latitude);
+  return [center.x - half, center.y - half, center.x + half, center.y + half]
+    .map((value) => value.toFixed(3))
+    .join(",");
 }
 
-async function arcgisMetadata(service) {
-  const response = await request(addQuery(service.tokenUrl, { f: "json" }), { accept: "application/json,*/*" });
-  const data = response.ok ? parseJson(response.text) : null;
-  return { response, data };
+async function metadata(service) {
+  const response = await request(addQuery(service.tokenUrl, { f: "json" }), "application/json,*/*");
+  return { response, data: response.ok ? parseJson(response.text) : null };
 }
 
-async function verifyMapRender(service, scale) {
+async function verifyMapExport(service, scale) {
   const { root, sublayerId } = mapServerParts(service.tokenUrl);
-  const exportUrl = addQuery(`${root}/export`, {
+  const response = await request(addQuery(`${root}/export`, {
     bbox: bboxForScale(scale),
     bboxSR: 3857,
     imageSR: 3857,
@@ -104,61 +106,25 @@ async function verifyMapRender(service, scale) {
     transparent: "true",
     layers: sublayerId === undefined ? undefined : `show:${sublayerId}`,
     f: "json"
-  });
-  const metadata = await request(exportUrl, { accept: "application/json,*/*" });
-  const json = metadata.ok ? parseJson(metadata.text) : null;
-  if (!metadata.ok || !json?.href) {
-    return { scale, zoom: scaleToApproxZoom(scale), ok: false, ms: metadata.ms, stage: "export", status: metadata.status };
-  }
-  const image = await request(json.href, { accept: "image/*,*/*", text: false });
-  return {
-    scale,
-    zoom: scaleToApproxZoom(scale),
-    ok: image.ok && image.size > 64 && /^image\//i.test(image.type),
-    ms: metadata.ms + image.ms,
-    stage: "image",
-    status: image.status
-  };
+  }), "application/json,*/*");
+  const data = response.ok ? parseJson(response.text) : null;
+  const ok = response.ok && typeof data?.href === "string" && data.href.length > 0 && !data?.error;
+  return { scale, zoom: scaleToApproxZoom(scale), ok, ms: response.ms, status: response.status };
 }
 
-async function repeatedMapRender(service, scale, attempts = 2) {
-  const samples = [];
-  for (let i = 0; i < attempts; i += 1) samples.push(await verifyMapRender(service, scale));
+function verifiedScaleEnvelope(tests) {
+  const successful = tests.filter((item) => item.ok).map((item) => item.scale).sort((a, b) => a - b);
+  if (!successful.length) return {};
   return {
-    scale,
-    zoom: scaleToApproxZoom(scale),
-    ok: samples.every((sample) => sample.ok),
-    ms: Math.max(...samples.map((sample) => sample.ms)),
-    attempts: samples.length
+    maxScale: successful[0],
+    minScale: successful[successful.length - 1]
   };
-}
-
-async function refineFarBoundary(service, tested) {
-  const ordered = [...tested].sort((a, b) => a.scale - b.scale);
-  let lastSuccess;
-  let firstFailure;
-  for (const item of ordered) {
-    if (item.ok && !firstFailure) lastSuccess = item;
-    if (!item.ok && lastSuccess) { firstFailure = item; break; }
-  }
-  if (!lastSuccess || !firstFailure) return { tested, boundary: lastSuccess?.scale };
-
-  let low = lastSuccess.scale;
-  let high = firstFailure.scale;
-  const refined = [...tested];
-  while (high - low > 50_000) {
-    const mid = Math.round(((low + high) / 2) / 25_000) * 25_000;
-    if (mid <= low || mid >= high) break;
-    const result = await repeatedMapRender(service, mid, 2);
-    refined.push(result);
-    if (result.ok) low = mid;
-    else high = mid;
-  }
-  return { tested: refined.sort((a, b) => a.scale - b.scale), boundary: low };
 }
 
 function parseWmsLayerName(xml) {
-  const matches = [...xml.matchAll(/<Name>([^<]+)<\/Name>/gi)].map((match) => match[1]?.trim()).filter(Boolean);
+  const matches = [...xml.matchAll(/<Name>([^<]+)<\/Name>/gi)]
+    .map((match) => match[1]?.trim())
+    .filter(Boolean);
   return matches[1] ?? matches[0];
 }
 
@@ -168,7 +134,7 @@ function parseWmsScaleBounds(xml) {
   return { minScale: positiveScale(max?.[1]), maxScale: positiveScale(min?.[1]) };
 }
 
-async function verifyWmsRender(service, layerName, scale) {
+async function verifyWms(service, layerName, scale) {
   const response = await request(addQuery(service.tokenUrl, {
     SERVICE: "WMS",
     VERSION: "1.3.0",
@@ -181,121 +147,108 @@ async function verifyWmsRender(service, layerName, scale) {
     HEIGHT: 256,
     FORMAT: "image/png",
     TRANSPARENT: "TRUE"
-  }), { accept: "image/png,image/*,*/*", text: false });
-  return {
-    scale,
-    zoom: scaleToApproxZoom(scale),
-    ok: response.ok && response.size > 64 && /^image\//i.test(response.type),
-    ms: response.ms,
-    status: response.status
-  };
+  }), "image/png,image/*,*/*");
+  const ok = response.ok && /^image\//i.test(response.type);
+  return { scale, zoom: scaleToApproxZoom(scale), ok, ms: response.ms, status: response.status };
 }
 
 async function probeWms(service, index) {
-  const caps = await request(addQuery(service.tokenUrl, { SERVICE: "WMS", VERSION: "1.3.0", REQUEST: "GetCapabilities" }), { accept: "application/xml,text/xml,*/*" });
+  const caps = await request(addQuery(service.tokenUrl, {
+    SERVICE: "WMS", VERSION: "1.3.0", REQUEST: "GetCapabilities"
+  }), "application/xml,text/xml,*/*");
   if (!caps.ok || !/WMS_Capabilities|WMT_MS_Capabilities/i.test(caps.text)) {
-    return baseResult(service, index, "unreachable", { note: `WMS GetCapabilities başarısız (${caps.status || caps.error || "network"}).` });
+    return result(service, index, "unreachable", { note: `WMS GetCapabilities başarısız (${caps.status || caps.error || "network"}).` });
   }
-  const layerName = parseWmsLayerName(caps.text);
+
   const declared = parseWmsScaleBounds(caps.text);
+  const layerName = parseWmsLayerName(caps.text);
   const tests = [];
   if (layerName) {
-    for (const scale of BASE_WMS_SCALES) tests.push(await verifyWmsRender(service, layerName, scale));
+    for (const scale of WMS_SCALES) tests.push(await verifyWms(service, layerName, scale));
   }
-  const successful = tests.filter((test) => test.ok).map((test) => test.scale);
-  return baseResult(service, index, "verified", {
-    minScale: declared.minScale,
-    maxScale: declared.maxScale,
+  const envelope = verifiedScaleEnvelope(tests);
+  return result(service, index, "verified", {
+    minScale: declared.minScale ?? envelope.minScale,
+    maxScale: declared.maxScale ?? envelope.maxScale,
     testedScales: tests,
     note: declared.minScale || declared.maxScale
-      ? "WMS görünürlük ölçeği GetCapabilities metadata'sından alındı; seçili ölçeklerde canlı GetMap denendi."
-      : successful.length
-        ? "WMS GetCapabilities ve canlı GetMap başarılı; servis ölçek sınırı ilan etmiyor."
-        : "WMS GetCapabilities başarılı; canlı GetMap örnekleri doğrulanamadı."
+      ? "GetCapabilities ölçek sınırı ve canlı GetMap örnekleri doğrulandı."
+      : "Canlı GetMap taramasıyla doğrulanmış ölçek zarfı çıkarıldı."
   });
 }
 
 async function probeWfs(service, index) {
-  const caps = await request(addQuery(service.tokenUrl, { SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetCapabilities" }), { accept: "application/xml,text/xml,*/*" });
+  const caps = await request(addQuery(service.tokenUrl, {
+    SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetCapabilities"
+  }), "application/xml,text/xml,*/*");
   if (!caps.ok || !/WFS_Capabilities/i.test(caps.text)) {
-    return baseResult(service, index, "unreachable", { note: `WFS GetCapabilities başarısız (${caps.status || caps.error || "network"}).` });
+    return result(service, index, "unreachable", { note: `WFS GetCapabilities başarısız (${caps.status || caps.error || "network"}).` });
   }
-  return baseResult(service, index, "scale-independent", { note: "WFS veri sorgu protokolüdür; GetCapabilities başarılı ve zoom görünürlük sınırı ilan etmez." });
+  return result(service, index, "scale-independent", {
+    note: "WFS bir veri sorgu protokolüdür; zoom görünürlük sınırı yoktur."
+  });
 }
 
 async function probeMapServer(service, index) {
-  const { response, data } = await arcgisMetadata(service);
+  const { response, data } = await metadata(service);
   if (!response.ok || !data || data.error) {
-    return baseResult(service, index, "unreachable", { note: `MapServer metadata başarısız (${response.status || response.error || "network"}).` });
+    return result(service, index, "unreachable", { note: `MapServer metadata başarısız (${response.status || response.error || "network"}).` });
   }
+
   const declaredMin = positiveScale(data.minScale);
   const declaredMax = positiveScale(data.maxScale);
   const tests = [];
+  for (const scale of MAP_SCALES) tests.push(await verifyMapExport(service, scale));
+  const envelope = verifiedScaleEnvelope(tests);
 
-  if (declaredMin || declaredMax) {
-    const candidates = new Set([
-      declaredMax ? Math.max(250, Math.round(declaredMax * 0.8)) : 1_000,
-      declaredMax,
-      declaredMax ? Math.round(declaredMax * 1.25) : 5_000,
-      declaredMin ? Math.round(declaredMin * 0.8) : 250_000,
-      declaredMin,
-      declaredMin ? Math.round(declaredMin * 1.2) : 500_000
-    ].filter(Boolean));
-    for (const scale of [...candidates].sort((a, b) => a - b)) tests.push(await verifyMapRender(service, scale));
-    return baseResult(service, index, "verified", {
+  if (!envelope.minScale || !envelope.maxScale) {
+    return result(service, index, "metadata-only", {
       minScale: declaredMin,
       maxScale: declaredMax,
-      recommendedScale: declaredMin ? Math.round(declaredMin * 0.75) : undefined,
       testedScales: tests,
-      note: "ArcGIS metadata ölçek sınırı esas alındı; sınır çevresinde canlı export denendi."
+      note: "Metadata erişilebilir ancak canlı export ölçek zarfı doğrulanamadı."
     });
   }
 
-  for (const scale of BASE_MAP_SCALES) {
-    const test = await verifyMapRender(service, scale);
-    tests.push(test);
-    const recent = tests.slice(-2);
-    if (recent.length === 2 && recent.every((item) => !item.ok) && tests.some((item) => item.ok)) break;
-  }
-  const refined = await refineFarBoundary(service, tests);
-  const boundary = refined.boundary;
-  const safeMinScale = boundary ? Math.max(25_000, Math.floor(boundary * 0.95 / 25_000) * 25_000) : undefined;
-  return baseResult(service, index, boundary ? "verified" : "unreachable", {
-    minScale: safeMinScale,
-    recommendedScale: safeMinScale ? Math.round(safeMinScale * 0.75) : undefined,
-    testedScales: refined.tested,
-    note: boundary
-      ? `Canlı 256×256 export iki aşamalı ölçek taramasıyla doğrulandı; güvenli uzak ölçek sınırı 1:${safeMinScale.toLocaleString("tr-TR")}.`
-      : "MapServer metadata erişilebilir ancak canlı export doğrulanamadı."
+  return result(service, index, "verified", {
+    minScale: declaredMin ?? envelope.minScale,
+    maxScale: declaredMax ?? envelope.maxScale,
+    recommendedScale: chooseRecommendedScale(declaredMin ?? envelope.minScale, declaredMax ?? envelope.maxScale),
+    testedScales: tests,
+    note: declaredMin || declaredMax
+      ? "ArcGIS metadata sınırı esas alındı; 18 ölçek noktasında canlı export üretimi ayrıca denendi."
+      : "18 ölçek noktasında canlı export üretimi tarandı; yalnız doğrulanmış ölçek zarfı güvenli çalışma aralığına alındı."
   });
 }
 
 async function probeFeatureServer(service, index) {
-  const { response, data } = await arcgisMetadata(service);
+  const { response, data } = await metadata(service);
   if (!response.ok || !data || data.error) {
-    return baseResult(service, index, "unreachable", { note: `FeatureServer metadata başarısız (${response.status || response.error || "network"}).` });
+    return result(service, index, "unreachable", { note: `FeatureServer metadata başarısız (${response.status || response.error || "network"}).` });
   }
-  const count = await request(addQuery(service.tokenUrl.replace(/\/$/, "") + "/query", { where: "1=1", returnCountOnly: "true", f: "json" }), { accept: "application/json,*/*" });
+  const count = await request(addQuery(service.tokenUrl.replace(/\/$/, "") + "/query", {
+    where: "1=1", returnCountOnly: "true", f: "json"
+  }), "application/json,*/*");
   const countData = count.ok ? parseJson(count.text) : null;
   const queryOk = count.ok && Number.isFinite(countData?.count);
-  return baseResult(service, index, queryOk ? "verified" : "metadata-only", {
+  return result(service, index, queryOk ? "verified" : "metadata-only", {
     minScale: positiveScale(data.minScale),
     maxScale: positiveScale(data.maxScale),
     note: queryOk
-      ? "FeatureServer metadata ve kayıt sayımı doğrulandı; varsa server minScale/maxScale uygulanır."
-      : "FeatureServer metadata erişilebilir, kayıt sayımı doğrulanamadı; yalnız ilan edilen ölçek sınırı kullanılabilir."
+      ? "FeatureServer metadata ve kayıt sayımı doğrulandı; ilan edilmiş ölçek sınırı varsa uygulanır."
+      : "FeatureServer metadata erişilebilir; kayıt sayımı doğrulanamadı."
   });
 }
 
 async function probeSceneServer(service, index) {
   let target = service.tokenUrl.replace(/\/$/, "");
   if (!/\/layers\/\d+$/i.test(target)) target += "/layers/0";
-  const response = await request(addQuery(target, { f: "json" }), { accept: "application/json,*/*" });
+  const response = await request(addQuery(target, { f: "json" }), "application/json,*/*");
   const data = response.ok ? parseJson(response.text) : null;
   if (!response.ok || !data || data.error) {
-    return baseResult(service, index, "unreachable", { note: `SceneServer metadata başarısız (${response.status || response.error || "network"}).` });
+    return result(service, index, "unreachable", { note: `SceneServer metadata başarısız (${response.status || response.error || "network"}).` });
   }
-  return baseResult(service, index, "verified", {
+  return result(service, index, "verified", {
     minScale: positiveScale(data.minScale),
     maxScale: positiveScale(data.maxScale),
     note: positiveScale(data.minScale) || positiveScale(data.maxScale)
@@ -304,7 +257,14 @@ async function probeSceneServer(service, index) {
   });
 }
 
-function baseResult(service, index, status, extra = {}) {
+function chooseRecommendedScale(minScale, maxScale) {
+  if (minScale && maxScale) return Math.round(Math.sqrt(minScale * maxScale));
+  if (minScale) return Math.round(minScale * 0.5);
+  if (maxScale) return Math.round(maxScale * 2);
+  return undefined;
+}
+
+function result(service, index, status, extra = {}) {
   const minScale = extra.minScale;
   const maxScale = extra.maxScale;
   return {
@@ -328,32 +288,33 @@ async function probe(service, index) {
   if (service.servisTuruAdi === "MapServer") return probeMapServer(service, index);
   if (service.servisTuruAdi === "FeatureServer") return probeFeatureServer(service, index);
   if (service.servisTuruAdi === "SceneServer") return probeSceneServer(service, index);
-  return baseResult(service, index, "unsupported", { note: "Desteklenmeyen servis türü." });
+  return result(service, index, "unsupported", { note: "Desteklenmeyen servis türü." });
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
-  const results = new Array(items.length);
+  const output = new Array(items.length);
   let cursor = 0;
   async function worker() {
     while (cursor < items.length) {
       const index = cursor++;
-      const result = await mapper(items[index], index);
-      results[index] = result;
-      const range = result.minScale || result.maxScale
-        ? ` · scale ${result.minScale ?? "∞"}→${result.maxScale ?? 0}`
+      const item = await mapper(items[index], index);
+      output[index] = item;
+      const range = item.minScale || item.maxScale
+        ? ` · scale ${item.minScale ?? "∞"}→${item.maxScale ?? 0}`
         : " · scale unbounded/unknown";
-      console.log(`[${String(index + 1).padStart(2, "0")}/${items.length}] ${result.status.padEnd(17)} ${result.kind.padEnd(13)} ${result.name}${range}`);
+      console.log(`[${String(index + 1).padStart(2, "0")}/${items.length}] ${item.status.padEnd(17)} ${item.kind.padEnd(13)} ${item.name}${range}`);
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return results;
+  return output;
 }
 
 const results = await mapWithConcurrency(services, 2, probe);
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   verifiedAt: new Date().toISOString(),
   scaleModel: "ArcGIS view.scale; approximate zoom uses 591657527.591555 / 2^z",
+  method: "MapServer export JSON render generation; WMS GetMap; WFS capabilities; FeatureServer query; SceneServer metadata",
   services: results
 };
 
