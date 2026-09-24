@@ -11,10 +11,10 @@
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "./favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "./ankara-logo.png",
+      "sizes": "175x293",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
