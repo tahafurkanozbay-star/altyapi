@@ -36,21 +36,41 @@ describe("v14 architecture guardrails", () => {
     expect(comfort).toContain("--comfort-white: #ffffff");
   });
 
-  it("ships the query studio and workspace portability layers", async () => {
+  it("keeps public data lookup while removing technical operations UI", async () => {
     const query = await readFile("src/lib/attributeQuery.ts", "utf8");
-    const workspace = await readFile("src/lib/workspace.ts", "utf8");
     const app = await readFile("src/App.tsx", "utf8");
+    const rail = await readFile("src/components/ToolRail.tsx", "utf8");
+    const panel = await readFile("src/components/OperationsPanel.tsx", "utf8");
+    const status = await readFile("src/components/StatusBar.tsx", "utf8");
 
     expect(query).toContain("buildWhereClause");
-    expect(workspace).toContain("parseWorkspaceSnapshot");
+    expect(app).toContain('useState<PanelId>("layers")');
+    expect(app).toContain("Ankara Kent Rehberi");
     expect(app).toContain("ViewTransition");
+    expect(app).not.toContain("CommandPalette");
+    expect(app).not.toContain("commandOpen");
+    expect(app).not.toContain("performance-select");
+    expect(rail).toContain("Katmanlar");
+    expect(rail).toContain("Harita verisi");
+    expect(rail).not.toContain("Operasyon özeti");
+    expect(rail).not.toContain("Çalışma alanı paketi");
+    expect(rail).not.toContain("Servis sağlığı");
+    expect(rail).not.toContain("Olay günlüğü");
+    expect(rail).not.toContain("Sistem tanılama");
+    expect(rail).not.toContain("Komut paleti");
+    expect(panel).toContain("KENT REHBERİ");
+    expect(panel).not.toContain("OPERASYON MERKEZİ");
+    expect(panel).not.toContain("Olay Günlüğü");
+    expect(status).not.toContain("Hazırlık");
+    expect(status).not.toContain("performance-pill");
   });
 
-  it("ships the resilient service health layer", async () => {
+  it("ships the resilient service health layer without exposing it as a citizen panel", async () => {
     const health = await readFile("src/lib/serviceHealth.ts", "utf8");
     const snapshot = await readFile("public/service-health.json", "utf8");
     const packageJson = await readFile("package.json", "utf8");
     const pages = await readFile(".github/workflows/pages.yml", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
 
     expect(health).toContain("SERVICE_HEALTH_MAX_AGE_MS");
     expect(health).toContain("failurePatch");
@@ -61,9 +81,11 @@ describe("v14 architecture guardrails", () => {
     expect(packageJson).toContain("probe:services");
     expect(pages).toContain("npm run probe:services");
     expect(pages).toContain('cron: "17 3 * * *"');
+    expect(app).toContain("loadServiceHealthSnapshot");
+    expect(app).not.toContain('selectPanel("health")');
   });
 
-  it("ships operations intelligence and offline-safe catalog caching", async () => {
+  it("keeps operations intelligence available to engineering but out of the public shell", async () => {
     const intelligence = await readFile("src/lib/operationsIntelligence.ts", "utf8");
     const overview = await readFile("src/components/OperationsOverview.tsx", "utf8");
     const serviceWorker = await readFile("public/sw.js", "utf8");
@@ -72,16 +94,15 @@ describe("v14 architecture guardrails", () => {
     expect(intelligence).toContain("summarizeOperationalReadiness");
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
-    expect(app).toContain('useState<PanelId>("overview")');
+    expect(app).not.toContain("OperationsOverview");
     expect(serviceWorker).toContain("altyapi-data-v13");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
-  it("ships race-safe layer orchestration and sanitized incident diagnostics", async () => {
+  it("ships race-safe layer orchestration and background incident diagnostics", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     const incidents = await readFile("src/lib/incidentJournal.ts", "utf8");
     const app = await readFile("src/App.tsx", "utf8");
-    const operations = await readFile("src/components/OperationsPanel.tsx", "utf8");
 
     expect(runtime).toContain("loadingLayers");
     expect(runtime).toContain("desiredVisibility");
@@ -90,7 +111,8 @@ describe("v14 architecture guardrails", () => {
     expect(incidents).toContain("sanitizeIncidentText");
     expect(incidents).toContain("MAX_INCIDENTS = 80");
     expect(app).toContain("loadIncidentJournal");
-    expect(operations).toContain("Olay Günlüğü");
+    expect(app).toContain("incidentsRef");
+    expect(app).not.toContain('selectPanel("incidents")');
   });
 
   it("ships verified operational extents and atomic continuous scale guardrails", async () => {
@@ -141,18 +163,17 @@ describe("v14 architecture guardrails", () => {
     expect(security).toContain("API Gateway / Proxy");
   });
 
-  it("ships adaptive stabilization, session analytics and controlled PWA updates", async () => {
+  it("keeps adaptive reliability and controlled PWA updates in the background", async () => {
     const stabilization = await readFile("src/lib/stabilization.ts", "utf8");
     const reliability = await readFile("src/lib/sessionReliability.ts", "utf8");
     const main = await readFile("src/main.tsx", "utf8");
     const serviceWorker = await readFile("public/sw.js", "utf8");
-    const overview = await readFile("src/components/OperationsOverview.tsx", "utf8");
     const app = await readFile("src/App.tsx", "utf8");
 
     expect(stabilization).toContain("buildStabilizationPlan");
     expect(reliability).toContain("summarizeIncidentReliability");
-    expect(overview).toContain("ADAPTİF GÜVENLİ MOD");
-    expect(app).toContain("stabilizeWorkspace");
+    expect(app).not.toContain("stabilizeWorkspace");
+    expect(app).toContain("detectPerformanceProfile");
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
