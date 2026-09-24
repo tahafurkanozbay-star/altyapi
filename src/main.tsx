@@ -5,6 +5,7 @@ import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
 import "./styles/comfort-white.css";
+import "./styles/branding.css";
 
 declare global {
   interface Window {
