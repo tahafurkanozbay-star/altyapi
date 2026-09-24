@@ -1,100 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-18T13:33:36.000Z",
-  "source": "GitHub Actions cross-platform protocol verification",
+  "generatedAt": "2026-09-24T08:20:00.000Z",
+  "source": "Public Ankara Kent Rehberi service baseline",
   "services": [
     {
       "index": 0,
-      "name": "DOĞALGAZ DAĞITIM İSTASYONU",
-      "kind": "WMS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 1,
-      "name": "DOĞALGAZ DAĞITIM İSTASYONU",
-      "kind": "WFS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 2,
-      "name": "DOĞALGAZ DEPOLAMA TESİSİ",
-      "kind": "WFS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 3,
-      "name": "DOĞALGAZ DEPOLAMA TESİSİ",
-      "kind": "WMS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 4,
-      "name": "DOĞALGAZ HATTI",
-      "kind": "WMS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 5,
-      "name": "DOĞALGAZ HATTI",
-      "kind": "WFS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 6,
-      "name": "DOĞALGAZ SERVİS KUTUSU",
-      "kind": "WFS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 7,
-      "name": "DOĞALGAZ SERVİS KUTUSU",
-      "kind": "WMS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 8,
-      "name": "DOĞALGAZ VANA",
-      "kind": "WFS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 9,
-      "name": "DOĞALGAZ VANA",
-      "kind": "WMS",
-      "availability": "unavailable",
-      "access": "server-error",
-      "browserCompatible": false,
-      "reason": "GetCapabilities HTTP 500"
-    },
-    {
-      "index": 10,
       "name": "YAĞMUR SUYU ELEMAN",
       "kind": "MapServer",
       "availability": "degraded",
@@ -103,7 +13,7 @@
       "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
     },
     {
-      "index": 11,
+      "index": 1,
       "name": "YAĞMUR SUYU BORU",
       "kind": "MapServer",
       "availability": "degraded",
@@ -112,7 +22,7 @@
       "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
     },
     {
-      "index": 12,
+      "index": 2,
       "name": "PİS SU BORU",
       "kind": "MapServer",
       "availability": "degraded",
@@ -121,7 +31,7 @@
       "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
     },
     {
-      "index": 13,
+      "index": 3,
       "name": "PİS SU ELEMAN",
       "kind": "MapServer",
       "availability": "degraded",
@@ -130,7 +40,7 @@
       "reason": "Public runner bağlantı zaman aşımı; doğrudan server yolunda Service not found"
     },
     {
-      "index": 14,
+      "index": 4,
       "name": "İÇME SUYU ELEMAN",
       "kind": "MapServer",
       "availability": "degraded",
@@ -139,7 +49,7 @@
       "reason": "Public runner bağlantı zaman aşımı"
     },
     {
-      "index": 15,
+      "index": 5,
       "name": "İÇME SUYU BORU",
       "kind": "MapServer",
       "availability": "degraded",
@@ -148,7 +58,7 @@
       "reason": "Public runner bağlantı zaman aşımı"
     },
     {
-      "index": 16,
+      "index": 6,
       "name": "UYGULAMA İMAR PLANI (UIP ESRI3)",
       "kind": "MapServer",
       "availability": "verified",
@@ -157,7 +67,7 @@
       "reason": "Metadata + export + GitHub Pages origin CORS doğrulandı"
     },
     {
-      "index": 17,
+      "index": 7,
       "name": "SINIRLAR",
       "kind": "FeatureServer",
       "availability": "verified",
@@ -166,7 +76,7 @@
       "reason": "Metadata + count query + GitHub Pages origin CORS doğrulandı"
     },
     {
-      "index": 18,
+      "index": 8,
       "name": "3D1234 WFL1",
       "kind": "FeatureServer",
       "availability": "verified",
@@ -175,7 +85,7 @@
       "reason": "Metadata + count query + GitHub Pages origin CORS doğrulandı"
     },
     {
-      "index": 19,
+      "index": 9,
       "name": "3D1234 WSL2",
       "kind": "SceneServer",
       "availability": "verified",
