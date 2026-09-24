@@ -55,6 +55,8 @@ export function parseServiceZoomSnapshot(value: unknown): ServiceZoomSnapshot {
     const declaredMinScale = parseScale(record.declaredMinScale);
     const declaredMaxScale = parseScale(record.declaredMaxScale);
 
+    if (minZoom !== undefined && maxZoom !== undefined && minZoom > maxZoom) return [];
+
     return [{
       index: Number(record.index),
       name: record.name,
@@ -88,6 +90,10 @@ export function applyServiceZoomSnapshot(
   return services.map((service, index) => {
     const profile = profiles.get(index);
     if (!profile || profile.name !== service.displayName || profile.kind !== service.kind) return service;
+
+    const auditedMinScale = profile.minZoom !== undefined ? Math.round(scaleForZoom(profile.minZoom)) : undefined;
+    const auditedMaxScale = profile.maxZoom !== undefined ? Math.round(scaleForZoom(profile.maxZoom)) : undefined;
+
     return {
       ...service,
       operationalMinZoom: profile.minZoom,
@@ -96,8 +102,8 @@ export function applyServiceZoomSnapshot(
       zoomAuditSource: profile.source,
       zoomVerifiedAt: snapshot.verifiedAt,
       zoomAuditNote: profile.note,
-      operationalMinScale: stricterMinScale(service.operationalMinScale, profile.minZoom),
-      operationalMaxScale: stricterMaxScale(service.operationalMaxScale, profile.maxZoom),
+      operationalMinScale: auditedMinScale ?? service.operationalMinScale,
+      operationalMaxScale: auditedMaxScale ?? service.operationalMaxScale,
       renderScaleSensitive: service.renderScaleSensitive || profile.status === "verified-range" || profile.status === "declared-range"
     };
   });
@@ -140,18 +146,6 @@ export function zoomAuditSourceLabel(service: ServiceDefinition): string {
   if (service.zoomAuditSource === "capabilities") return "OGC GetCapabilities";
   if (service.zoomAuditSource === "metadata") return "Metadata erişim testi";
   return "Doğrulama yok";
-}
-
-function stricterMinScale(existing: number | undefined, minZoom: number | undefined): number | undefined {
-  if (minZoom === undefined) return existing;
-  const derived = Math.round(scaleForZoom(minZoom));
-  return existing === undefined ? derived : Math.min(existing, derived);
-}
-
-function stricterMaxScale(existing: number | undefined, maxZoom: number | undefined): number | undefined {
-  if (maxZoom === undefined) return existing;
-  const derived = Math.round(scaleForZoom(maxZoom));
-  return existing === undefined ? derived : Math.max(existing, derived);
 }
 
 function parseZoom(value: unknown): number | undefined {
