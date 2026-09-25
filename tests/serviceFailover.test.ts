@@ -44,4 +44,18 @@ describe("semantic service failover", () => {
     expect(serviceCandidateForAttempt(input, 2).kind).toBe("WFS");
     expect(serviceCandidateForAttempt(input, 3).kind).toBe("WMS");
   });
+
+  it("promotes a configured TUCBS peer when the catalogue transport is only a runtime sentinel", () => {
+    const input = service();
+    input.url = "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-hatti.wms";
+    input.tokenUrl = input.url;
+    input.alternateEndpoints = [{
+      kind: "WFS",
+      url: "https://ucbp-api.tucbs.gov.tr/geoservice/spatial/APPROVED/wfs/gas/line",
+      sourceServiceId: "gas-wfs"
+    }];
+    const candidates = serviceAttemptCandidates(input);
+    expect(candidates[0]?.kind).toBe("WFS");
+    expect(candidates[1]?.kind).toBe("WMS");
+  });
 });
