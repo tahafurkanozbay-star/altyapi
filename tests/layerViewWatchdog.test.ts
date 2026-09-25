@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  isLayerViewRenderStable,
+  layerViewRecoveryDelayMs,
   layerViewRecoveryScale,
   layerViewScaleIntersection,
   shouldRecycleLayerView
@@ -70,6 +72,19 @@ describe("LayerView provider-scale watchdog", () => {
       conflict: true
     });
     expect(target).toBeUndefined();
+  });
+
+  it("requires a visible, in-scale and settled LayerView before declaring render readiness", () => {
+    expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, updating: false })).toBe(true);
+    expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, updating: true })).toBe(false);
+    expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: false, updating: false })).toBe(false);
+    expect(isLayerViewRenderStable({ visible: false, visibleAtCurrentScale: true, updating: false })).toBe(false);
+  });
+
+  it("uses bounded progressive recovery delays", () => {
+    expect(layerViewRecoveryDelayMs(1)).toBe(320);
+    expect(layerViewRecoveryDelayMs(2)).toBe(900);
+    expect(layerViewRecoveryDelayMs(9)).toBe(900);
   });
 
   it("never retries permanent authentication or configuration failures", () => {
