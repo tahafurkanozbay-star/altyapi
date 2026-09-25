@@ -89,9 +89,16 @@ describe("LayerView render health UI state", () => {
     expect(retainVisibleRenderHealth(current, new Set(["1", "2"]))).toBe(current);
   });
 
-  it("wires the watchdog event into the layer catalog and exposes render recovery", async () => {
+  it("persists watchdog health outside the panel lifecycle and exposes render recovery", async () => {
+    const main = await readFile("src/main.tsx", "utf8");
+    const store = await readFile("src/lib/layerRenderHealth.ts", "utf8");
     const explorer = await readFile("src/components/LayerExplorer.tsx", "utf8");
-    expect(explorer).toContain('window.addEventListener("altyapi:layerview-health"');
+
+    expect(main).toContain("installLayerRenderHealthStore();");
+    expect(main.indexOf("installLayerRenderHealthStore();")).toBeLessThan(main.indexOf("installSceneLayerWatchdog();"));
+    expect(store).toContain('window.addEventListener("altyapi:layerview-health"');
+    expect(store).toContain("subscribeLayerRenderHealth");
+    expect(explorer).toContain("useSyncExternalStore");
     expect(explorer).toContain("Render bekleniyor");
     expect(explorer).toContain("Render katmanını yeniden oluştur");
     expect(explorer).toContain("data-render-state");
