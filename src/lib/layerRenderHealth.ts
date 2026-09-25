@@ -28,6 +28,8 @@ export interface LayerRenderHealthState {
   updatedAt: number;
 }
 
+export type LayerRenderHealthSnapshot = Readonly<Record<string, LayerRenderHealthState>>;
+
 const PHASES = new Set<LayerRenderHealthPhase>([
   "created",
   "stable",
@@ -36,6 +38,60 @@ const PHASES = new Set<LayerRenderHealthPhase>([
   "recovery-exhausted",
   "destroyed"
 ]);
+const EMPTY_SNAPSHOT: LayerRenderHealthSnapshot = Object.freeze({});
+
+let snapshot: LayerRenderHealthSnapshot = EMPTY_SNAPSHOT;
+let detachObserver: (() => void) | null = null;
+const subscribers = new Set<() => void>();
+
+export function installLayerRenderHealthStore(): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  if (detachObserver) return detachObserver;
+
+  const onRenderHealth = (event: Event) => {
+    if (!(event instanceof CustomEvent)) return;
+    const detail = parseLayerRenderHealthDetail(event.detail);
+    if (!detail) return;
+    applyLayerRenderHealth(detail);
+  };
+
+  window.addEventListener("altyapi:layerview-health", onRenderHealth);
+  detachObserver = () => {
+    window.removeEventListener("altyapi:layerview-health", onRenderHealth);
+    detachObserver = null;
+    if (snapshot !== EMPTY_SNAPSHOT) {
+      snapshot = EMPTY_SNAPSHOT;
+      notifySubscribers();
+    }
+  };
+  return detachObserver;
+}
+
+export function subscribeLayerRenderHealth(listener: () => void): () => void {
+  subscribers.add(listener);
+  return () => subscribers.delete(listener);
+}
+
+export function getLayerRenderHealthSnapshot(): LayerRenderHealthSnapshot {
+  return snapshot;
+}
+
+export function getServerLayerRenderHealthSnapshot(): LayerRenderHealthSnapshot {
+  return EMPTY_SNAPSHOT;
+}
+
+export function setLayerRenderHealthPreparing(serviceId: string, now = Date.now()): void {
+  if (!serviceId.trim()) return;
+  commitServiceState(serviceId, { state: "preparing", updatedAt: now });
+}
+
+export function pruneLayerRenderHealth(visibleServiceIds: ReadonlySet<string>): void {
+  const next = retainVisibleRenderHealth(snapshot, visibleServiceIds);
+  if (next !== snapshot) {
+    snapshot = next;
+    notifySubscribers();
+  }
+}
 
 export function parseLayerRenderHealthDetail(value: unknown): LayerRenderHealthDetail | null {
   if (!value || typeof value !== "object") return null;
@@ -115,9 +171,9 @@ export function isLayerRenderFailure(state: LayerRenderHealthState | undefined):
 }
 
 export function retainVisibleRenderHealth(
-  current: Record<string, LayerRenderHealthState>,
+  current: LayerRenderHealthSnapshot,
   visibleServiceIds: ReadonlySet<string>
-): Record<string, LayerRenderHealthState> {
+): LayerRenderHealthSnapshot {
   let changed = false;
   const next: Record<string, LayerRenderHealthState> = {};
   for (const [serviceId, state] of Object.entries(current)) {
@@ -125,6 +181,34 @@ export function retainVisibleRenderHealth(
     else changed = true;
   }
   return changed ? next : current;
+}
+
+function applyLayerRenderHealth(detail: LayerRenderHealthDetail): void {
+  const nextState = reduceLayerRenderHealth(snapshot[detail.serviceId], detail);
+  if (!nextState) {
+    if (!(detail.serviceId in snapshot)) return;
+    const next = { ...snapshot };
+    delete next[detail.serviceId];
+    snapshot = next;
+    notifySubscribers();
+    return;
+  }
+  commitServiceState(detail.serviceId, nextState);
+}
+
+function commitServiceState(serviceId: string, state: LayerRenderHealthState): void {
+  const previous = snapshot[serviceId];
+  if (
+    previous?.state === state.state &&
+    previous.attempt === state.attempt &&
+    previous.targetScale === state.targetScale
+  ) return;
+  snapshot = { ...snapshot, [serviceId]: state };
+  notifySubscribers();
+}
+
+function notifySubscribers(): void {
+  for (const listener of subscribers) listener();
 }
 
 function positiveInteger(value: unknown): number | undefined {
