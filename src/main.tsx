@@ -3,6 +3,7 @@ import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
+import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
@@ -27,8 +28,10 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error("[Başkent 3B CBS] Unhandled rejection", event.reason);
 });
 
-// Install before React mounts the Scene component so LayerView lifecycle events
-// cannot race past the provider-scale watchdog during a fast cached startup.
+// Install the render-health store before the watchdog and React. This keeps
+// LayerView readiness across panel unmount/remount cycles and guarantees that
+// no fast cached LayerView event races past the citizen-facing status bridge.
+installLayerRenderHealthStore();
 installSceneLayerWatchdog();
 
 createRoot(root).render(
