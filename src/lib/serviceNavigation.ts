@@ -7,6 +7,7 @@ import type {
 } from "../types";
 
 const SOURCES = new Set<ServiceNavigationSource>(["verified-query", "declared-service", "verified-render"]);
+const SCALE_BOUNDARY_INSET = 0.015;
 
 export interface ActiveOperationalScaleRange {
   minScale?: number;
@@ -93,10 +94,10 @@ export function applyServiceNavigationSnapshot(
     return {
       ...service,
       operationalExtent: profile.extent,
-      operationalMinScale: profile.minScale,
-      operationalMaxScale: profile.maxScale,
-      recommendedScale: profile.recommendedScale,
-      renderScaleSensitive: profile.renderScaleSensitive,
+      operationalMinScale: profile.minScale ?? service.operationalMinScale,
+      operationalMaxScale: profile.maxScale ?? service.operationalMaxScale,
+      recommendedScale: profile.recommendedScale ?? service.recommendedScale,
+      renderScaleSensitive: profile.renderScaleSensitive || service.renderScaleSensitive,
       navigationSource: profile.source,
       navigationVerifiedAt: snapshot.verifiedAt
     };
@@ -123,7 +124,7 @@ export function navigationSourceLabel(service: ServiceDefinition): string {
   if (service.navigationSource === "verified-render") return "Canlı render + veri kapsamı";
   if (service.navigationSource === "verified-query") return "Canlı veri kapsamı";
   if (service.navigationSource === "declared-service") return "Servis metadata";
-  return "Runtime";
+  return service.navigationVerifiedAt ? "Yetkili istemci servis metadata" : "Runtime";
 }
 
 export function operationalExtentContains(service: ServiceDefinition, longitude: number, latitude: number): boolean {
@@ -140,7 +141,7 @@ export function operationalExtentCenter(extent: OperationalExtent): { longitude:
 }
 
 export function recommendedActivationScale(service: ServiceDefinition): number | undefined {
-  if (service.recommendedScale) return service.recommendedScale;
+  if (service.recommendedScale) return clampRecommended(service.recommendedScale, service.operationalMinScale, service.operationalMaxScale);
   if (service.operationalMinScale && service.operationalMaxScale) {
     return Math.sqrt(service.operationalMinScale * service.operationalMaxScale);
   }
@@ -198,18 +199,47 @@ export function resolveOperationalScaleRange(
   };
 }
 
+/**
+ * Clamps a scale into the active operational intersection. When the user crosses
+ * a provider boundary we land slightly inside the valid interval instead of on
+ * the exact denominator. This avoids floating-point/view-animation jitter that
+ * can leave ArcGIS or an OGC server one fraction outside its declared range.
+ */
 export function clampScaleToOperationalRange(
   scale: number,
   range: Pick<ActiveOperationalScaleRange, "minScale" | "maxScale">
 ): number {
   if (!Number.isFinite(scale) || scale <= 0) return scale;
-  if (range.minScale && scale > range.minScale) return range.minScale;
-  if (range.maxScale && scale < range.maxScale) return range.maxScale;
+
+  if (range.minScale && scale > range.minScale) {
+    const inset = Math.round(range.minScale * (1 - SCALE_BOUNDARY_INSET));
+    return safeInset(inset, range.minScale, range.maxScale);
+  }
+  if (range.maxScale && scale < range.maxScale) {
+    const inset = Math.round(range.maxScale * (1 + SCALE_BOUNDARY_INSET));
+    return safeInset(inset, range.minScale, range.maxScale);
+  }
   return scale;
 }
 
 export function formatScale(scale: number): string {
   return Math.round(scale).toLocaleString("tr-TR");
+}
+
+function safeInset(value: number, minScale?: number, maxScale?: number): number {
+  if (minScale && maxScale && (value > minScale || value < maxScale)) {
+    return Math.round(Math.sqrt(minScale * maxScale));
+  }
+  if (minScale && value > minScale) return minScale;
+  if (maxScale && value < maxScale) return maxScale;
+  return Math.max(1, value);
+}
+
+function clampRecommended(value: number, minScale?: number, maxScale?: number): number {
+  let result = value;
+  if (minScale && result > minScale) result = minScale;
+  if (maxScale && result < maxScale) result = maxScale;
+  return Math.max(1, Math.round(result));
 }
 
 function parseExtent(value: unknown): OperationalExtent | undefined {
