@@ -4,7 +4,7 @@ Ankara odaklı, vatandaş kullanımına göre sadeleştirilmiş; ArcGIS Maps SDK
 
 ## Teknoloji
 
-- React 19 + strict TypeScript
+- React 19 + strict TypeScript 7
 - Vite 8
 - ArcGIS Maps SDK 5.1 component-first (`arcgis-scene`)
 - Calcite Components
@@ -12,7 +12,7 @@ Ankara odaklı, vatandaş kullanımına göre sadeleştirilmiş; ArcGIS Maps SDK
 - GitHub Pages + PWA
 - Node 22/24 CI ve CodeQL
 
-Uygulama, testler ve servis bakım/audit araçları v16 ile tek dilde **TypeScript** olarak tutulur. Node tarafındaki araçlar `tsx` ile doğrudan çalıştırılır.
+Uygulama, testler ve servis bakım/audit araçları tek dilde **TypeScript** olarak tutulur. `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride` ve `isolatedModules` guardrail'leri aktiftir. ArcGIS'in tarayıcı SDK'sıyla doğal uyumluluğu korumak için farklı bir native dile köprü eklemek yerine bütün first-party mühendislik yüzeyi strict TypeScript üzerinde standardize edilmiştir.
 
 ## Servis kataloğu
 
@@ -27,22 +27,27 @@ Uygulama, testler ve servis bakım/audit araçları v16 ile tek dilde **TypeScri
 
 TUCBS servisleri kaynak IP sınırlandırmalı olduğu için imzalı/yetkili URL'ler repository veya build çıktısında tutulmaz. Yetkili servis JSON'u kullanıcının tarayıcısına tanımlanır, tarayıcı onaylı dış IP üzerinden `GetCapabilities` doğrulaması yapar ve URL yalnız local/session storage içinde saklanır.
 
-## v16 servis çalışma modeli
+## v17 yüksek görünürlük ve servis dayanıklılığı
 
-Katman aktivasyonu artık tür bazlı adaptif çalışma politikası kullanır:
+Katman aktivasyonu tür bazlı adaptif çalışma politikasına ek olarak semantik kartografi ve OGC taşıma failover kullanır:
 
-- WMS/WFS/MapServer/FeatureServer/SceneServer için ayrı timeout ve retry bütçeleri
-- Ölçülmüş servis gecikmesine göre dinamik timeout
-- TUCBS OGC servisleri için daha geniş ama sınırlı yükleme bütçesi
-- 401/403 ve yapılandırma hatalarında gereksiz tekrar yok
-- timeout, ağ ve 5xx hatalarında exponential backoff + deterministic jitter
-- her retry'da yeni ArcGIS Layer örneği
-- timeout sırasında `cancelLoad()`
-- layer başarıyla yüklenmeden canlı haritaya eklememe
-- WMS endpoint'i birden çok alt katman sunuyorsa katalog adına göre güvenli alt katman eşleştirme
-- mevcut zoom/extent guardrail, cache pruning ve görünürlük yarış korumalarının korunması
+- bütün katmanlarda varsayılan tam opaklık
+- doğalgaz için turuncu, yağmur suyu için camgöbeği, pis su için kırmızı/pembe, içme suyu için parlak mavi
+- altyapı hatlarında yaklaşık 4.25–4.5 px kalınlık
+- nokta/eleman katmanlarında 11.5–12 px belirgin semboller
+- `SINIRLAR` için dolgusuz canlı pembe 3.75 px outline
+- 3B veri için turkuaz vurgu ve desteklenen mesh katmanlarında görünür edge
+- MapServer renderer değişikliği yalnız servis `supportsDynamicLayers` bildirdiğinde; aksi halde sunucu sembolojisi tam opak korunur
+- karmaşık UIP tematik sembolojisi zorla tek renge çevrilmez
+- aynı veri için WMS/WFS çifti varsa geçici ağ, timeout, 5xx veya OGC format hatasında eşdeğer taşıma tipine kontrollü failover
+- TUCBS katalog taşıması henüz ayarlanmamış ama eş WMS/WFS endpoint'i tarayıcıda ayarlıysa yapılandırılmış eş otomatik öne alınır
+- 401/403 ve yanlış yapılandırma hatalarında erişim yetkisini aşmaya çalışan retry yapılmaz
+- her retry'da yeni ArcGIS Layer örneği; timeout sırasında `cancelLoad()`
+- layer başarıyla yüklenmeden canlı haritaya eklenmez
+- WMS endpoint'i birden çok alt katman sunuyorsa katalog adına göre güvenli alt katman eşleştirmesi yapılır
+- mevcut zoom/extent guardrail, cache pruning ve görünürlük yarış korumaları korunur
 
-Ayrıntılar: `docs/SERVICE_RUNTIME_V16.md`.
+Ayrıntılar ve 20 katmanlık çalışma matrisi: `docs/SERVICE_RUNTIME_V17.md`.
 
 ## Geliştirme
 
@@ -74,5 +79,6 @@ Public GitHub runner, IP-kısıtlı TUCBS servislerini başarısız saymaz; bu s
 - Sağlık ve ölçek raporlarında endpoint/token çıktılanmaz.
 - TUCBS importu yalnız `https://ucbp-api.tucbs.gov.tr/geoservice/spatial/` adreslerini kabul eder.
 - Yetkili servis URL'leri istemci tarayıcısı dışına gönderilmez.
+- Semantik WMS/WFS failover yalnız tarayıcıda zaten yetkilendirilmiş endpoint'leri kullanır.
 
 Güvenlik ayrıntıları için `SECURITY.md` ve `docs/SECURE_SERVICES.md` dosyalarına bakın.
