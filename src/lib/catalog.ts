@@ -1,5 +1,11 @@
 import type { RawServiceDefinition, ServiceDefinition, ServiceKind } from "../types";
-import { loadTucbsEndpoints, resolveTucbsRuntimeUrl, runtimeEndpointKeyFromUrl } from "./tucbsAccess";
+import {
+  loadTucbsEndpoints,
+  loadTucbsScaleProfiles,
+  resolveTucbsRuntimeUrl,
+  runtimeEndpointKeyFromUrl,
+  type TucbsScaleProfileMap
+} from "./tucbsAccess";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 const requiredFields = ["ustKurumAdi", "metaveriSahibiKurumAdi", "cografiVeriKatmanAdi", "servisTuruAdi", "tokenUrl"] as const;
@@ -45,11 +51,17 @@ export function parseServicesDocument(input: unknown): RawServiceDefinition[] {
   });
 }
 
-export function normalizeService(raw: RawServiceDefinition, index: number, tucbsEndpoints = loadTucbsEndpoints()): ServiceDefinition {
+export function normalizeService(
+  raw: RawServiceDefinition,
+  index: number,
+  tucbsEndpoints = loadTucbsEndpoints(),
+  tucbsScaleProfiles: TucbsScaleProfileMap = loadTucbsScaleProfiles()
+): ServiceDefinition {
   const kind = inferKind(raw);
   const displayName = raw.cografiVeriKatmanAdi.trim();
   const runtimeKey = runtimeEndpointKeyFromUrl(raw.tokenUrl);
   const normalizedUrl = normalizeHttpUrl(resolveTucbsRuntimeUrl(raw.tokenUrl, tucbsEndpoints));
+  const scaleProfile = runtimeKey ? tucbsScaleProfiles[runtimeKey] : undefined;
   const identityTarget = runtimeKey ? `tucbs-runtime:${runtimeKey}` : safeUrlIdentity(normalizedUrl);
   const identity = `${raw.ustKurumAdi.trim()}|${displayName}|${kind}|${identityTarget}|${index}`;
   const prefix = slugify(displayName).slice(0, 48) || "layer";
@@ -69,6 +81,11 @@ export function normalizeService(raw: RawServiceDefinition, index: number, tucbs
     availability: "unknown",
     access: "unknown",
     failureCount: 0,
+    operationalMinScale: scaleProfile?.minScale,
+    operationalMaxScale: scaleProfile?.maxScale,
+    recommendedScale: scaleProfile?.recommendedScale,
+    renderScaleSensitive: Boolean(scaleProfile?.minScale || scaleProfile?.maxScale),
+    navigationVerifiedAt: scaleProfile?.verifiedAt,
     alternateEndpoints: []
   };
 }
@@ -107,7 +124,10 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
   if (!response.ok) throw new Error(`Servis kataloğu yüklenemedi (HTTP ${response.status}).`);
   const document: unknown = await response.json();
   const tucbsEndpoints = loadTucbsEndpoints();
-  const normalized = parseServicesDocument(document).map((service, index) => normalizeService(service, index, tucbsEndpoints));
+  const tucbsScaleProfiles = loadTucbsScaleProfiles();
+  const normalized = parseServicesDocument(document).map((service, index) =>
+    normalizeService(service, index, tucbsEndpoints, tucbsScaleProfiles)
+  );
   return attachSemanticAlternates(normalized);
 }
 
