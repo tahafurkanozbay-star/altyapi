@@ -1,6 +1,11 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
+import { serviceAttemptCandidates } from "../lib/serviceFailover";
+import { applyLoadedLayerVisuals } from "./layerVisuals";
+
+const creationCursor = new Map<string, number>();
+const effectiveServiceByLayer = new WeakMap<Layer, ServiceDefinition>();
 
 export function parseMapServerUrl(url: string): { root: string; sublayerId?: number } {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
@@ -9,13 +14,6 @@ export function parseMapServerUrl(url: string): { root: string; sublayerId?: num
     root: match[1]!,
     sublayerId: match[2] === undefined ? undefined : Number(match[2])
   };
-}
-
-export interface FeatureLayerVisualStyle {
-  fillStyle: "none";
-  fillColor: [number, number, number, number];
-  outlineColor: [number, number, number, number];
-  outlineWidth: number;
 }
 
 type WmsSublayerLike = {
@@ -28,19 +26,6 @@ type WmsLayerLike = Layer & {
   allSublayers?: { toArray(): WmsSublayerLike[] };
   sublayers?: WmsSublayerLike[];
 };
-
-export function featureLayerVisualStyle(service: Pick<ServiceDefinition, "displayName" | "kind">): FeatureLayerVisualStyle | undefined {
-  if (service.kind !== "FeatureServer") return undefined;
-  const normalizedName = service.displayName.trim().toLocaleUpperCase("tr-TR");
-  if (normalizedName !== "SINIRLAR") return undefined;
-
-  return {
-    fillStyle: "none",
-    fillColor: [255, 0, 168, 0],
-    outlineColor: [255, 0, 168, 1],
-    outlineWidth: 2.75
-  };
-}
 
 export function ogcLayerMatchScore(
   expectedName: string,
@@ -70,13 +55,104 @@ export function ogcLayerMatchScore(
 }
 
 /**
- * Runs after ArcGIS has loaded the remote metadata. A WMS endpoint may expose
- * many named sublayers even when the catalogue entry represents one citizen
- * layer. Select a single high-confidence match instead of accidentally drawing
- * the provider's entire WMS tree.
+ * Runs after ArcGIS has loaded remote metadata. It first narrows multi-layer
+ * WMS services to the high-confidence catalogue match, then applies the v17
+ * semantic high-visibility renderer using the actual geometry metadata.
  */
 export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): void {
-  if (service.kind !== "WMS") return;
+  const effectiveService = effectiveServiceByLayer.get(layer) ?? service;
+  if (effectiveService.kind === "WMS") selectBestWmsSublayer(effectiveService, layer);
+  applyLoadedLayerVisuals(effectiveService, layer);
+  creationCursor.delete(service.id);
+  effectiveServiceByLayer.delete(layer);
+}
+
+/**
+ * The runtime deliberately creates a fresh ArcGIS Layer instance for each
+ * retry. v17 uses that property to rotate between equivalent WMS/WFS transports
+ * for the same logical TUCBS dataset without changing UI identity.
+ */
+export async function createLayer(service: ServiceDefinition): Promise<Layer> {
+  const effectiveService = nextCreationService(service);
+  if (isUnconfiguredTucbsUrl(effectiveService.url)) {
+    window.dispatchEvent(new CustomEvent("altyapi:tucbs-access-required", {
+      detail: { serviceId: service.id, serviceName: service.displayName, kind: effectiveService.kind }
+    }));
+    throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
+  }
+
+  const common = {
+    id: `svc-${service.id}`,
+    title: service.displayName,
+    visible: service.visible,
+    opacity: 1,
+    minScale: service.operationalMinScale,
+    maxScale: service.operationalMaxScale,
+    listMode: "show" as const
+  };
+
+  let layer: Layer;
+  switch (effectiveService.kind) {
+    case "FeatureServer": {
+      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer.js");
+      layer = new FeatureLayer({
+        ...common,
+        url: effectiveService.url,
+        outFields: ["*"],
+        popupEnabled: true
+      });
+      break;
+    }
+    case "SceneServer": {
+      const { default: SceneLayer } = await import("@arcgis/core/layers/SceneLayer.js");
+      layer = new SceneLayer({ ...common, url: effectiveService.url, popupEnabled: true });
+      break;
+    }
+    case "MapServer": {
+      const { default: MapImageLayer } = await import("@arcgis/core/layers/MapImageLayer.js");
+      const { root, sublayerId } = parseMapServerUrl(effectiveService.url);
+      layer = new MapImageLayer({
+        ...common,
+        url: root,
+        sublayers: sublayerId === undefined ? undefined : [{
+          id: sublayerId,
+          visible: true,
+          opacity: 1,
+          minScale: service.operationalMinScale,
+          maxScale: service.operationalMaxScale
+        }]
+      });
+      break;
+    }
+    case "WMS": {
+      const { default: WMSLayer } = await import("@arcgis/core/layers/WMSLayer.js");
+      layer = new WMSLayer({ ...common, url: effectiveService.url, imageFormat: "image/png" });
+      break;
+    }
+    case "WFS": {
+      const { default: WFSLayer } = await import("@arcgis/core/layers/WFSLayer.js");
+      layer = new WFSLayer({ ...common, url: effectiveService.url });
+      break;
+    }
+  }
+
+  effectiveServiceByLayer.set(layer, effectiveService);
+  return layer;
+}
+
+export function resetServiceCreationCursor(serviceId: string): void {
+  creationCursor.delete(serviceId);
+}
+
+function nextCreationService(service: ServiceDefinition): ServiceDefinition {
+  const candidates = serviceAttemptCandidates(service);
+  if (candidates.length <= 1) return service;
+  const cursor = creationCursor.get(service.id) ?? 0;
+  creationCursor.set(service.id, cursor + 1);
+  return candidates[cursor % candidates.length] ?? service;
+}
+
+function selectBestWmsSublayer(service: ServiceDefinition, layer: Layer): void {
   const wms = layer as WmsLayerLike;
   const candidates = (wms.allSublayers?.toArray() ?? [])
     .filter((sublayer) => (sublayer.sublayers?.length ?? 0) === 0)
@@ -89,84 +165,6 @@ export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): v
   if (!best || best.score < 70) return;
   if (second && best.score < 100 && best.score - second.score < 12) return;
   wms.sublayers = [best.sublayer];
-}
-
-export async function createLayer(service: ServiceDefinition): Promise<Layer> {
-  if (isUnconfiguredTucbsUrl(service.url)) {
-    window.dispatchEvent(new CustomEvent("altyapi:tucbs-access-required", {
-      detail: { serviceId: service.id, serviceName: service.displayName, kind: service.kind }
-    }));
-    throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
-  }
-
-  const common = {
-    id: `svc-${service.id}`,
-    title: service.displayName,
-    visible: service.visible,
-    opacity: service.opacity,
-    minScale: service.operationalMinScale,
-    maxScale: service.operationalMaxScale,
-    listMode: "show" as const
-  };
-
-  switch (service.kind) {
-    case "FeatureServer": {
-      const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer.js");
-      const visualStyle = featureLayerVisualStyle(service);
-      let renderer;
-
-      if (visualStyle) {
-        const [{ default: SimpleRenderer }, { default: SimpleFillSymbol }] = await Promise.all([
-          import("@arcgis/core/renderers/SimpleRenderer.js"),
-          import("@arcgis/core/symbols/SimpleFillSymbol.js")
-        ]);
-        renderer = new SimpleRenderer({
-          symbol: new SimpleFillSymbol({
-            style: visualStyle.fillStyle,
-            color: visualStyle.fillColor,
-            outline: {
-              color: visualStyle.outlineColor,
-              width: visualStyle.outlineWidth
-            }
-          })
-        });
-      }
-
-      return new FeatureLayer({
-        ...common,
-        url: service.url,
-        outFields: ["*"],
-        popupEnabled: true,
-        ...(renderer ? { renderer } : {})
-      });
-    }
-    case "SceneServer": {
-      const { default: SceneLayer } = await import("@arcgis/core/layers/SceneLayer.js");
-      return new SceneLayer({ ...common, url: service.url, popupEnabled: true });
-    }
-    case "MapServer": {
-      const { default: MapImageLayer } = await import("@arcgis/core/layers/MapImageLayer.js");
-      const { root, sublayerId } = parseMapServerUrl(service.url);
-      return new MapImageLayer({
-        ...common,
-        url: root,
-        sublayers: sublayerId === undefined ? undefined : [{
-          id: sublayerId,
-          visible: true,
-          minScale: service.operationalMinScale,
-          maxScale: service.operationalMaxScale
-        }]
-      });
-    }
-    case "WMS": {
-      const { default: WMSLayer } = await import("@arcgis/core/layers/WMSLayer.js");
-      return new WMSLayer({ ...common, url: service.url, imageFormat: "image/png" });
-    }
-    case "WFS": {
-      const { default: WFSLayer } = await import("@arcgis/core/layers/WFSLayer.js");
-      return new WFSLayer({ ...common, url: service.url });
-    }
-  }
 }
 
 function normalizeLayerName(value: string): string {

@@ -19,6 +19,12 @@ export interface ServicesDocument {
   services: RawServiceDefinition[];
 }
 
+export interface ServiceEndpointCandidate {
+  kind: ServiceKind;
+  url: string;
+  sourceServiceId: string;
+}
+
 export interface ServiceDefinition extends RawServiceDefinition {
   id: string;
   kind: ServiceKind;
@@ -50,6 +56,7 @@ export interface ServiceDefinition extends RawServiceDefinition {
   renderScaleSensitive?: boolean;
   navigationSource?: ServiceNavigationSource;
   navigationVerifiedAt?: string;
+  alternateEndpoints?: ServiceEndpointCandidate[];
 }
 
 export interface OperationalExtent {
@@ -144,7 +151,6 @@ export interface BrowserCapabilities {
   connectionType?: string;
   saveData?: boolean;
 }
-
 
 export type AttributeValue = string | number | boolean | null;
 export type AttributeRow = Record<string, AttributeValue>;
@@ -265,7 +271,6 @@ export interface ServiceHealthSnapshot {
   source: string;
   services: ServiceVerificationEntry[];
 }
-
 
 export interface WorkspaceSnapshot {
   schemaVersion: 1;

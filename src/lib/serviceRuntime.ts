@@ -16,20 +16,21 @@ export interface ServiceRuntimePolicy {
   maxAttempts: number;
   baseDelayMs: number;
   maxDelayMs: number;
+  retryFormatErrors: boolean;
 }
 
 const KIND_POLICY: Record<ServiceKind, ServiceRuntimePolicy> = {
-  WMS: { createTimeoutMs: 12_000, loadTimeoutMs: 35_000, maxAttempts: 3, baseDelayMs: 700, maxDelayMs: 4_500 },
-  WFS: { createTimeoutMs: 12_000, loadTimeoutMs: 40_000, maxAttempts: 3, baseDelayMs: 800, maxDelayMs: 5_000 },
-  MapServer: { createTimeoutMs: 10_000, loadTimeoutMs: 30_000, maxAttempts: 3, baseDelayMs: 650, maxDelayMs: 4_000 },
-  FeatureServer: { createTimeoutMs: 10_000, loadTimeoutMs: 25_000, maxAttempts: 2, baseDelayMs: 600, maxDelayMs: 3_000 },
-  SceneServer: { createTimeoutMs: 12_000, loadTimeoutMs: 35_000, maxAttempts: 2, baseDelayMs: 850, maxDelayMs: 4_500 }
+  WMS: { createTimeoutMs: 12_000, loadTimeoutMs: 35_000, maxAttempts: 3, baseDelayMs: 700, maxDelayMs: 4_500, retryFormatErrors: true },
+  WFS: { createTimeoutMs: 12_000, loadTimeoutMs: 40_000, maxAttempts: 3, baseDelayMs: 800, maxDelayMs: 5_000, retryFormatErrors: true },
+  MapServer: { createTimeoutMs: 10_000, loadTimeoutMs: 30_000, maxAttempts: 3, baseDelayMs: 650, maxDelayMs: 4_000, retryFormatErrors: false },
+  FeatureServer: { createTimeoutMs: 10_000, loadTimeoutMs: 25_000, maxAttempts: 2, baseDelayMs: 600, maxDelayMs: 3_000, retryFormatErrors: false },
+  SceneServer: { createTimeoutMs: 12_000, loadTimeoutMs: 35_000, maxAttempts: 2, baseDelayMs: 850, maxDelayMs: 4_500, retryFormatErrors: false }
 };
 
 const MAX_LOAD_TIMEOUT_MS = 60_000;
 
 export function serviceRuntimePolicy(
-  service: Pick<ServiceDefinition, "id" | "kind" | "url" | "verificationLatencyMs" | "failureCount">
+  service: Pick<ServiceDefinition, "id" | "kind" | "url" | "verificationLatencyMs" | "failureCount" | "alternateEndpoints">
 ): ServiceRuntimePolicy {
   const base = KIND_POLICY[service.kind];
   const measured = service.verificationLatencyMs;
@@ -43,6 +44,10 @@ export function serviceRuntimePolicy(
   if (isDirectTucbsUrl(service.url)) {
     loadTimeoutMs = Math.max(loadTimeoutMs, 45_000);
     maxAttempts = Math.max(maxAttempts, 3);
+  }
+
+  if ((service.alternateEndpoints?.length ?? 0) > 0) {
+    maxAttempts = Math.max(maxAttempts, Math.min(4, service.alternateEndpoints!.length + 2));
   }
 
   if ((service.failureCount ?? 0) >= 3) {
@@ -82,11 +87,12 @@ export function classifyServiceError(error: unknown): ServiceFailureClass {
 export function shouldRetryServiceError(
   error: unknown,
   attempt: number,
-  policy: Pick<ServiceRuntimePolicy, "maxAttempts">
+  policy: Pick<ServiceRuntimePolicy, "maxAttempts" | "retryFormatErrors">
 ): boolean {
   if (attempt >= policy.maxAttempts) return false;
   const failure = classifyServiceError(error);
-  if (failure === "configuration" || failure === "authorization" || failure === "format") return false;
+  if (failure === "configuration" || failure === "authorization") return false;
+  if (failure === "format") return policy.retryFormatErrors;
   return failure === "network" || failure === "timeout" || failure === "server" || failure === "unknown";
 }
 
@@ -101,7 +107,7 @@ export function serviceRetryDelayMs(
 }
 
 export function friendlyServiceError(
-  service: Pick<ServiceDefinition, "url">,
+  service: Pick<ServiceDefinition, "url" | "alternateEndpoints">,
   error: unknown
 ): string {
   if (isUnconfiguredTucbsUrl(service.url)) {
@@ -109,18 +115,21 @@ export function friendlyServiceError(
   }
 
   const failure = classifyServiceError(error);
+  const failoverSuffix = (service.alternateEndpoints?.length ?? 0) > 0
+    ? " Eşdeğer OGC taşıma seçeneği de denendi."
+    : "";
   if (failure === "authorization") {
     return isDirectTucbsUrl(service.url)
       ? "TUCBS servisi isteği reddetti. Onaylı dış IP ve güncel yetkili servis adresini kontrol edin."
       : "Servis kimlik doğrulaması veya yetkilendirme istiyor.";
   }
-  if (failure === "timeout") return "Servis yanıt süresini aştı; otomatik yeniden denemeler tamamlandı.";
-  if (failure === "network") return "Servise ağ üzerinden erişilemedi. Bağlantı/CORS durumu kontrol edilmeli.";
-  if (failure === "server") return "Servis geçici sunucu hatası döndürdü; otomatik yeniden denemeler tamamlandı.";
-  if (failure === "format") return "Servis yanıtı bu katman türü için beklenen biçimde değil.";
+  if (failure === "timeout") return `Servis yanıt süresini aştı; otomatik yeniden denemeler tamamlandı.${failoverSuffix}`;
+  if (failure === "network") return `Servise ağ üzerinden erişilemedi. Bağlantı/CORS durumu kontrol edilmeli.${failoverSuffix}`;
+  if (failure === "server") return `Servis geçici sunucu hatası döndürdü; otomatik yeniden denemeler tamamlandı.${failoverSuffix}`;
+  if (failure === "format") return `Servis yanıtı beklenen biçimde değil.${failoverSuffix}`;
 
   const text = errorText(error).trim();
-  if (!text) return "Servis yüklenemedi.";
+  if (!text) return `Servis yüklenemedi.${failoverSuffix}`;
   return text.length > 190 ? `${text.slice(0, 187)}…` : text;
 }
 

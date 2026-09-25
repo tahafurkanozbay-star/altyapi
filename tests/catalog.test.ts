@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { inferKind, normalizeService, parseServicesDocument, serviceMatches, slugify } from "../src/lib/catalog";
+import {
+  attachSemanticAlternates,
+  inferKind,
+  normalizeService,
+  parseServicesDocument,
+  serviceMatches,
+  slugify
+} from "../src/lib/catalog";
 
 const sample = {
   ustKurumAdi: "ANKARA BÜYÜKŞEHİR BELEDİYESİ",
@@ -18,11 +25,34 @@ describe("catalog", () => {
     expect(inferKind({ ...sample, servisTuruAdi: "bilinmiyor" })).toBe("FeatureServer");
   });
 
-  it("normalize edilen servis aranabilir", () => {
+  it("normalize edilen servis aranabilir ve tam görünürlükle başlar", () => {
     const service = normalizeService(sample, 0);
     expect(service.kind).toBe("FeatureServer");
+    expect(service.opacity).toBe(1);
     expect(serviceMatches(service, "içme")).toBe(true);
     expect(serviceMatches(service, "mapserver")).toBe(false);
+  });
+
+  it("WMS/WFS eşlerini aynı mantıksal veri için karşılıklı failover olarak bağlar", () => {
+    const wms = normalizeService({
+      ...sample,
+      cografiVeriKatmanAdi: "DOĞALGAZ HATTI",
+      servisTuruAdi: "WMS",
+      tokenUrl: "https://example.test/gas/wms"
+    }, 0);
+    const wfs = normalizeService({
+      ...sample,
+      cografiVeriKatmanAdi: "DOĞALGAZ HATTI",
+      servisTuruAdi: "WFS",
+      tokenUrl: "https://example.test/gas/wfs"
+    }, 1);
+    const [withWmsAlternate, withWfsAlternate] = attachSemanticAlternates([wms, wfs]);
+    expect(withWmsAlternate?.alternateEndpoints).toEqual([
+      { kind: "WFS", url: wfs.url, sourceServiceId: wfs.id }
+    ]);
+    expect(withWfsAlternate?.alternateEndpoints).toEqual([
+      { kind: "WMS", url: wms.url, sourceServiceId: wms.id }
+    ]);
   });
 
   it("servis kimliğine query-string içindeki gizli değeri taşımaz", () => {

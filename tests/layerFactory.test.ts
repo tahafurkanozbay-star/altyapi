@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { featureLayerVisualStyle, ogcLayerMatchScore, parseMapServerUrl } from "../src/gis/layerFactory";
+import { ogcLayerMatchScore, parseMapServerUrl } from "../src/gis/layerFactory";
+import {
+  buildVisibilityRenderer,
+  classifyServiceVisual,
+  normalizeGeometryType,
+  serviceVisualProfile
+} from "../src/gis/layerVisuals";
 
 describe("ArcGIS ESM layer factory", () => {
   it("separates a MapServer sublayer id from the service root", () => {
@@ -21,18 +27,43 @@ describe("ArcGIS ESM layer factory", () => {
     expect(parseMapServerUrl(url)).toEqual({ root: url });
   });
 
-  it("renders SINIRLAR as vivid pink outline with no polygon fill", () => {
-    expect(featureLayerVisualStyle({ kind: "FeatureServer", displayName: "SINIRLAR" })).toEqual({
-      fillStyle: "none",
-      fillColor: [255, 0, 168, 0],
-      outlineColor: [255, 0, 168, 1],
-      outlineWidth: 2.75
+  it("assigns a distinct vivid semantic palette to utility families", () => {
+    expect(classifyServiceVisual({ displayName: "DOĞALGAZ HATTI" })).toBe("natural-gas");
+    expect(classifyServiceVisual({ displayName: "YAĞMUR SUYU BORU" })).toBe("stormwater");
+    expect(classifyServiceVisual({ displayName: "PİS SU BORU" })).toBe("wastewater");
+    expect(classifyServiceVisual({ displayName: "İÇME SUYU BORU" })).toBe("drinking-water");
+
+    const gas = serviceVisualProfile({ displayName: "DOĞALGAZ HATTI" });
+    const drinking = serviceVisualProfile({ displayName: "İÇME SUYU BORU" });
+    expect(gas.color).not.toEqual(drinking.color);
+    expect(gas.lineWidth).toBeGreaterThanOrEqual(4);
+    expect(drinking.lineWidth).toBeGreaterThanOrEqual(4);
+  });
+
+  it("keeps boundaries fill-free and visibly thick", () => {
+    const profile = serviceVisualProfile({ displayName: "SINIRLAR" });
+    const renderer = buildVisibilityRenderer(profile, "esriGeometryPolygon");
+    expect(profile.category).toBe("boundary");
+    expect(profile.lineWidth).toBeGreaterThanOrEqual(3.5);
+    expect(renderer).toMatchObject({
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        style: "none"
+      }
     });
   });
 
-  it("does not override other feature-layer symbology", () => {
-    expect(featureLayerVisualStyle({ kind: "FeatureServer", displayName: "3D1234 WFL1" })).toBeUndefined();
-    expect(featureLayerVisualStyle({ kind: "MapServer", displayName: "SINIRLAR" })).toBeUndefined();
+  it("builds geometry-aware line and point renderers", () => {
+    const profile = serviceVisualProfile({ displayName: "YAĞMUR SUYU ELEMAN" });
+    expect(normalizeGeometryType("esriGeometryPolyline")).toBe("polyline");
+    expect(normalizeGeometryType("point")).toBe("point");
+    expect(buildVisibilityRenderer(profile, "polyline")).toMatchObject({
+      symbol: { type: "simple-line", width: profile.lineWidth }
+    });
+    expect(buildVisibilityRenderer(profile, "point")).toMatchObject({
+      symbol: { type: "simple-marker", size: profile.markerSize }
+    });
   });
 
   it("matches OGC WMS sublayers using Turkish-normalized catalogue names", () => {

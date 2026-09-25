@@ -64,12 +64,42 @@ export function normalizeService(raw: RawServiceDefinition, index: number, tucbs
     tokenUrl: normalizedUrl,
     status: "idle",
     visible: false,
-    opacity: kind === "MapServer" || kind === "WMS" ? 0.86 : 1,
+    opacity: 1,
     favorite: false,
     availability: "unknown",
     access: "unknown",
-    failureCount: 0
+    failureCount: 0,
+    alternateEndpoints: []
   };
+}
+
+/**
+ * WMS and WFS entries in the catalogue often describe the same real-world
+ * dataset through two OGC representations. Keep every catalogue row visible,
+ * but give the runtime a safe peer endpoint to use when one representation is
+ * temporarily unavailable or rejected by the provider.
+ */
+export function attachSemanticAlternates(services: ServiceDefinition[]): ServiceDefinition[] {
+  const groups = new Map<string, ServiceDefinition[]>();
+  for (const service of services) {
+    const key = [service.organization, service.owner, service.displayName]
+      .map((value) => slugify(value))
+      .join("|");
+    const bucket = groups.get(key) ?? [];
+    bucket.push(service);
+    groups.set(key, bucket);
+  }
+
+  return services.map((service) => {
+    const key = [service.organization, service.owner, service.displayName]
+      .map((value) => slugify(value))
+      .join("|");
+    const peers = groups.get(key) ?? [];
+    const alternateEndpoints = peers
+      .filter((peer) => peer.id !== service.id && isInterchangeableOgcPair(service.kind, peer.kind))
+      .map((peer) => ({ kind: peer.kind, url: peer.url, sourceServiceId: peer.id }));
+    return { ...service, alternateEndpoints };
+  });
 }
 
 export async function loadServiceCatalog(url = "./services.json", signal?: AbortSignal): Promise<ServiceDefinition[]> {
@@ -77,7 +107,8 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
   if (!response.ok) throw new Error(`Servis kataloğu yüklenemedi (HTTP ${response.status}).`);
   const document: unknown = await response.json();
   const tucbsEndpoints = loadTucbsEndpoints();
-  return parseServicesDocument(document).map((service, index) => normalizeService(service, index, tucbsEndpoints));
+  const normalized = parseServicesDocument(document).map((service, index) => normalizeService(service, index, tucbsEndpoints));
+  return attachSemanticAlternates(normalized);
 }
 
 export function serviceMatches(service: ServiceDefinition, query: string): boolean {
@@ -99,6 +130,10 @@ export function hostLabel(url: string): string {
   } catch {
     return "Geçersiz URL";
   }
+}
+
+function isInterchangeableOgcPair(left: ServiceKind, right: ServiceKind): boolean {
+  return (left === "WMS" && right === "WFS") || (left === "WFS" && right === "WMS");
 }
 
 function normalizeHttpUrl(value: string): string {

@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v16 architecture guardrails", () => {
+describe("v17 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -95,7 +95,7 @@ describe("v16 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).not.toContain("OperationsOverview");
-    expect(serviceWorker).toContain("altyapi-data-v16");
+    expect(serviceWorker).toContain("altyapi-data-v17");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -117,6 +117,7 @@ describe("v16 architecture guardrails", () => {
     expect(policy).toContain("KIND_POLICY");
     expect(policy).toContain("MAX_LOAD_TIMEOUT_MS");
     expect(policy).toContain("classifyServiceError");
+    expect(policy).toContain("retryFormatErrors");
     expect(factory).toContain("ogcLayerMatchScore");
     expect(factory).toContain("allSublayers");
     expect(incidents).toContain("sanitizeIncidentText");
@@ -129,6 +130,29 @@ describe("v16 architecture guardrails", () => {
     const addPosition = runtime.indexOf("this.map?.add(layer)", loadPosition);
     expect(loadPosition).toBeGreaterThan(-1);
     expect(addPosition).toBeGreaterThan(loadPosition);
+  });
+
+  it("ships semantic high-visibility cartography and WMS/WFS transport resilience", async () => {
+    const visuals = await readFile("src/gis/layerVisuals.ts", "utf8");
+    const factory = await readFile("src/gis/layerFactory.ts", "utf8");
+    const failover = await readFile("src/lib/serviceFailover.ts", "utf8");
+    const catalog = await readFile("src/lib/catalog.ts", "utf8");
+
+    expect(visuals).toContain("natural-gas");
+    expect(visuals).toContain("stormwater");
+    expect(visuals).toContain("wastewater");
+    expect(visuals).toContain("drinking-water");
+    expect(visuals).toContain("lineWidth: 4.5");
+    expect(visuals).toContain("simple-line");
+    expect(visuals).toContain("simple-marker");
+    expect(visuals).toContain("mesh-3d");
+    expect(visuals).toContain("supportsDynamicLayers");
+    expect(factory).toContain("serviceAttemptCandidates");
+    expect(factory).toContain("creationCursor");
+    expect(factory).toContain("effectiveServiceByLayer");
+    expect(failover).toContain("serviceCandidateForAttempt");
+    expect(catalog).toContain("attachSemanticAlternates");
+    expect(catalog).toContain("opacity: 1");
   });
 
   it("ships verified operational extents and atomic continuous scale guardrails", async () => {
@@ -198,9 +222,12 @@ describe("v16 architecture guardrails", () => {
     expect(validator).toContain("secretQueryKey");
   });
 
-  it("uses TypeScript for application, tests and engineering service tooling", async () => {
+  it("uses current strict TypeScript for application, tests and engineering service tooling", async () => {
     const packageJson = await readFile("package.json", "utf8");
     const scripts = await readdir("scripts");
+    expect(packageJson).toContain('"version": "17.0.0"');
+    expect(packageJson).toContain('"typescript": "^7.0.2"');
+    expect(packageJson).toContain('"vite": "^8.3.1"');
     expect(packageJson).toContain('"tsx": "^4.23.15"');
     expect(packageJson).not.toContain("scripts/verify-build.mjs");
     expect(packageJson).not.toContain("scripts/probe-service-health.mjs");
@@ -222,7 +249,7 @@ describe("v16 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v16"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v17"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
 });
