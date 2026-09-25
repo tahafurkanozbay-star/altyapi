@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "19.0.0",
+  "version": "20.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript, canlı provider ölçek uzlaştırması, katman bazlı zoom kilitleri, semantik yüksek görünürlük render sistemi, WMS/WFS failover, adaptif servis kurtarma ve onaylı-IP TUCBS erişimi içeren profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript, canlı provider ve LayerView ölçek doğrulaması, render-readiness watchdog, yüksek görünürlük kartografisi, WMS/WFS failover, adaptif servis kurtarma ve onaylı-IP TUCBS erişimi içeren profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
