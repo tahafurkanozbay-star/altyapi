@@ -21,21 +21,28 @@ const TUCBS_WMS = {
   kind: "WMS" as const,
   url: "https://ucbp-api.tucbs.gov.tr/geoservice/spatial/TEST/wms/demo/test",
   failureCount: 0,
-  verificationLatencyMs: undefined
+  verificationLatencyMs: undefined,
+  alternateEndpoints: [{
+    kind: "WFS" as const,
+    url: "https://ucbp-api.tucbs.gov.tr/geoservice/spatial/TEST/wfs/demo/test",
+    sourceServiceId: "tucbs-gas-wfs-test"
+  }]
 };
 
-describe("v16 adaptive service runtime", () => {
+describe("v17 adaptive service runtime", () => {
   it("adapts load timeouts using measured latency", () => {
     const policy = serviceRuntimePolicy(PUBLIC_MAP);
     expect(policy.loadTimeoutMs).toBeGreaterThanOrEqual(30_000);
     expect(policy.loadTimeoutMs).toBeLessThanOrEqual(60_000);
     expect(policy.maxAttempts).toBe(3);
+    expect(policy.retryFormatErrors).toBe(false);
   });
 
-  it("gives approved-IP TUCBS OGC services a wider recovery budget", () => {
+  it("gives approved-IP TUCBS OGC services a wider recovery and failover budget", () => {
     const policy = serviceRuntimePolicy(TUCBS_WMS);
     expect(policy.loadTimeoutMs).toBeGreaterThanOrEqual(45_000);
-    expect(policy.maxAttempts).toBe(3);
+    expect(policy.maxAttempts).toBeGreaterThanOrEqual(3);
+    expect(policy.retryFormatErrors).toBe(true);
   });
 
   it("classifies transient failures separately from auth/configuration failures", () => {
@@ -46,13 +53,16 @@ describe("v16 adaptive service runtime", () => {
     expect(classifyServiceError(new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil."))).toBe("configuration");
   });
 
-  it("retries transient failures but never hammers authorization/configuration errors", () => {
-    const policy = serviceRuntimePolicy(PUBLIC_MAP);
-    expect(shouldRetryServiceError(new Error("HTTP 503"), 1, policy)).toBe(true);
-    expect(shouldRetryServiceError(new Error("Failed to fetch"), 1, policy)).toBe(true);
-    expect(shouldRetryServiceError(new Error("HTTP 403"), 1, policy)).toBe(false);
-    expect(shouldRetryServiceError(new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil."), 1, policy)).toBe(false);
-    expect(shouldRetryServiceError(new Error("HTTP 503"), policy.maxAttempts, policy)).toBe(false);
+  it("retries transient and OGC format failures but never hammers authorization/configuration errors", () => {
+    const mapPolicy = serviceRuntimePolicy(PUBLIC_MAP);
+    const ogcPolicy = serviceRuntimePolicy(TUCBS_WMS);
+    expect(shouldRetryServiceError(new Error("HTTP 503"), 1, mapPolicy)).toBe(true);
+    expect(shouldRetryServiceError(new Error("Failed to fetch"), 1, mapPolicy)).toBe(true);
+    expect(shouldRetryServiceError(new Error("XML capabilities parse error"), 1, mapPolicy)).toBe(false);
+    expect(shouldRetryServiceError(new Error("XML capabilities parse error"), 1, ogcPolicy)).toBe(true);
+    expect(shouldRetryServiceError(new Error("HTTP 403"), 1, ogcPolicy)).toBe(false);
+    expect(shouldRetryServiceError(new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil."), 1, ogcPolicy)).toBe(false);
+    expect(shouldRetryServiceError(new Error("HTTP 503"), mapPolicy.maxAttempts, mapPolicy)).toBe(false);
   });
 
   it("uses deterministic bounded backoff to avoid synchronized retry storms", () => {
