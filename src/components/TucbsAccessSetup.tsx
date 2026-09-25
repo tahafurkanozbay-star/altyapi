@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { parseTucbsEndpointImport, saveTucbsEndpoints, verifyTucbsEndpoints } from "../lib/tucbsAccess";
+import {
+  parseTucbsEndpointImport,
+  saveTucbsEndpoints,
+  saveTucbsScaleProfiles,
+  verifyTucbsEndpoints
+} from "../lib/tucbsAccess";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -39,7 +44,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   const applyText = async (value: string) => {
     setBusy(true);
     setError(null);
-    setStatus("Yetkili servisler bu bağlantı üzerinden doğrulanıyor…");
+    setStatus("Yetkili servisler ve katman ölçekleri bu bağlantı üzerinden doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
       const report = await verifyTucbsEndpoints(endpoints);
@@ -50,7 +55,13 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       }
 
       saveTucbsEndpoints(endpoints, remember);
-      setStatus(`${report.verified}/${report.total} TUCBS servisi doğrulandı. Harita yenileniyor…`);
+      saveTucbsScaleProfiles(report.scaleProfiles, remember);
+      const scaleCount = Object.keys(report.scaleProfiles).length;
+      setStatus(
+        scaleCount > 0
+          ? `${report.verified}/${report.total} TUCBS servisi doğrulandı; ${scaleCount} katmana sağlayıcı ölçek profili uygulandı. Harita yenileniyor…`
+          : `${report.verified}/${report.total} TUCBS servisi doğrulandı. Harita yenileniyor…`
+      );
       onApplied(Object.keys(endpoints).length);
     } catch (cause) {
       setStatus(null);
@@ -94,7 +105,8 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
         <div className="tucbs-access-body">
           <p>
             TUCBS servis adreslerini içeren JSON dosyanızı bu tarayıcıya tanımlayın. Bilgiler GitHub'a veya başka bir sunucuya gönderilmez;
-            servisler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> üzerinden ve mevcut dış IP'nizle doğrulanır.
+            servisler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> üzerinden ve mevcut dış IP'nizle doğrulanır. WMS servisinin ilan ettiği
+            ölçek aralığı varsa aynı veri kümesinin WMS/WFS katmanlarına otomatik uygulanır.
           </p>
 
           <input
