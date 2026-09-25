@@ -55,6 +55,35 @@ describe("catalog", () => {
     ]);
   });
 
+  it("TUCBS runtime kaydına tarayıcıda öğrenilen sağlayıcı zoom aralığını uygular", () => {
+    const runtimeUrl = "https://ucbp-api.tucbs.gov.tr/__runtime__/tucbs.dogalgaz-hatti.wms";
+    const directUrl = "https://ucbp-api.tucbs.gov.tr/geoservice/spatial/TEST/wms/demo/test";
+    const service = normalizeService({
+      ...sample,
+      ustKurumAdi: "ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI",
+      metaveriSahibiKurumAdi: "EPDK",
+      cografiVeriKatmanAdi: "DOĞALGAZ HATTI",
+      servisTuruAdi: "WMS",
+      tokenUrl: runtimeUrl
+    }, 0, {
+      "tucbs.dogalgaz-hatti.wms": directUrl
+    }, {
+      "tucbs.dogalgaz-hatti.wms": {
+        minScale: 400000,
+        maxScale: 2500,
+        recommendedScale: 80000,
+        verifiedAt: "2026-09-25T06:00:00.000Z",
+        source: "wms-capabilities"
+      }
+    });
+
+    expect(service.url).toBe(directUrl);
+    expect(service.operationalMinScale).toBe(400000);
+    expect(service.operationalMaxScale).toBe(2500);
+    expect(service.recommendedScale).toBe(80000);
+    expect(service.renderScaleSensitive).toBe(true);
+  });
+
   it("servis kimliğine query-string içindeki gizli değeri taşımaz", () => {
     const service = normalizeService({ ...sample, tokenUrl: `${sample.tokenUrl}?token=SUPER_SECRET_VALUE` }, 0);
     expect(service.id).not.toContain("super-secret-value");
