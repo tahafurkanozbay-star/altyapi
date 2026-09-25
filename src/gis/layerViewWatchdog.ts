@@ -10,6 +10,9 @@ const MAX_LAYER_VIEW_RECYCLES = 1;
 type LayerLike = {
   id?: string;
   visible?: boolean;
+  minScale?: unknown;
+  maxScale?: unknown;
+  sublayers?: unknown;
 };
 
 type LayerViewLike = {
@@ -63,7 +66,7 @@ export function layerViewScaleIntersection(layerViews: Iterable<LayerViewLike>):
   for (const layerView of layerViews) {
     const layer = layerView.layer;
     const layerId = layer?.id;
-    if (!layerId?.startsWith("svc-")) continue;
+    if (!layer || !layerId?.startsWith("svc-")) continue;
     if (layer.visible === false || layerView.visible === false) continue;
 
     const range = runtimeScaleRangeFromLoadedLayer(layer);
@@ -223,7 +226,7 @@ export function installSceneLayerWatchdog(): () => void {
     const detail = customDetail(event);
     const layer = detail?.layer;
     const layerId = layer?.id;
-    if (!layerId?.startsWith("svc-") || layer.visible === false) return;
+    if (!layer || !layerId?.startsWith("svc-") || layer.visible === false) return;
     if (!shouldRecycleLayerView(detail?.error)) return;
 
     const recycleCount = recycleCounts.get(layerId) ?? 0;
