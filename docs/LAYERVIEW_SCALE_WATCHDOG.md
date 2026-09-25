@@ -4,7 +4,7 @@ Bu katman, v18 katman bazlı zoom kilitleri ve v19 canlı provider metadata uzla
 
 ## Neden gerekli?
 
-Bir servis `minScale` / `maxScale` değerini doğru ilan etse bile render motoru sınır değerinde kayan nokta, animasyon veya provider yuvarlaması nedeniyle katmanı bir kareliğine ölçek dışında değerlendirebilir. Ayrıca bir Layer başarıyla `load()` olsa bile onun 3B `LayerView` nesnesinin oluşturulması ayrı bir aşamadır.
+Bir servis `minScale` / `maxScale` değerini doğru ilan etse bile render motoru sınır değerinde kayan nokta, animasyon veya provider yuvarlaması nedeniyle katmanı bir kareliğine ölçek dışında değerlendirebilir. Ayrıca bir Layer başarıyla `load()` olsa bile onun 3B `LayerView` nesnesinin oluşturulması ve ilk render'ın tamamlanması ayrı aşamalardır.
 
 ArcGIS Maps SDK 5.x Scene component şu sinyalleri sağlar:
 
@@ -13,8 +13,19 @@ ArcGIS Maps SDK 5.x Scene component şu sinyalleri sağlar:
 - `arcgisViewLayerviewDestroy`
 - `arcgisViewChange`
 - `LayerView.visibleAtCurrentScale`
+- `LayerView.updating`
 
 Watchdog yalnız `svc-*` kimlikli proje katmanlarını izler; altlık veya ArcGIS'in dahili katmanlarına müdahale etmez.
+
+## Render hazır sayılma koşulu
+
+Bir LayerView ancak aşağıdaki üç koşul birlikte sağlandığında stabil kabul edilir:
+
+1. `layerView.visible !== false`,
+2. `visibleAtCurrentScale !== false`,
+3. `updating === false`.
+
+LayerView ArcGIS Accessor `watch()` API'sini sunuyorsa watchdog `visibleAtCurrentScale`, `updating` ve `visible` alanlarını doğrudan izler. Böylece sürekli polling yapmadan hem zoom hem de ilk render tamamlanma durumu anında takip edilir. LayerView yok edildiğinde bu watcher handle'ları da kaldırılır.
 
 ## Ölçek düzeltme sırası
 
@@ -42,7 +53,9 @@ Aralıklar birbirleriyle imkânsız şekilde çakışıyorsa watchdog yeni bir y
 
 ## LayerView oluşturma hatası
 
-Layer metadata'sının yüklenmesi ile LayerView'ın 3B sahnede oluşturulması aynı şey değildir. Scene component `arcgisViewLayerviewCreateError` gönderirse watchdog yalnız **geçici** hatalarda aynı Layer nesnesini bir kez haritadan çıkarıp aynı sıra indeksine yeniden ekleyerek LayerView oluşturmayı tekrar dener.
+Layer metadata'sının yüklenmesi ile LayerView'ın 3B sahnede oluşturulması aynı şey değildir. Scene component `arcgisViewLayerviewCreateError` gönderirse watchdog yalnız **geçici** hatalarda aynı Layer nesnesini haritadan çıkarıp aynı sıra indeksine yeniden ekleyerek LayerView oluşturmayı kontrollü biçimde tekrar dener.
+
+İlk deneme 320 ms, ikinci ve son deneme 900 ms sonra yapılır. İkinci denemeden sonra hâlâ LayerView oluşturulamıyorsa `altyapi:layerview-health` üzerinden `recovery-exhausted` sinyali üretilir; sonsuz recycle döngüsüne girilmez.
 
 Aşağıdaki kalıcı hata sınıflarında otomatik recycle yapılmaz:
 
@@ -65,7 +78,9 @@ Watchdog:
 ## Performans
 
 - `arcgisViewChange` denetimi debounce edilir.
+- LayerView state değişimleri event/watch tabanlı izlenir.
 - Ölçek düzeltmeleri arasında cooldown vardır.
 - Her ihlal için maksimum iki scale repair uygulanır.
-- LayerView recycle maksimum bir kez yapılır.
+- LayerView recycle maksimum iki kez ve artan gecikmeyle yapılır.
+- LayerView yok edildiğinde watcher handle'ları temizlenir.
 - Sürekli polling veya interval kullanılmaz; sistem event-driven çalışır.
