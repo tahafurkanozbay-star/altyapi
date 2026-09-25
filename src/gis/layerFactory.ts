@@ -1,7 +1,11 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
+import { serviceAttemptCandidates } from "../lib/serviceFailover";
 import { applyLoadedLayerVisuals } from "./layerVisuals";
+
+const creationCursor = new Map<string, number>();
+const effectiveServiceByLayer = new WeakMap<Layer, ServiceDefinition>();
 
 export function parseMapServerUrl(url: string): { root: string; sublayerId?: number } {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
@@ -56,14 +60,23 @@ export function ogcLayerMatchScore(
  * semantic high-visibility renderer using the actual geometry metadata.
  */
 export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): void {
-  if (service.kind === "WMS") selectBestWmsSublayer(service, layer);
-  applyLoadedLayerVisuals(service, layer);
+  const effectiveService = effectiveServiceByLayer.get(layer) ?? service;
+  if (effectiveService.kind === "WMS") selectBestWmsSublayer(effectiveService, layer);
+  applyLoadedLayerVisuals(effectiveService, layer);
+  creationCursor.delete(service.id);
+  effectiveServiceByLayer.delete(layer);
 }
 
+/**
+ * The runtime deliberately creates a fresh ArcGIS Layer instance for each
+ * retry. v17 uses that property to rotate between equivalent WMS/WFS transports
+ * for the same logical TUCBS dataset without changing UI identity.
+ */
 export async function createLayer(service: ServiceDefinition): Promise<Layer> {
-  if (isUnconfiguredTucbsUrl(service.url)) {
+  const effectiveService = nextCreationService(service);
+  if (isUnconfiguredTucbsUrl(effectiveService.url)) {
     window.dispatchEvent(new CustomEvent("altyapi:tucbs-access-required", {
-      detail: { serviceId: service.id, serviceName: service.displayName, kind: service.kind }
+      detail: { serviceId: service.id, serviceName: service.displayName, kind: effectiveService.kind }
     }));
     throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
   }
@@ -78,24 +91,27 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
     listMode: "show" as const
   };
 
-  switch (service.kind) {
+  let layer: Layer;
+  switch (effectiveService.kind) {
     case "FeatureServer": {
       const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer.js");
-      return new FeatureLayer({
+      layer = new FeatureLayer({
         ...common,
-        url: service.url,
+        url: effectiveService.url,
         outFields: ["*"],
         popupEnabled: true
       });
+      break;
     }
     case "SceneServer": {
       const { default: SceneLayer } = await import("@arcgis/core/layers/SceneLayer.js");
-      return new SceneLayer({ ...common, url: service.url, popupEnabled: true });
+      layer = new SceneLayer({ ...common, url: effectiveService.url, popupEnabled: true });
+      break;
     }
     case "MapServer": {
       const { default: MapImageLayer } = await import("@arcgis/core/layers/MapImageLayer.js");
-      const { root, sublayerId } = parseMapServerUrl(service.url);
-      return new MapImageLayer({
+      const { root, sublayerId } = parseMapServerUrl(effectiveService.url);
+      layer = new MapImageLayer({
         ...common,
         url: root,
         sublayers: sublayerId === undefined ? undefined : [{
@@ -106,16 +122,34 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
           maxScale: service.operationalMaxScale
         }]
       });
+      break;
     }
     case "WMS": {
       const { default: WMSLayer } = await import("@arcgis/core/layers/WMSLayer.js");
-      return new WMSLayer({ ...common, url: service.url, imageFormat: "image/png" });
+      layer = new WMSLayer({ ...common, url: effectiveService.url, imageFormat: "image/png" });
+      break;
     }
     case "WFS": {
       const { default: WFSLayer } = await import("@arcgis/core/layers/WFSLayer.js");
-      return new WFSLayer({ ...common, url: service.url });
+      layer = new WFSLayer({ ...common, url: effectiveService.url });
+      break;
     }
   }
+
+  effectiveServiceByLayer.set(layer, effectiveService);
+  return layer;
+}
+
+export function resetServiceCreationCursor(serviceId: string): void {
+  creationCursor.delete(serviceId);
+}
+
+function nextCreationService(service: ServiceDefinition): ServiceDefinition {
+  const candidates = serviceAttemptCandidates(service);
+  if (candidates.length <= 1) return service;
+  const cursor = creationCursor.get(service.id) ?? 0;
+  creationCursor.set(service.id, cursor + 1);
+  return candidates[cursor % candidates.length] ?? service;
 }
 
 function selectBestWmsSublayer(service: ServiceDefinition, layer: Layer): void {
