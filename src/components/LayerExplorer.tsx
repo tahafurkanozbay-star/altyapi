@@ -1,8 +1,17 @@
-import { memo, useDeferredValue, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
 import { groupServicesInStableOrder } from "../lib/layerOrdering";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
+import {
+  isLayerRenderFailure,
+  layerRenderHealthLabel,
+  layerRenderHealthVisualStatus,
+  parseLayerRenderHealthDetail,
+  reduceLayerRenderHealth,
+  retainVisibleRenderHealth,
+  type LayerRenderHealthState
+} from "../lib/layerRenderHealth";
 import {
   formatScale,
   isOperationalScale,
@@ -41,6 +50,33 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [renderHealth, setRenderHealth] = useState<Record<string, LayerRenderHealthState>>({});
+
+  useEffect(() => {
+    const onRenderHealth = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return;
+      const detail = parseLayerRenderHealthDetail(event.detail);
+      if (!detail) return;
+      setRenderHealth((current) => {
+        const nextState = reduceLayerRenderHealth(current[detail.serviceId], detail);
+        if (!nextState) {
+          if (!(detail.serviceId in current)) return current;
+          const next = { ...current };
+          delete next[detail.serviceId];
+          return next;
+        }
+        return { ...current, [detail.serviceId]: nextState };
+      });
+    };
+
+    window.addEventListener("altyapi:layerview-health", onRenderHealth);
+    return () => window.removeEventListener("altyapi:layerview-health", onRenderHealth);
+  }, []);
+
+  useEffect(() => {
+    const visibleIds = new Set(services.filter((service) => service.visible).map((service) => service.id));
+    setRenderHealth((current) => retainVisibleRenderHealth(current, visibleIds));
+  }, [services]);
 
   const filtered = useMemo(() => services.filter((service) => {
     if (kind !== "all" && service.kind !== kind) return false;
@@ -60,12 +96,14 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
     ready: services.filter((service) => service.status === "ready").length,
     loading: services.filter((service) => service.status === "loading").length,
     error: services.filter((service) => service.status === "error").length,
+    renderFailed: services.filter((service) => service.visible && isLayerRenderFailure(renderHealth[service.id])).length,
+    renderReady: services.filter((service) => service.visible && renderHealth[service.id]?.state === "ready").length,
     favorite: services.filter((service) => service.favorite).length,
     verified: services.filter((service) => service.availability === "verified").length,
     degraded: services.filter((service) => service.availability === "degraded").length,
     unavailable: services.filter((service) => service.availability === "unavailable").length,
     cooling: services.filter((service) => isServiceCoolingDown(service)).length
-  }), [services]);
+  }), [services, renderHealth]);
 
   const deactivateVisible = async () => {
     const visible = services.filter((service) => service.visible);
@@ -78,18 +116,26 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
     }
   };
 
+  const retryService = async (service: ServiceDefinition) => {
+    setRenderHealth((current) => ({
+      ...current,
+      [service.id]: { state: "preparing", updatedAt: Date.now() }
+    }));
+    await onRetry(service);
+  };
+
   const retryErrors = async () => {
-    const errors = services.filter(
-      (service) => service.status === "error" && service.availability !== "unavailable" && !isServiceCoolingDown(service)
-    );
+    const errors = services.filter((service) => isRetryableFailure(service, renderHealth[service.id]));
     if (errors.length === 0 || bulkBusy) return;
     setBulkBusy(true);
     try {
-      for (const service of errors) await onRetry(service);
+      for (const service of errors) await retryService(service);
     } finally {
       setBulkBusy(false);
     }
   };
+
+  const actionableErrors = metrics.error + metrics.renderFailed;
 
   return (
     <section className="panel-content layer-explorer" aria-label="Katman kataloğu">
@@ -116,9 +162,9 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
         </button>
         <button
           type="button"
-          className={`catalog-action ${metrics.error ? "has-error" : ""}`}
+          className={`catalog-action ${actionableErrors ? "has-error" : ""}`}
           onClick={() => void retryErrors()}
-          disabled={metrics.error === 0 || bulkBusy || services.every((service) => service.status !== "error" || service.availability === "unavailable" || isServiceCoolingDown(service))}
+          disabled={actionableErrors === 0 || bulkBusy || services.every((service) => !isRetryableFailure(service, renderHealth[service.id]))}
         >
           <Icon name="refresh" size={14} /> Uygun hataları dene
         </button>
@@ -158,6 +204,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
       <div className="toggle-filters">
         <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> <span>Sadece aktif</span></label>
         <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> <span>Favoriler</span></label>
+        {metrics.active > 0 && <span className="filter-circuit-count">{metrics.renderReady}/{metrics.active} render hazır</span>}
         {metrics.cooling > 0 && <span className="filter-circuit-count">{metrics.cooling} devre kesici</span>}
         <span className="filter-result-count">{filtered.length} / {services.length}</span>
       </div>
@@ -183,12 +230,21 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                 <em>{items.length}</em>
               </button>
 
-              {!collapsed && items.map((service) => (
+              {!collapsed && items.map((service) => {
+                const layerRender = service.visible ? renderHealth[service.id] : undefined;
+                const visualStatus = service.status === "error"
+                  ? "error"
+                  : service.status === "loading"
+                    ? "loading"
+                    : (layerRenderHealthVisualStatus(layerRender) ?? service.status);
+                const renderFailed = isLayerRenderFailure(layerRender);
+                return (
                 <article
                   key={service.id}
-                  className={`layer-card ${service.visible ? "is-active" : ""} status-${service.status} availability-${service.availability}`}
+                  className={`layer-card ${service.visible ? "is-active" : ""} status-${visualStatus} availability-${service.availability}`}
                   data-kind={service.kind}
                   data-availability={service.availability}
+                  data-render-state={layerRender?.state ?? "none"}
                 >
                   <div className="layer-card-main">
                     <button
@@ -206,8 +262,8 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                       <strong title={service.displayName}>{service.displayName}</strong>
                       <div className="layer-meta-row">
                         <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{service.kind === "SceneServer" ? "3B SCENE" : service.kind}</span>
-                        <span className={`status-dot status-${service.status}`} />
-                        <span>{statusLabel(service, currentScale)}</span>
+                        <span className={`status-dot status-${visualStatus}`} />
+                        <span>{statusLabel(service, currentScale, layerRender)}</span>
                         <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
                         {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
                       </div>
@@ -241,13 +297,13 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                       <Icon name="zoom" size={15} />
                     </button>
                     <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi" aria-expanded={openInfo === service.id}><Icon name="info" size={15} /></button>
-                    {service.status === "error" && (
+                    {(service.status === "error" || renderFailed) && (
                       <button
                         type="button"
                         className="icon-ghost is-danger"
-                        onClick={() => void onRetry(service)}
-                        title={service.availability === "unavailable" ? "Harici doğrulamada ulaşılamıyor" : cooldownRemaining(service) ? `Devre kesici: ${cooldownRemaining(service)}` : "Yeniden dene"}
-                        disabled={service.availability === "unavailable" || isServiceCoolingDown(service)}
+                        onClick={() => void retryService(service)}
+                        title={retryTitle(service, renderFailed)}
+                        disabled={(service.status === "error" && service.availability === "unavailable") || isServiceCoolingDown(service)}
                       >
                         <Icon name="refresh" size={15} />
                       </button>
@@ -259,7 +315,8 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                       <dl>
                         <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
                         <div><dt>Servis</dt><dd>{hostLabel(service.url)}</dd></div>
-                        <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service, currentScale)}</dd></div>
+                        <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service, currentScale, layerRender)}</dd></div>
+                        <div><dt>Canlı render</dt><dd>{service.visible ? (layerRenderHealthLabel(layerRender) ?? "LayerView bekleniyor") : "Kapalı"}</dd></div>
                         <div><dt>Doğrulama</dt><dd>{availabilityLabel(service)}</dd></div>
                         <div><dt>Erişim profili</dt><dd>{accessLabel(service)}</dd></div>
                         <div><dt>Doğrulama notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
@@ -277,7 +334,8 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                     </div>
                   )}
                 </article>
-              ))}
+                );
+              })}
             </section>
           );
         })}
@@ -286,17 +344,33 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
   );
 });
 
-function statusLabel(service: ServiceDefinition, currentScale?: number): string {
+function statusLabel(service: ServiceDefinition, currentScale?: number, renderHealth?: LayerRenderHealthState): string {
   if (service.status === "loading") return "Bağlanıyor";
   if (service.status === "error") {
     const remaining = cooldownRemaining(service);
     return remaining ? `Beklemede · ${remaining}` : "Hata";
   }
-  if (service.visible && service.renderScaleSensitive && !isOperationalScale(service, currentScale)) {
-    return "Ölçek dışında";
+  if (service.visible) {
+    const renderLabel = layerRenderHealthLabel(renderHealth);
+    if (renderLabel) return renderLabel;
+    if (service.renderScaleSensitive && !isOperationalScale(service, currentScale)) return "Ölçek dışında";
+    if (service.status === "ready") return "Render bekleniyor";
   }
   if (service.status === "ready") return "Hazır";
   return service.visible ? "Bekliyor" : "Kapalı";
+}
+
+function isRetryableFailure(service: ServiceDefinition, renderHealth?: LayerRenderHealthState): boolean {
+  if (isServiceCoolingDown(service)) return false;
+  if (isLayerRenderFailure(renderHealth)) return true;
+  return service.status === "error" && service.availability !== "unavailable";
+}
+
+function retryTitle(service: ServiceDefinition, renderFailed: boolean): string {
+  if (isServiceCoolingDown(service)) return `Devre kesici: ${cooldownRemaining(service) ?? "beklemede"}`;
+  if (renderFailed) return "Render katmanını yeniden oluştur";
+  if (service.availability === "unavailable") return "Harici doğrulamada ulaşılamıyor";
+  return "Yeniden dene";
 }
 
 function accessLabel(service: ServiceDefinition): string {
