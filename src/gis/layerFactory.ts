@@ -81,13 +81,14 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
     throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
   }
 
+  // Do not push catalogue operationalMinScale / operationalMaxScale values into
+  // ArcGIS constructors. Those values are navigation guardrails, while the
+  // loaded Layer must retain provider metadata so v19 can reconcile both.
   const common = {
     id: `svc-${service.id}`,
     title: service.displayName,
     visible: service.visible,
     opacity: 1,
-    minScale: service.operationalMinScale,
-    maxScale: service.operationalMaxScale,
     listMode: "show" as const
   };
 
@@ -117,9 +118,7 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
         sublayers: sublayerId === undefined ? undefined : [{
           id: sublayerId,
           visible: true,
-          opacity: 1,
-          minScale: service.operationalMinScale,
-          maxScale: service.operationalMaxScale
+          opacity: 1
         }]
       });
       break;

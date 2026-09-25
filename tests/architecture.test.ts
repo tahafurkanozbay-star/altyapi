@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v17 architecture guardrails", () => {
+describe("v19 architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -95,7 +95,7 @@ describe("v17 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).not.toContain("OperationsOverview");
-    expect(serviceWorker).toContain("altyapi-data-v17");
+    expect(serviceWorker).toContain("altyapi-data-v19");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -157,6 +157,7 @@ describe("v17 architecture guardrails", () => {
 
   it("ships verified operational extents and atomic continuous scale guardrails", async () => {
     const navigation = await readFile("src/lib/serviceNavigation.ts", "utf8");
+    const runtimeScale = await readFile("src/lib/runtimeScale.ts", "utf8");
     const snapshot = await readFile("public/service-navigation.json", "utf8");
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     const factory = await readFile("src/gis/layerFactory.ts", "utf8");
@@ -170,18 +171,23 @@ describe("v17 architecture guardrails", () => {
     expect(navigation).toContain("activeOperationalScaleRange");
     expect(navigation).toContain("resolveOperationalScaleRange");
     expect(navigation).toContain("clampScaleToOperationalRange");
+    expect(runtimeScale).toContain("runtimeScaleRangeFromLoadedLayer");
+    expect(runtimeScale).toContain("reconcileServiceRuntimeScale");
     expect(snapshot).not.toContain("tokenUrl");
     expect(snapshot).not.toContain("http://");
     expect(snapshot).not.toContain("https://");
     expect(runtime).toContain("prepareLayerActivation");
     expect(runtime).toContain("operationalExtentCenter");
     expect(runtime).toContain("activeScaleServices");
+    expect(runtime).toContain("runtimeScaleServices");
     expect(runtime).toContain("enforceScaleGuard");
     expect(runtime).toContain("intent time");
-    expect(runtime).toContain("resolveOperationalScaleRange([...this.activeScaleServices.values()], service)");
+    expect(runtime).toContain("resolveOperationalScaleRange([...this.activeScaleServices.values()], scaleService)");
+    expect(runtime).toContain("runtimeScaleRangeFromLoadedLayer(layer)");
     expect(runtime).toContain("arcgisViewChange");
     expect(factory).toContain("operationalMinScale");
     expect(factory).toContain("operationalMaxScale");
+    expect(factory).toContain("provider metadata");
     expect(app).toContain("loadServiceNavigationSnapshot");
     expect(serviceWorker).toContain("service-navigation.json");
     expect(packageJson).toContain("validate:navigation");
@@ -225,7 +231,7 @@ describe("v17 architecture guardrails", () => {
   it("uses current strict TypeScript for application, tests and engineering service tooling", async () => {
     const packageJson = await readFile("package.json", "utf8");
     const scripts = await readdir("scripts");
-    expect(packageJson).toContain('"version": "17.0.0"');
+    expect(packageJson).toContain('"version": "19.0.0"');
     expect(packageJson).toContain('"typescript": "^7.0.2"');
     expect(packageJson).toContain('"vite": "^8.3.1"');
     expect(packageJson).toContain('"tsx": "^4.23.15"');
@@ -249,7 +255,7 @@ describe("v17 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v17"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v19"');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
 });

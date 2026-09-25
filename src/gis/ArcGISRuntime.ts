@@ -14,6 +14,10 @@ import {
   resolveOperationalScaleRange
 } from "../lib/serviceNavigation";
 import {
+  reconcileServiceRuntimeScale,
+  runtimeScaleRangeFromLoadedLayer
+} from "../lib/runtimeScale";
+import {
   classifyServiceError,
   friendlyServiceError,
   serviceRetryDelayMs,
@@ -125,6 +129,7 @@ export class ArcGISRuntime {
   private readonly loadingLayers = new Map<string, Promise<LayerLoadResult>>();
   private readonly desiredVisibility = new Map<string, boolean>();
   private readonly activeScaleServices = new Map<string, ServiceDefinition>();
+  private readonly runtimeScaleServices = new Map<string, ServiceDefinition>();
   private activeWidget?: ArcGISComponentElement;
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
@@ -309,6 +314,7 @@ export class ArcGISRuntime {
     if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
 
     this.setScaleGuard(service, false);
+    this.runtimeScaleServices.delete(service.id);
     this.desiredVisibility.set(service.id, false);
     const inFlight = this.loadingLayers.get(service.id);
     if (inFlight) await inFlight.catch(() => undefined);
@@ -419,10 +425,11 @@ export class ArcGISRuntime {
   }
 
   async prepareLayerActivation(service: ServiceDefinition): Promise<OperationalNavigationResult> {
+    const scaleService = this.runtimeScaleServices.get(service.id) ?? service;
     if (
       !this.scene ||
       this.destroyed ||
-      (!service.renderScaleSensitive && !hasOperationalScaleConstraint(service))
+      (!scaleService.renderScaleSensitive && !hasOperationalScaleConstraint(scaleService))
     ) return { moved: false };
 
     const camera = this.scene.camera;
@@ -430,13 +437,13 @@ export class ArcGISRuntime {
     const latitude = camera?.position.latitude;
     const scale = this.scene.scale ?? Number.NaN;
     const insideExtent =
-      service.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
-        ? operationalExtentContains(service, longitude!, latitude!)
+      scaleService.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? operationalExtentContains(scaleService, longitude!, latitude!)
         : true;
 
     // Plan against the currently active constrained layers plus the candidate before loading it.
     // This prevents a second corrective snap after the layer becomes active.
-    const range = resolveOperationalScaleRange([...this.activeScaleServices.values()], service);
+    const range = resolveOperationalScaleRange([...this.activeScaleServices.values()], scaleService);
     const clampedCurrentScale = clampScaleToOperationalRange(scale, range);
     const insideScale =
       !Number.isFinite(scale) ||
@@ -450,11 +457,11 @@ export class ArcGISRuntime {
     else if (range.minScale && scale > range.minScale) reason = "scale-too-far";
     else if (range.maxScale && scale < range.maxScale) reason = "scale-too-close";
 
-    const preferredScale = targetOperationalScale(service, scale);
+    const preferredScale = targetOperationalScale(scaleService, scale);
     const targetScale = clampScaleToOperationalRange(preferredScale, range);
     const targetCenter =
-      !insideExtent && service.operationalExtent
-        ? operationalExtentCenter(service.operationalExtent)
+      !insideExtent && scaleService.operationalExtent
+        ? operationalExtentCenter(scaleService.operationalExtent)
         : {
             longitude: longitude ?? HOME_CAMERA.longitude,
             latitude: latitude ?? HOME_CAMERA.latitude
@@ -480,17 +487,18 @@ export class ArcGISRuntime {
 
   async zoomToLayer(service: ServiceDefinition): Promise<boolean> {
     if (!this.scene || this.destroyed) return false;
+    const scaleService = this.runtimeScaleServices.get(service.id) ?? service;
     try {
-      if (service.operationalExtent) {
+      if (scaleService.operationalExtent) {
         const { default: Point } = await import("@arcgis/core/geometry/Point.js");
         if (!this.scene || this.destroyed) return false;
-        const center = operationalExtentCenter(service.operationalExtent);
+        const center = operationalExtentCenter(scaleService.operationalExtent);
         const target = new Point({
           longitude: center.longitude,
           latitude: center.latitude,
           spatialReference: { wkid: 4326 }
         });
-        const scale = recommendedActivationScale(service);
+        const scale = recommendedActivationScale(scaleService);
         if (scale) {
           await this.scene.goTo?.({ target, scale }, { duration: 850, easing: "ease-in-out" });
           this.enforceScaleGuard();
@@ -500,10 +508,10 @@ export class ArcGISRuntime {
         const { default: Extent } = await import("@arcgis/core/geometry/Extent.js");
         if (!this.scene || this.destroyed) return false;
         const extent = new Extent({
-          xmin: service.operationalExtent.xmin,
-          ymin: service.operationalExtent.ymin,
-          xmax: service.operationalExtent.xmax,
-          ymax: service.operationalExtent.ymax,
+          xmin: scaleService.operationalExtent.xmin,
+          ymin: scaleService.operationalExtent.ymin,
+          xmax: scaleService.operationalExtent.xmax,
+          ymax: scaleService.operationalExtent.ymax,
           spatialReference: { wkid: 4326 }
         });
         await this.scene.goTo?.(extent.expand(1.08), { duration: 850, easing: "ease-in-out" });
@@ -609,6 +617,7 @@ export class ArcGISRuntime {
     this.loadingLayers.clear();
     this.desiredVisibility.clear();
     this.activeScaleServices.clear();
+    this.runtimeScaleServices.clear();
     this.callbacks = {};
     this.recoveringGraphics = false;
     this.scaleGuardApplying = false;
@@ -687,6 +696,14 @@ export class ArcGISRuntime {
           };
         }
 
+        // Live provider metadata is authoritative only when it tightens the
+        // verified/client-learned profile. Cache it for hide/show cycles so a
+        // reopened layer enters its real range before any network work starts.
+        const runtimeScale = runtimeScaleRangeFromLoadedLayer(layer);
+        const reconciledService = reconcileServiceRuntimeScale(service, runtimeScale);
+        this.runtimeScaleServices.set(service.id, reconciledService);
+        this.setScaleGuard(reconciledService, true);
+
         layer.opacity = clampOpacity(service.opacity);
         layer.visible = true;
         this.layers.set(service.id, layer);
@@ -751,7 +768,8 @@ export class ArcGISRuntime {
   }
 
   private setScaleGuard(service: ServiceDefinition, active: boolean): void {
-    if (!hasOperationalScaleConstraint(service)) {
+    const scaleService = active ? (this.runtimeScaleServices.get(service.id) ?? service) : service;
+    if (!hasOperationalScaleConstraint(scaleService)) {
       this.activeScaleServices.delete(service.id);
       return;
     }
@@ -759,7 +777,7 @@ export class ArcGISRuntime {
     if (active) {
       // Reinsert so Map iteration preserves most-recent activation priority for impossible intersections.
       this.activeScaleServices.delete(service.id);
-      this.activeScaleServices.set(service.id, service);
+      this.activeScaleServices.set(service.id, scaleService);
       this.enforceScaleGuard();
     } else {
       this.activeScaleServices.delete(service.id);
