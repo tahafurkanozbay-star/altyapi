@@ -1,15 +1,17 @@
-import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
 import { groupServicesInStableOrder } from "../lib/layerOrdering";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import {
+  getLayerRenderHealthSnapshot,
+  getServerLayerRenderHealthSnapshot,
   isLayerRenderFailure,
   layerRenderHealthLabel,
   layerRenderHealthVisualStatus,
-  parseLayerRenderHealthDetail,
-  reduceLayerRenderHealth,
-  retainVisibleRenderHealth,
+  pruneLayerRenderHealth,
+  setLayerRenderHealthPreparing,
+  subscribeLayerRenderHealth,
   type LayerRenderHealthState
 } from "../lib/layerRenderHealth";
 import {
@@ -50,32 +52,15 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [renderHealth, setRenderHealth] = useState<Record<string, LayerRenderHealthState>>({});
-
-  useEffect(() => {
-    const onRenderHealth = (event: Event) => {
-      if (!(event instanceof CustomEvent)) return;
-      const detail = parseLayerRenderHealthDetail(event.detail);
-      if (!detail) return;
-      setRenderHealth((current) => {
-        const nextState = reduceLayerRenderHealth(current[detail.serviceId], detail);
-        if (!nextState) {
-          if (!(detail.serviceId in current)) return current;
-          const next = { ...current };
-          delete next[detail.serviceId];
-          return next;
-        }
-        return { ...current, [detail.serviceId]: nextState };
-      });
-    };
-
-    window.addEventListener("altyapi:layerview-health", onRenderHealth);
-    return () => window.removeEventListener("altyapi:layerview-health", onRenderHealth);
-  }, []);
+  const renderHealth = useSyncExternalStore(
+    subscribeLayerRenderHealth,
+    getLayerRenderHealthSnapshot,
+    getServerLayerRenderHealthSnapshot
+  );
 
   useEffect(() => {
     const visibleIds = new Set(services.filter((service) => service.visible).map((service) => service.id));
-    setRenderHealth((current) => retainVisibleRenderHealth(current, visibleIds));
+    pruneLayerRenderHealth(visibleIds);
   }, [services]);
 
   const filtered = useMemo(() => services.filter((service) => {
@@ -117,10 +102,7 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
   };
 
   const retryService = async (service: ServiceDefinition) => {
-    setRenderHealth((current) => ({
-      ...current,
-      [service.id]: { state: "preparing", updatedAt: Date.now() }
-    }));
+    setLayerRenderHealthPreparing(service.id);
     await onRetry(service);
   };
 
@@ -239,101 +221,101 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
                     : (layerRenderHealthVisualStatus(layerRender) ?? service.status);
                 const renderFailed = isLayerRenderFailure(layerRender);
                 return (
-                <article
-                  key={service.id}
-                  className={`layer-card ${service.visible ? "is-active" : ""} status-${visualStatus} availability-${service.availability}`}
-                  data-kind={service.kind}
-                  data-availability={service.availability}
-                  data-render-state={layerRender?.state ?? "none"}
-                >
-                  <div className="layer-card-main">
-                    <button
-                      type="button"
-                      className={`visibility-button ${service.visible ? "is-on" : ""}`}
-                      onClick={() => void onToggle(service, !service.visible)}
-                      aria-label={`${service.displayName} görünürlüğü`}
-                      aria-pressed={service.visible}
-                      disabled={service.status === "loading"}
-                    >
-                      <Icon name={service.visible ? "eye" : "eyeOff"} size={16} />
-                    </button>
-
-                    <div className="layer-card-title">
-                      <strong title={service.displayName}>{service.displayName}</strong>
-                      <div className="layer-meta-row">
-                        <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{service.kind === "SceneServer" ? "3B SCENE" : service.kind}</span>
-                        <span className={`status-dot status-${visualStatus}`} />
-                        <span>{statusLabel(service, currentScale, layerRender)}</span>
-                        <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
-                        {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
-                      </div>
-                    </div>
-
-                    <button type="button" className={`favorite-button ${service.favorite ? "is-on" : ""}`} onClick={() => onFavorite(service)} aria-label="Favori" aria-pressed={service.favorite}><Icon name="star" size={15} /></button>
-                  </div>
-
-                  <div className="layer-owner-line">
-                    <span>{service.owner}</span>
-                    {service.favorite && <em>Favori</em>}
-                  </div>
-
-                  <div className="layer-actions">
-                    <div className="opacity-control" title="Saydamlık">
-                      <input
-                        type="range" min="0" max="1" step="0.05" value={service.opacity}
-                        onChange={(event) => onOpacity(service, Number(event.target.value))}
-                        disabled={!service.visible}
-                        aria-label={`${service.displayName} saydamlığı`}
-                      />
-                      <span>{Math.round(service.opacity * 100)}%</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="icon-ghost"
-                      onClick={() => onZoom(service)}
-                      disabled={!service.visible && !service.operationalExtent}
-                      title={service.operationalExtent ? "Doğrulanmış çalışma kapsamına git" : "Katmana yaklaş"}
-                    >
-                      <Icon name="zoom" size={15} />
-                    </button>
-                    <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi" aria-expanded={openInfo === service.id}><Icon name="info" size={15} /></button>
-                    {(service.status === "error" || renderFailed) && (
+                  <article
+                    key={service.id}
+                    className={`layer-card ${service.visible ? "is-active" : ""} status-${visualStatus} availability-${service.availability}`}
+                    data-kind={service.kind}
+                    data-availability={service.availability}
+                    data-render-state={layerRender?.state ?? "none"}
+                  >
+                    <div className="layer-card-main">
                       <button
                         type="button"
-                        className="icon-ghost is-danger"
-                        onClick={() => void retryService(service)}
-                        title={retryTitle(service, renderFailed)}
-                        disabled={(service.status === "error" && service.availability === "unavailable") || isServiceCoolingDown(service)}
+                        className={`visibility-button ${service.visible ? "is-on" : ""}`}
+                        onClick={() => void onToggle(service, !service.visible)}
+                        aria-label={`${service.displayName} görünürlüğü`}
+                        aria-pressed={service.visible}
+                        disabled={service.status === "loading"}
                       >
-                        <Icon name="refresh" size={15} />
+                        <Icon name={service.visible ? "eye" : "eyeOff"} size={16} />
                       </button>
-                    )}
-                  </div>
 
-                  {openInfo === service.id && (
-                    <div className="layer-info-box">
-                      <dl>
-                        <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
-                        <div><dt>Servis</dt><dd>{hostLabel(service.url)}</dd></div>
-                        <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service, currentScale, layerRender)}</dd></div>
-                        <div><dt>Canlı render</dt><dd>{service.visible ? (layerRenderHealthLabel(layerRender) ?? "LayerView bekleniyor") : "Kapalı"}</dd></div>
-                        <div><dt>Doğrulama</dt><dd>{availabilityLabel(service)}</dd></div>
-                        <div><dt>Erişim profili</dt><dd>{accessLabel(service)}</dd></div>
-                        <div><dt>Doğrulama notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
-                        <div><dt>Doğrulama zamanı</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
-                        <div><dt>Harici doğrulama gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
-                        <div><dt>Çalışma ölçeği</dt><dd>{operationalScaleLabel(service)}</dd></div>
-                        <div><dt>Önerilen açılış ölçeği</dt><dd>{service.recommendedScale ? `1:${formatScale(service.recommendedScale)}` : "—"}</dd></div>
-                        <div><dt>Çalışma kapsamı kaynağı</dt><dd>{navigationSourceLabel(service)}</dd></div>
-                        <div><dt>Kapsam doğrulaması</dt><dd>{service.navigationVerifiedAt ? new Date(service.navigationVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
-                        <div><dt>Geniş görünüm politikası</dt><dd>{service.renderScaleSensitive ? "Sunucu yükünü azaltmak için doğrulanmış çalışma ölçeği uygulanır." : "Ek ölçek kısıtı yok."}</dd></div>
-                        <div><dt>Devre kesici</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Açık"}</dd></div>
-                        <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
-                        <div><dt>Son canlı ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
-                      </dl>
+                      <div className="layer-card-title">
+                        <strong title={service.displayName}>{service.displayName}</strong>
+                        <div className="layer-meta-row">
+                          <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{service.kind === "SceneServer" ? "3B SCENE" : service.kind}</span>
+                          <span className={`status-dot status-${visualStatus}`} />
+                          <span>{statusLabel(service, currentScale, layerRender)}</span>
+                          <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
+                          {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
+                        </div>
+                      </div>
+
+                      <button type="button" className={`favorite-button ${service.favorite ? "is-on" : ""}`} onClick={() => onFavorite(service)} aria-label="Favori" aria-pressed={service.favorite}><Icon name="star" size={15} /></button>
                     </div>
-                  )}
-                </article>
+
+                    <div className="layer-owner-line">
+                      <span>{service.owner}</span>
+                      {service.favorite && <em>Favori</em>}
+                    </div>
+
+                    <div className="layer-actions">
+                      <div className="opacity-control" title="Saydamlık">
+                        <input
+                          type="range" min="0" max="1" step="0.05" value={service.opacity}
+                          onChange={(event) => onOpacity(service, Number(event.target.value))}
+                          disabled={!service.visible}
+                          aria-label={`${service.displayName} saydamlığı`}
+                        />
+                        <span>{Math.round(service.opacity * 100)}%</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-ghost"
+                        onClick={() => onZoom(service)}
+                        disabled={!service.visible && !service.operationalExtent}
+                        title={service.operationalExtent ? "Doğrulanmış çalışma kapsamına git" : "Katmana yaklaş"}
+                      >
+                        <Icon name="zoom" size={15} />
+                      </button>
+                      <button type="button" className="icon-ghost" onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)} title="Servis bilgisi" aria-expanded={openInfo === service.id}><Icon name="info" size={15} /></button>
+                      {(service.status === "error" || renderFailed) && (
+                        <button
+                          type="button"
+                          className="icon-ghost is-danger"
+                          onClick={() => void retryService(service)}
+                          title={retryTitle(service, renderFailed)}
+                          disabled={(service.status === "error" && service.availability === "unavailable") || isServiceCoolingDown(service)}
+                        >
+                          <Icon name="refresh" size={15} />
+                        </button>
+                      )}
+                    </div>
+
+                    {openInfo === service.id && (
+                      <div className="layer-info-box">
+                        <dl>
+                          <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
+                          <div><dt>Servis</dt><dd>{hostLabel(service.url)}</dd></div>
+                          <div><dt>Canlı durum</dt><dd>{service.error ?? statusLabel(service, currentScale, layerRender)}</dd></div>
+                          <div><dt>Canlı render</dt><dd>{service.visible ? (layerRenderHealthLabel(layerRender) ?? "LayerView bekleniyor") : "Kapalı"}</dd></div>
+                          <div><dt>Doğrulama</dt><dd>{availabilityLabel(service)}</dd></div>
+                          <div><dt>Erişim profili</dt><dd>{accessLabel(service)}</dd></div>
+                          <div><dt>Doğrulama notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
+                          <div><dt>Doğrulama zamanı</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                          <div><dt>Harici doğrulama gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
+                          <div><dt>Çalışma ölçeği</dt><dd>{operationalScaleLabel(service)}</dd></div>
+                          <div><dt>Önerilen açılış ölçeği</dt><dd>{service.recommendedScale ? `1:${formatScale(service.recommendedScale)}` : "—"}</dd></div>
+                          <div><dt>Çalışma kapsamı kaynağı</dt><dd>{navigationSourceLabel(service)}</dd></div>
+                          <div><dt>Kapsam doğrulaması</dt><dd>{service.navigationVerifiedAt ? new Date(service.navigationVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                          <div><dt>Geniş görünüm politikası</dt><dd>{service.renderScaleSensitive ? "Sunucu yükünü azaltmak için doğrulanmış çalışma ölçeği uygulanır." : "Ek ölçek kısıtı yok."}</dd></div>
+                          <div><dt>Devre kesici</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Açık"}</dd></div>
+                          <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
+                          <div><dt>Son canlı ölçüm</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                        </dl>
+                      </div>
+                    )}
+                  </article>
                 );
               })}
             </section>
