@@ -4,11 +4,15 @@ import {
   loadTucbsScaleProfiles,
   resolveTucbsRuntimeUrl,
   runtimeEndpointKeyFromUrl,
+  saveTucbsScaleProfiles,
+  verifyTucbsEndpoints,
+  type TucbsEndpointMap,
   type TucbsScaleProfileMap
 } from "./tucbsAccess";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 const requiredFields = ["ustKurumAdi", "metaveriSahibiKurumAdi", "cografiVeriKatmanAdi", "servisTuruAdi", "tokenUrl"] as const;
+const TUCBS_SCALE_PROBE_KEY = "altyapi:tucbs-scale-probe:v18";
 
 export function slugify(value: string): string {
   return value
@@ -124,7 +128,26 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
   if (!response.ok) throw new Error(`Servis kataloğu yüklenemedi (HTTP ${response.status}).`);
   const document: unknown = await response.json();
   const tucbsEndpoints = loadTucbsEndpoints();
-  const tucbsScaleProfiles = loadTucbsScaleProfiles();
+  let tucbsScaleProfiles = loadTucbsScaleProfiles();
+
+  // v18 migration: users who already configured approved-IP TUCBS endpoints in
+  // v16/v17 should not have to import the same protected JSON again. One
+  // client-side capabilities pass learns provider scale declarations, stores
+  // only numeric scale metadata, and never persists the signed URL in reports.
+  if (shouldProbeTucbsScales(tucbsEndpoints, tucbsScaleProfiles)) {
+    try {
+      const report = await verifyTucbsEndpoints(tucbsEndpoints, { timeoutMs: 6_000, concurrency: 5 });
+      if (report.verified > 0) {
+        tucbsScaleProfiles = { ...tucbsScaleProfiles, ...report.scaleProfiles };
+        saveTucbsScaleProfiles(tucbsScaleProfiles, true);
+        markTucbsScaleProbe(tucbsEndpoints);
+      }
+    } catch {
+      // Scale discovery is an enhancement; catalog loading must remain usable
+      // even if the approved network is temporarily unavailable.
+    }
+  }
+
   const normalized = parseServicesDocument(document).map((service, index) =>
     normalizeService(service, index, tucbsEndpoints, tucbsScaleProfiles)
   );
@@ -150,6 +173,28 @@ export function hostLabel(url: string): string {
   } catch {
     return "Geçersiz URL";
   }
+}
+
+function shouldProbeTucbsScales(endpoints: TucbsEndpointMap, profiles: TucbsScaleProfileMap): boolean {
+  const keys = Object.keys(endpoints).filter((key) => key.endsWith(".wms") || key.endsWith(".wfs"));
+  if (keys.length === 0 || Object.keys(profiles).length > 0) return false;
+  try {
+    return localStorage.getItem(TUCBS_SCALE_PROBE_KEY) !== endpointKeyFingerprint(endpoints);
+  } catch {
+    return true;
+  }
+}
+
+function markTucbsScaleProbe(endpoints: TucbsEndpointMap): void {
+  try {
+    localStorage.setItem(TUCBS_SCALE_PROBE_KEY, endpointKeyFingerprint(endpoints));
+  } catch {
+    // Private browsing/storage restrictions must not break the map.
+  }
+}
+
+function endpointKeyFingerprint(endpoints: TucbsEndpointMap): string {
+  return Object.keys(endpoints).sort().join("|");
 }
 
 function isInterchangeableOgcPair(left: ServiceKind, right: ServiceKind): boolean {
