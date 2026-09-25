@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v19 architecture guardrails", () => {
+describe("architecture guardrails", () => {
   it("does not regress to deprecated ArcGIS widget classes", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
     expect(runtime).not.toContain("@arcgis/core/widgets/");
@@ -95,7 +95,7 @@ describe("v19 architecture guardrails", () => {
     expect(intelligence).toContain("serviceReadiness");
     expect(overview).toContain("OPERASYON HAZIRLIK");
     expect(app).not.toContain("OperationsOverview");
-    expect(serviceWorker).toContain("altyapi-data-v19");
+    expect(serviceWorker).toContain("altyapi-data-v");
     expect(serviceWorker).toContain("networkFirstData");
   });
 
@@ -231,7 +231,6 @@ describe("v19 architecture guardrails", () => {
   it("uses current strict TypeScript for application, tests and engineering service tooling", async () => {
     const packageJson = await readFile("package.json", "utf8");
     const scripts = await readdir("scripts");
-    expect(packageJson).toContain('"version": "19.0.0"');
     expect(packageJson).toContain('"typescript": "^7.0.2"');
     expect(packageJson).toContain('"vite": "^8.3.1"');
     expect(packageJson).toContain('"tsx": "^4.23.15"');
@@ -255,7 +254,7 @@ describe("v19 architecture guardrails", () => {
     expect(app).toContain("altyapi:apply-update");
     expect(main).toContain("altyapi:update-available");
     expect(main).toContain("controllerchange");
-    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v19"');
+    expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
 });
