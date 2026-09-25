@@ -81,9 +81,9 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
     throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
   }
 
-  // Do not push catalogue min/maxScale values into the ArcGIS constructors.
-  // Those values are navigation guardrails, while the loaded Layer must retain
-  // the provider's own metadata so v19 can reconcile the two independently.
+  // Do not push catalogue operationalMinScale / operationalMaxScale values into
+  // ArcGIS constructors. Those values are navigation guardrails, while the
+  // loaded Layer must retain provider metadata so v19 can reconcile both.
   const common = {
     id: `svc-${service.id}`,
     title: service.displayName,
