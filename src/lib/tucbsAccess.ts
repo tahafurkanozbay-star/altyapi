@@ -2,18 +2,36 @@ import type { ServiceKind } from "../types";
 
 const SESSION_KEY = "altyapi:tucbs-endpoints:session:v1";
 const PERSISTENT_KEY = "altyapi:tucbs-endpoints:local:v1";
+const SCALE_SESSION_KEY = "altyapi:tucbs-scales:session:v1";
+const SCALE_PERSISTENT_KEY = "altyapi:tucbs-scales:local:v1";
 const TUCBS_HOST = "ucbp-api.tucbs.gov.tr";
 const RUNTIME_PREFIX = `https://${TUCBS_HOST}/__runtime__/`;
 const MAX_ENDPOINTS = 40;
 const MAX_IMPORT_BYTES = 128_000;
+const MAX_SCALE = 1_000_000_000;
 
 export type TucbsEndpointMap = Record<string, string>;
+
+export type TucbsScaleProfileSource = "wms-capabilities" | "paired-wms-capabilities";
+
+export interface TucbsScaleProfile {
+  minScale?: number;
+  maxScale?: number;
+  recommendedScale?: number;
+  verifiedAt: string;
+  source: TucbsScaleProfileSource;
+}
+
+export type TucbsScaleProfileMap = Record<string, TucbsScaleProfile>;
 
 export interface TucbsEndpointVerification {
   key: string;
   ok: boolean;
   latencyMs?: number;
   reason?: string;
+  minScale?: number;
+  maxScale?: number;
+  recommendedScale?: number;
 }
 
 export interface TucbsVerificationReport {
@@ -21,6 +39,7 @@ export interface TucbsVerificationReport {
   verified: number;
   failed: number;
   results: TucbsEndpointVerification[];
+  scaleProfiles: TucbsScaleProfileMap;
 }
 
 const knownEndpointKeys = new Map<string, string>([
@@ -43,6 +62,13 @@ export function loadTucbsEndpoints(): TucbsEndpointMap {
   };
 }
 
+export function loadTucbsScaleProfiles(): TucbsScaleProfileMap {
+  return {
+    ...readStoredScaleProfiles(SCALE_PERSISTENT_KEY, localStorageSafe()),
+    ...readStoredScaleProfiles(SCALE_SESSION_KEY, sessionStorageSafe())
+  };
+}
+
 export function saveTucbsEndpoints(endpoints: TucbsEndpointMap, remember: boolean): void {
   const sanitized = sanitizeEndpointMap(endpoints);
   const serialized = JSON.stringify(sanitized);
@@ -55,11 +81,29 @@ export function saveTucbsEndpoints(endpoints: TucbsEndpointMap, remember: boolea
   else safeRemove(local, PERSISTENT_KEY);
 }
 
+export function saveTucbsScaleProfiles(profiles: TucbsScaleProfileMap, remember: boolean): void {
+  const sanitized = sanitizeScaleProfileMap(profiles);
+  const serialized = JSON.stringify(sanitized);
+  const session = sessionStorageSafe();
+  if (session) safeSet(session, SCALE_SESSION_KEY, serialized);
+
+  const local = localStorageSafe();
+  if (!local) return;
+  if (remember) safeSet(local, SCALE_PERSISTENT_KEY, serialized);
+  else safeRemove(local, SCALE_PERSISTENT_KEY);
+}
+
 export function clearTucbsEndpoints(): void {
   const session = sessionStorageSafe();
   const local = localStorageSafe();
-  if (session) safeRemove(session, SESSION_KEY);
-  if (local) safeRemove(local, PERSISTENT_KEY);
+  if (session) {
+    safeRemove(session, SESSION_KEY);
+    safeRemove(session, SCALE_SESSION_KEY);
+  }
+  if (local) {
+    safeRemove(local, PERSISTENT_KEY);
+    safeRemove(local, SCALE_PERSISTENT_KEY);
+  }
 }
 
 export function parseTucbsEndpointImport(text: string): TucbsEndpointMap {
@@ -107,7 +151,12 @@ export function parseTucbsEndpointImport(text: string): TucbsEndpointMap {
  * Verifies imported TUCBS endpoints from the actual browser. This matters for
  * installations restricted by source IP: a GitHub runner cannot prove that an
  * endpoint reachable from the approved citizen/operator network is healthy.
- * Returned diagnostics intentionally never include the signed endpoint URL.
+ *
+ * WMS capabilities are also used to learn provider-declared scale limits. The
+ * resulting profile contains only numeric scale metadata; signed endpoint URLs
+ * are never copied into diagnostics or scale storage. WFS rows inherit the WMS
+ * profile of the same logical dataset because WFS has no standard render-scale
+ * declaration of its own.
  */
 export async function verifyTucbsEndpoints(
   endpoints: TucbsEndpointMap,
@@ -146,9 +195,19 @@ export async function verifyTucbsEndpoints(
       const valid = key.endsWith(".wms")
         ? /WMS_Capabilities|WMT_MS_Capabilities/i.test(text)
         : /WFS_Capabilities/i.test(text);
-      return valid
-        ? { key, ok: true, latencyMs } satisfies TucbsEndpointVerification
-        : { key, ok: false, latencyMs, reason: "Capabilities yanıtı beklenen OGC biçiminde değil" } satisfies TucbsEndpointVerification;
+      if (!valid) {
+        return { key, ok: false, latencyMs, reason: "Capabilities yanıtı beklenen OGC biçiminde değil" } satisfies TucbsEndpointVerification;
+      }
+
+      const scaleProfile = key.endsWith(".wms") ? extractWmsScaleProfile(text) : undefined;
+      return {
+        key,
+        ok: true,
+        latencyMs,
+        minScale: scaleProfile?.minScale,
+        maxScale: scaleProfile?.maxScale,
+        recommendedScale: scaleProfile?.recommendedScale
+      } satisfies TucbsEndpointVerification;
     } catch (error) {
       const latencyMs = Math.round(performance.now() - startedAt);
       const reason = error instanceof DOMException && error.name === "AbortError"
@@ -160,11 +219,13 @@ export async function verifyTucbsEndpoints(
     }
   });
 
+  const scaleProfiles = buildScaleProfiles(results);
   return {
     total: results.length,
     verified: results.filter((item) => item.ok).length,
     failed: results.filter((item) => !item.ok).length,
-    results
+    results,
+    scaleProfiles
   };
 }
 
@@ -226,6 +287,54 @@ export function sanitizeTucbsUrl(value: string): string {
   return parsed.toString();
 }
 
+export function extractWmsScaleProfile(xml: string): Omit<TucbsScaleProfile, "verifiedAt" | "source"> | undefined {
+  const minDenominators = xmlScaleValues(xml, "MinScaleDenominator");
+  const maxDenominators = xmlScaleValues(xml, "MaxScaleDenominator");
+
+  // OGC scale denominator semantics are the inverse of ArcGIS property names:
+  // WMS MinScaleDenominator => ArcGIS maxScale (closest allowed denominator),
+  // WMS MaxScaleDenominator => ArcGIS minScale (furthest allowed denominator).
+  const maxScale = minDenominators.length ? Math.max(...minDenominators) : undefined;
+  const minScale = maxDenominators.length ? Math.min(...maxDenominators) : undefined;
+  if (!minScale && !maxScale) return undefined;
+  if (minScale && maxScale && maxScale >= minScale) return undefined;
+
+  return {
+    minScale,
+    maxScale,
+    recommendedScale: recommendedScaleInside(minScale, maxScale)
+  };
+}
+
+function buildScaleProfiles(results: TucbsEndpointVerification[]): TucbsScaleProfileMap {
+  const verifiedAt = new Date().toISOString();
+  const output: TucbsScaleProfileMap = {};
+
+  for (const result of results) {
+    if (!result.ok || !result.key.endsWith(".wms") || (!result.minScale && !result.maxScale)) continue;
+    output[result.key] = {
+      minScale: result.minScale,
+      maxScale: result.maxScale,
+      recommendedScale: result.recommendedScale,
+      verifiedAt,
+      source: "wms-capabilities"
+    };
+  }
+
+  for (const result of results) {
+    if (!result.ok || !result.key.endsWith(".wfs")) continue;
+    const peerKey = result.key.replace(/\.wfs$/, ".wms");
+    const peer = output[peerKey];
+    if (!peer) continue;
+    output[result.key] = {
+      ...peer,
+      source: "paired-wms-capabilities"
+    };
+  }
+
+  return sanitizeScaleProfileMap(output);
+}
+
 function tucbsCapabilitiesUrl(key: string, value: string): string {
   const target = new URL(value);
   target.searchParams.set("SERVICE", key.endsWith(".wms") ? "WMS" : "WFS");
@@ -240,6 +349,31 @@ function sanitizeEndpointMap(value: TucbsEndpointMap): TucbsEndpointMap {
   for (const [key, rawUrl] of Object.entries(value)) {
     if (!isTucbsEndpointKey(key) || typeof rawUrl !== "string") continue;
     output[key] = sanitizeTucbsUrl(rawUrl);
+    count += 1;
+    if (count >= MAX_ENDPOINTS) break;
+  }
+  return output;
+}
+
+function sanitizeScaleProfileMap(value: TucbsScaleProfileMap): TucbsScaleProfileMap {
+  const output: TucbsScaleProfileMap = {};
+  let count = 0;
+  for (const [key, rawProfile] of Object.entries(value)) {
+    if (!isTucbsEndpointKey(key) || !rawProfile || typeof rawProfile !== "object") continue;
+    const minScale = positiveScale(rawProfile.minScale);
+    const maxScale = positiveScale(rawProfile.maxScale);
+    if (!minScale && !maxScale) continue;
+    if (minScale && maxScale && maxScale >= minScale) continue;
+    const source = rawProfile.source === "paired-wms-capabilities" ? "paired-wms-capabilities" : "wms-capabilities";
+    const recommendedScale = clampRecommendedScale(
+      positiveScale(rawProfile.recommendedScale) ?? recommendedScaleInside(minScale, maxScale),
+      minScale,
+      maxScale
+    );
+    const verifiedAt = typeof rawProfile.verifiedAt === "string" && !Number.isNaN(Date.parse(rawProfile.verifiedAt))
+      ? rawProfile.verifiedAt
+      : new Date(0).toISOString();
+    output[key] = { minScale, maxScale, recommendedScale, verifiedAt, source };
     count += 1;
     if (count >= MAX_ENDPOINTS) break;
   }
@@ -274,6 +408,47 @@ function readStoredMap(key: string, storage: Storage | null): TucbsEndpointMap {
   } catch {
     return {};
   }
+}
+
+function readStoredScaleProfiles(key: string, storage: Storage | null): TucbsScaleProfileMap {
+  if (!storage) return {};
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return {};
+    return sanitizeScaleProfileMap(parsed as TucbsScaleProfileMap);
+  } catch {
+    return {};
+  }
+}
+
+function xmlScaleValues(xml: string, tagName: string): number[] {
+  const pattern = new RegExp(`<${tagName}(?:\\s[^>]*)?>([^<]+)</${tagName}>`, "gi");
+  return [...xml.matchAll(pattern)]
+    .map((match) => positiveScale(match[1]))
+    .filter((value): value is number => Boolean(value));
+}
+
+function positiveScale(value: unknown): number | undefined {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0 || numeric > MAX_SCALE) return undefined;
+  return Math.round(numeric);
+}
+
+function recommendedScaleInside(minScale?: number, maxScale?: number): number | undefined {
+  if (minScale && maxScale) return Math.round(Math.sqrt(minScale * maxScale));
+  if (minScale) return Math.max(1, Math.round(minScale * 0.65));
+  if (maxScale) return Math.round(maxScale * 1.5);
+  return undefined;
+}
+
+function clampRecommendedScale(value: number | undefined, minScale?: number, maxScale?: number): number | undefined {
+  if (!value) return recommendedScaleInside(minScale, maxScale);
+  let result = value;
+  if (minScale && result > minScale) result = minScale;
+  if (maxScale && result < maxScale) result = maxScale;
+  return Math.round(result);
 }
 
 function localStorageSafe(): Storage | null {

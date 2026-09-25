@@ -63,6 +63,18 @@ describe("serviceNavigation", () => {
     expect(enriched?.operationalExtent?.wkid).toBe(4326);
   });
 
+  it("preserves client-learned scale limits when the public snapshot has no scale for that row", () => {
+    const input = service({ operationalMinScale: 250000, recommendedScale: 150000, renderScaleSensitive: true });
+    const extentOnly: ServiceNavigationSnapshot = {
+      ...snapshot,
+      profiles: [{ ...snapshot.profiles[0]!, minScale: undefined, recommendedScale: undefined, renderScaleSensitive: false }]
+    };
+    const [enriched] = applyServiceNavigationSnapshot([input], extentOnly);
+    expect(enriched?.operationalMinScale).toBe(250000);
+    expect(enriched?.recommendedScale).toBe(150000);
+    expect(enriched?.renderScaleSensitive).toBe(true);
+  });
+
   it("uses ArcGIS scale semantics correctly", () => {
     const enriched = {
       ...service(),
@@ -138,11 +150,23 @@ describe("serviceNavigation", () => {
     expect(range.constrainedServiceIds).toEqual(["legacy", "candidate"]);
   });
 
-  it("clamps zoom-out and zoom-in attempts into the active intersection", () => {
+  it("lands slightly inside provider boundaries so a layer never sits fractionally out of range", () => {
     const range = { minScale: 400000, maxScale: 1128 };
-    expect(clampScaleToOperationalRange(900000, range)).toBe(400000);
-    expect(clampScaleToOperationalRange(500, range)).toBe(1128);
+    expect(clampScaleToOperationalRange(900000, range)).toBe(394000);
+    expect(clampScaleToOperationalRange(500, range)).toBe(1145);
     expect(clampScaleToOperationalRange(125000, range)).toBe(125000);
+  });
+
+  it("removing a constrained service from the active set removes its zoom restriction", () => {
+    const locked = activeOperationalScaleRange([
+      service({ id: "infra", operationalMinScale: 400000 }),
+      service({ id: "free" })
+    ]);
+    const unlocked = activeOperationalScaleRange([service({ id: "free" })]);
+    expect(locked.minScale).toBe(400000);
+    expect(unlocked.minScale).toBeUndefined();
+    expect(unlocked.maxScale).toBeUndefined();
+    expect(unlocked.constrainedServiceIds).toEqual([]);
   });
 
   it("detects impossible simultaneous ranges", () => {
