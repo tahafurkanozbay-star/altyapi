@@ -1,6 +1,7 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
+import { applyLoadedLayerVisuals } from "./layerVisuals";
 
 export function parseMapServerUrl(url: string): { root: string; sublayerId?: number } {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
@@ -9,13 +10,6 @@ export function parseMapServerUrl(url: string): { root: string; sublayerId?: num
     root: match[1]!,
     sublayerId: match[2] === undefined ? undefined : Number(match[2])
   };
-}
-
-export interface FeatureLayerVisualStyle {
-  fillStyle: "none";
-  fillColor: [number, number, number, number];
-  outlineColor: [number, number, number, number];
-  outlineWidth: number;
 }
 
 type WmsSublayerLike = {
@@ -28,19 +22,6 @@ type WmsLayerLike = Layer & {
   allSublayers?: { toArray(): WmsSublayerLike[] };
   sublayers?: WmsSublayerLike[];
 };
-
-export function featureLayerVisualStyle(service: Pick<ServiceDefinition, "displayName" | "kind">): FeatureLayerVisualStyle | undefined {
-  if (service.kind !== "FeatureServer") return undefined;
-  const normalizedName = service.displayName.trim().toLocaleUpperCase("tr-TR");
-  if (normalizedName !== "SINIRLAR") return undefined;
-
-  return {
-    fillStyle: "none",
-    fillColor: [255, 0, 168, 0],
-    outlineColor: [255, 0, 168, 1],
-    outlineWidth: 2.75
-  };
-}
 
 export function ogcLayerMatchScore(
   expectedName: string,
@@ -70,25 +51,13 @@ export function ogcLayerMatchScore(
 }
 
 /**
- * Runs after ArcGIS has loaded the remote metadata. A WMS endpoint may expose
- * many named sublayers even when the catalogue entry represents one citizen
- * layer. Select a single high-confidence match instead of accidentally drawing
- * the provider's entire WMS tree.
+ * Runs after ArcGIS has loaded remote metadata. It first narrows multi-layer
+ * WMS services to the high-confidence catalogue match, then applies the v17
+ * semantic high-visibility renderer using the actual geometry metadata.
  */
 export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): void {
-  if (service.kind !== "WMS") return;
-  const wms = layer as WmsLayerLike;
-  const candidates = (wms.allSublayers?.toArray() ?? [])
-    .filter((sublayer) => (sublayer.sublayers?.length ?? 0) === 0)
-    .map((sublayer) => ({ sublayer, score: ogcLayerMatchScore(service.displayName, sublayer) }))
-    .sort((left, right) => right.score - left.score);
-
-  if (candidates.length <= 1) return;
-  const best = candidates[0];
-  const second = candidates[1];
-  if (!best || best.score < 70) return;
-  if (second && best.score < 100 && best.score - second.score < 12) return;
-  wms.sublayers = [best.sublayer];
+  if (service.kind === "WMS") selectBestWmsSublayer(service, layer);
+  applyLoadedLayerVisuals(service, layer);
 }
 
 export async function createLayer(service: ServiceDefinition): Promise<Layer> {
@@ -103,7 +72,7 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
     id: `svc-${service.id}`,
     title: service.displayName,
     visible: service.visible,
-    opacity: service.opacity,
+    opacity: 1,
     minScale: service.operationalMinScale,
     maxScale: service.operationalMaxScale,
     listMode: "show" as const
@@ -112,32 +81,11 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
   switch (service.kind) {
     case "FeatureServer": {
       const { default: FeatureLayer } = await import("@arcgis/core/layers/FeatureLayer.js");
-      const visualStyle = featureLayerVisualStyle(service);
-      let renderer;
-
-      if (visualStyle) {
-        const [{ default: SimpleRenderer }, { default: SimpleFillSymbol }] = await Promise.all([
-          import("@arcgis/core/renderers/SimpleRenderer.js"),
-          import("@arcgis/core/symbols/SimpleFillSymbol.js")
-        ]);
-        renderer = new SimpleRenderer({
-          symbol: new SimpleFillSymbol({
-            style: visualStyle.fillStyle,
-            color: visualStyle.fillColor,
-            outline: {
-              color: visualStyle.outlineColor,
-              width: visualStyle.outlineWidth
-            }
-          })
-        });
-      }
-
       return new FeatureLayer({
         ...common,
         url: service.url,
         outFields: ["*"],
-        popupEnabled: true,
-        ...(renderer ? { renderer } : {})
+        popupEnabled: true
       });
     }
     case "SceneServer": {
@@ -153,6 +101,7 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
         sublayers: sublayerId === undefined ? undefined : [{
           id: sublayerId,
           visible: true,
+          opacity: 1,
           minScale: service.operationalMinScale,
           maxScale: service.operationalMaxScale
         }]
@@ -167,6 +116,21 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
       return new WFSLayer({ ...common, url: service.url });
     }
   }
+}
+
+function selectBestWmsSublayer(service: ServiceDefinition, layer: Layer): void {
+  const wms = layer as WmsLayerLike;
+  const candidates = (wms.allSublayers?.toArray() ?? [])
+    .filter((sublayer) => (sublayer.sublayers?.length ?? 0) === 0)
+    .map((sublayer) => ({ sublayer, score: ogcLayerMatchScore(service.displayName, sublayer) }))
+    .sort((left, right) => right.score - left.score);
+
+  if (candidates.length <= 1) return;
+  const best = candidates[0];
+  const second = candidates[1];
+  if (!best || best.score < 70) return;
+  if (second && best.score < 100 && best.score - second.score < 12) return;
+  wms.sublayers = [best.sublayer];
 }
 
 function normalizeLayerName(value: string): string {
