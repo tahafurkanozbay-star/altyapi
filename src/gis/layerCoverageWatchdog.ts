@@ -1,5 +1,6 @@
 const MAIN_SCENE_ID = "altyapi-main-scene";
 const COVERAGE_PADDING_FACTOR = 1.12;
+const COVERAGE_SCALE_INSET = 0.04;
 const ACTIVATION_NAVIGATION_DEBOUNCE_MS = 120;
 const GEOGRAPHIC_WKID = 4326;
 const WEB_MERCATOR_WKID = 3857;
@@ -19,6 +20,7 @@ export type ExtentLike = {
   ymin?: unknown;
   xmax?: unknown;
   ymax?: unknown;
+  center?: unknown;
   spatialReference?: SpatialReferenceLike | null;
   expand?: (factor: number) => unknown;
 };
@@ -33,6 +35,8 @@ type NormalizedExtent = {
 type LayerLike = {
   id?: string;
   visible?: boolean;
+  minScale?: unknown;
+  maxScale?: unknown;
   fullExtent?: ExtentLike | null;
   watch?: (property: "visible", callback: (value: unknown) => void) => Removable;
 };
@@ -50,6 +54,7 @@ type LayerViewEventDetail = {
 
 type SceneLike = HTMLElement & {
   extent?: ExtentLike | null;
+  scale?: number;
   goTo?: (target: unknown, options?: unknown) => Promise<unknown>;
 };
 
@@ -134,10 +139,66 @@ export function layerCoverageTarget(layerExtent: ExtentLike): unknown {
 }
 
 /**
+ * Chooses a scale safely inside the provider's ArcGIS visibility interval.
+ * ArcGIS scale terminology is counter-intuitive: minScale is the furthest
+ * allowed denominator while maxScale is the closest allowed denominator.
+ * When the current scale is already valid it is preserved to avoid unnecessary
+ * zooming. Zero/invalid bounds mean "unconstrained" and conflicting metadata is
+ * ignored rather than producing a camera jump.
+ */
+export function coverageSafeScale(
+  currentScale: unknown,
+  minScaleValue: unknown,
+  maxScaleValue: unknown
+): number | undefined {
+  const minScale = positiveScale(minScaleValue);
+  const maxScale = positiveScale(maxScaleValue);
+  if (!minScale && !maxScale) return undefined;
+  if (minScale && maxScale && maxScale > minScale) return undefined;
+
+  let target = positiveScale(currentScale);
+  if (!target) {
+    if (minScale && maxScale) target = Math.sqrt(minScale * maxScale);
+    else if (minScale) target = minScale * (1 - COVERAGE_SCALE_INSET);
+    else if (maxScale) target = maxScale * (1 + COVERAGE_SCALE_INSET);
+  }
+
+  if (!target) return undefined;
+  if (minScale && target > minScale) target = minScale * (1 - COVERAGE_SCALE_INSET);
+  if (maxScale && target < maxScale) target = maxScale * (1 + COVERAGE_SCALE_INSET);
+
+  if (minScale && maxScale && (target > minScale || target < maxScale)) {
+    target = Math.sqrt(minScale * maxScale);
+  }
+  return Math.max(1, Math.round(target));
+}
+
+/**
+ * Builds one ArcGIS goTo target that combines coverage and provider scale. This
+ * avoids the old pattern where fitting a very large fullExtent zoomed too far
+ * out and the scale guard immediately issued a second corrective zoom.
+ */
+export function layerCoverageNavigationTarget(
+  layerExtent: ExtentLike,
+  currentScale: unknown,
+  minScale: unknown,
+  maxScale: unknown
+): unknown {
+  const safeScale = coverageSafeScale(currentScale, minScale, maxScale);
+  if (!safeScale) return layerCoverageTarget(layerExtent);
+  return {
+    target: layerExtent.center ?? layerExtent,
+    scale: safeScale
+  };
+}
+
+/**
  * Keeps activation navigation conservative: a service layer is focused only on
  * a false -> true visibility transition and only when its loaded fullExtent is
  * provably disjoint from the current Scene extent. Temporary LayerView recycle
  * events do not re-focus the map, while a real hide/show arms the layer again.
+ * When provider scale metadata exists, coverage and scale are resolved in one
+ * goTo operation so LayerView creation does not trigger a zoom ping-pong.
  */
 export function installLayerCoverageWatchdog(): () => void {
   if (typeof window === "undefined" || typeof document === "undefined") return () => undefined;
@@ -178,7 +239,7 @@ export function installLayerCoverageWatchdog(): () => void {
         !shouldAutoFocusLayerCoverage(scene.extent, fullExtent)
       ) return;
 
-      const target = layerCoverageTarget(fullExtent);
+      const target = layerCoverageNavigationTarget(fullExtent, scene.scale, layer.minScale, layer.maxScale);
       void scene.goTo?.(target, { duration: 820, easing: "ease-in-out" }).catch(() => undefined);
     }, ACTIVATION_NAVIGATION_DEBOUNCE_MS);
   };
@@ -310,6 +371,11 @@ function webMercatorToGeographic(x: number, y: number): { longitude: number; lat
     longitude: x / EARTH_RADIUS_M * 180 / Math.PI,
     latitude: Math.atan(Math.sinh(y / EARTH_RADIUS_M)) * 180 / Math.PI
   };
+}
+
+function positiveScale(value: unknown): number | undefined {
+  const numeric = finiteNumber(value);
+  return numeric !== undefined && numeric > 0 ? numeric : undefined;
 }
 
 function finiteNumber(value: unknown): number | undefined {
