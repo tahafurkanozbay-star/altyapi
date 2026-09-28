@@ -31,38 +31,10 @@ jobs:
       - name: Audit service scale metadata
         run: npm run audit:scales
       - name: Validate sanitized scale audit
-        shell: bash
-        run: |
-          node - <<'NODE'
-          const fs = require("node:fs");
-          const report = JSON.parse(fs.readFileSync("service-scale-audit.json", "utf8"));
-          const serialized = JSON.stringify(report);
-          if (report.schemaVersion !== 1 || !Array.isArray(report.results) || report.results.length !== report.total) {
-            throw new Error("Scale audit schema is invalid.");
-          }
-          if (/tokenUrl|https?:\/\//i.test(serialized)) {
-            throw new Error("Scale audit contains an endpoint or token-like URL and is not safe to publish as an artifact.");
-          }
-          NODE
+        run: npm run validate:scale-audit
       - name: Write summary
         shell: bash
-        run: |
-          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
-          const fs = require("node:fs");
-          const h = JSON.parse(fs.readFileSync("public/service-health.json", "utf8"));
-          const s = JSON.parse(fs.readFileSync("service-scale-audit.json", "utf8"));
-          const states = ["verified", "degraded", "unavailable", "unknown"];
-          console.log("## Başkent 3B CBS · Service Observability");
-          console.log("");
-          console.log(`Health measured: **${h.generatedAt}**`);
-          console.log(`Scale audited: **${s.auditedAt}**`);
-          console.log("");
-          for (const state of states) {
-            console.log(`- **${state}**: ${h.services.filter(service => service.availability === state).length}`);
-          }
-          console.log(`- **scale metadata reachable**: ${s.reachable}/${s.total}`);
-          console.log(`- **explicit server scale limits**: ${s.explicitScaleLimits}`);
-          NODE
+        run: npm run summary:observability >> "$GITHUB_STEP_SUMMARY"
       - name: Upload sanitized observability snapshots
         uses: actions/upload-artifact@v4
         with:
