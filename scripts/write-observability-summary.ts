@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { renderObservabilitySummary } from "./observability-coverage.ts";
+import { renderObservabilitySummary } from "../src/lib/observabilityCoverage.ts";
 
 const health = JSON.parse(await readFile("public/service-health.json", "utf8"));
 const scale = JSON.parse(await readFile("service-scale-audit.json", "utf8"));
