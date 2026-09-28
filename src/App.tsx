@@ -287,15 +287,8 @@ export default function App() {
     const runtime = runtimeRef.current;
     if (!runtime) return;
 
-    if (visible) {
-      patchService(service.id, { visible: true, status: "loading", error: undefined });
-      const navigation = await runtime.prepareLayerActivation(service);
-      if (navigation.moved && navigation.targetScale) {
-        pushToast(`${service.displayName} için uygun harita ölçeğine geçildi · 1:${formatScale(navigation.targetScale)}.`, "info");
-      }
-    } else {
-      patchService(service.id, { visible: false });
-    }
+    if (visible) patchService(service.id, { visible: true, status: "loading", error: undefined });
+    else patchService(service.id, { visible: false });
 
     const result = await runtime.setLayerVisible({ ...service, visible }, visible);
     if (result.superseded) return;
@@ -323,7 +316,16 @@ export default function App() {
         serviceName: service.displayName,
         durationMs: result.durationMs
       });
-    } else if (visible && (result.durationMs ?? 0) >= 5_000) {
+    } else if (visible && result.navigation?.moved) {
+      pushToast(
+        result.navigation.targetScale
+          ? `${service.displayName} için uygun harita görünümüne geçildi · 1:${formatScale(result.navigation.targetScale)}.`
+          : `${service.displayName} veri kapsamına geçildi.`,
+        "info"
+      );
+    }
+
+    if (result.ok && visible && (result.durationMs ?? 0) >= 5_000) {
       recordIncident({
         severity: "warning",
         kind: "layer-load",
@@ -360,7 +362,6 @@ export default function App() {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
-    await runtime.prepareLayerActivation(service);
     const result = await runtime.reloadLayer({ ...service, visible: true });
     if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
