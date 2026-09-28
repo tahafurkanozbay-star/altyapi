@@ -9,10 +9,18 @@ import {
   type TucbsEndpointMap,
   type TucbsScaleProfileMap
 } from "./tucbsAccess";
+import {
+  discoverTucbsCoverageProfiles,
+  loadTucbsCoverageProfiles,
+  missingTucbsCoverageKeys,
+  saveTucbsCoverageProfiles,
+  type TucbsCoverageProfileMap
+} from "./tucbsCoverage";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 const requiredFields = ["ustKurumAdi", "metaveriSahibiKurumAdi", "cografiVeriKatmanAdi", "servisTuruAdi", "tokenUrl"] as const;
 const TUCBS_SCALE_PROBE_KEY = "altyapi:tucbs-scale-probe:v18";
+const TUCBS_COVERAGE_PROBE_KEY = "altyapi:tucbs-coverage-probe:v26";
 
 export function slugify(value: string): string {
   return value
@@ -59,13 +67,15 @@ export function normalizeService(
   raw: RawServiceDefinition,
   index: number,
   tucbsEndpoints = loadTucbsEndpoints(),
-  tucbsScaleProfiles: TucbsScaleProfileMap = loadTucbsScaleProfiles()
+  tucbsScaleProfiles: TucbsScaleProfileMap = loadTucbsScaleProfiles(),
+  tucbsCoverageProfiles: TucbsCoverageProfileMap = loadTucbsCoverageProfiles()
 ): ServiceDefinition {
   const kind = inferKind(raw);
   const displayName = raw.cografiVeriKatmanAdi.trim();
   const runtimeKey = runtimeEndpointKeyFromUrl(raw.tokenUrl);
   const normalizedUrl = normalizeHttpUrl(resolveTucbsRuntimeUrl(raw.tokenUrl, tucbsEndpoints));
   const scaleProfile = runtimeKey ? tucbsScaleProfiles[runtimeKey] : undefined;
+  const coverageProfile = runtimeKey ? tucbsCoverageProfiles[runtimeKey] : undefined;
   const identityTarget = runtimeKey ? `tucbs-runtime:${runtimeKey}` : safeUrlIdentity(normalizedUrl);
   const identity = `${raw.ustKurumAdi.trim()}|${displayName}|${kind}|${identityTarget}|${index}`;
   const prefix = slugify(displayName).slice(0, 48) || "layer";
@@ -85,11 +95,12 @@ export function normalizeService(
     availability: "unknown",
     access: "unknown",
     failureCount: 0,
+    operationalExtent: coverageProfile?.extent,
     operationalMinScale: scaleProfile?.minScale,
     operationalMaxScale: scaleProfile?.maxScale,
     recommendedScale: scaleProfile?.recommendedScale,
     renderScaleSensitive: Boolean(scaleProfile?.minScale || scaleProfile?.maxScale),
-    navigationVerifiedAt: scaleProfile?.verifiedAt,
+    navigationVerifiedAt: newestVerification(scaleProfile?.verifiedAt, coverageProfile?.verifiedAt),
     alternateEndpoints: []
   };
 }
@@ -129,11 +140,10 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
   const document: unknown = await response.json();
   const tucbsEndpoints = loadTucbsEndpoints();
   let tucbsScaleProfiles = loadTucbsScaleProfiles();
+  let tucbsCoverageProfiles = loadTucbsCoverageProfiles();
 
-  // v18 migration: users who already configured approved-IP TUCBS endpoints in
-  // v16/v17 should not have to import the same protected JSON again. One
-  // client-side capabilities pass learns provider scale declarations, stores
-  // only numeric scale metadata, and never persists the signed URL in reports.
+  // Existing approved-IP users should learn provider scale metadata without
+  // re-importing their protected JSON. Only numeric scale values are stored.
   if (shouldProbeTucbsScales(tucbsEndpoints, tucbsScaleProfiles)) {
     try {
       const report = await verifyTucbsEndpoints(tucbsEndpoints, { timeoutMs: 6_000, concurrency: 5 });
@@ -148,8 +158,25 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
     }
   }
 
+  // v26 migration: learn an unambiguous WGS84 geographic envelope from WMS
+  // capabilities and mirror it to the logical WFS peer. This gives TUCBS rows
+  // a real operational extent without persisting the protected service URL.
+  if (shouldProbeTucbsCoverage(tucbsEndpoints, tucbsCoverageProfiles)) {
+    try {
+      const report = await discoverTucbsCoverageProfiles(tucbsEndpoints, { timeoutMs: 6_000, concurrency: 5 });
+      if (report.discovered > 0) {
+        tucbsCoverageProfiles = { ...tucbsCoverageProfiles, ...report.profiles };
+        saveTucbsCoverageProfiles(tucbsCoverageProfiles, true);
+        markTucbsCoverageProbe(tucbsEndpoints);
+      }
+    } catch {
+      // Coverage discovery is deliberately non-blocking for offline or
+      // temporarily unavailable approved-IP sessions.
+    }
+  }
+
   const normalized = parseServicesDocument(document).map((service, index) =>
-    normalizeService(service, index, tucbsEndpoints, tucbsScaleProfiles)
+    normalizeService(service, index, tucbsEndpoints, tucbsScaleProfiles, tucbsCoverageProfiles)
   );
   return attachSemanticAlternates(normalized);
 }
@@ -193,8 +220,31 @@ function markTucbsScaleProbe(endpoints: TucbsEndpointMap): void {
   }
 }
 
+function shouldProbeTucbsCoverage(endpoints: TucbsEndpointMap, profiles: TucbsCoverageProfileMap): boolean {
+  if (missingTucbsCoverageKeys(endpoints, profiles).length === 0) return false;
+  try {
+    return localStorage.getItem(TUCBS_COVERAGE_PROBE_KEY) !== endpointKeyFingerprint(endpoints);
+  } catch {
+    return true;
+  }
+}
+
+function markTucbsCoverageProbe(endpoints: TucbsEndpointMap): void {
+  try {
+    localStorage.setItem(TUCBS_COVERAGE_PROBE_KEY, endpointKeyFingerprint(endpoints));
+  } catch {
+    // Storage restrictions must not block the catalogue.
+  }
+}
+
 function endpointKeyFingerprint(endpoints: TucbsEndpointMap): string {
   return Object.keys(endpoints).sort().join("|");
+}
+
+function newestVerification(...values: Array<string | undefined>): string | undefined {
+  const valid = values.filter((value): value is string => Boolean(value) && !Number.isNaN(Date.parse(value!)));
+  if (!valid.length) return undefined;
+  return valid.sort((left, right) => Date.parse(right) - Date.parse(left))[0];
 }
 
 function isInterchangeableOgcPair(left: ServiceKind, right: ServiceKind): boolean {
