@@ -1,23 +1,26 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v19 live runtime scale reconciliation", () => {
-  it("reconciles provider metadata before a loaded layer enters the live map", async () => {
+describe("live runtime scale reconciliation", () => {
+  it("reconciles provider metadata before map attachment while deferring camera enforcement to the atomic plan", async () => {
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
 
     expect(runtime).toContain("runtimeScaleRangeFromLoadedLayer");
     expect(runtime).toContain("reconcileServiceRuntimeScale");
     expect(runtime).toContain("runtimeScaleServices");
-    expect(runtime).toContain("this.setScaleGuard(reconciledService, true)");
+    expect(runtime).toContain("this.setScaleGuard(reconciledService, true, false)");
+    expect(runtime).toContain("planAtomicLayerActivation");
 
     const finalize = runtime.indexOf("finalizeLoadedLayer(service, layer)");
     const reconcile = runtime.indexOf("runtimeScaleRangeFromLoadedLayer(layer)", finalize);
-    const guard = runtime.indexOf("this.setScaleGuard(reconciledService, true)", reconcile);
+    const guard = runtime.indexOf("this.setScaleGuard(reconciledService, true, false)", reconcile);
     const add = runtime.indexOf("this.map?.add(layer)", guard);
+    const plan = runtime.indexOf("this.executeAtomicActivationNavigation(reconciledService, layer, layerView)", add);
     expect(finalize).toBeGreaterThan(-1);
     expect(reconcile).toBeGreaterThan(finalize);
     expect(guard).toBeGreaterThan(reconcile);
     expect(add).toBeGreaterThan(guard);
+    expect(plan).toBeGreaterThan(add);
   });
 
   it("keeps provider min/maxScale metadata unshadowed by constructor overrides", async () => {
