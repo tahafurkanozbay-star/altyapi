@@ -21,7 +21,9 @@
     "validate:health": "tsx scripts/validate-service-health.ts",
     "probe:services": "tsx scripts/probe-service-health.ts",
     "validate:navigation": "tsx scripts/validate-service-navigation.ts",
-    "audit:scales": "tsx scripts/audit-service-scales.ts"
+    "audit:scales": "tsx scripts/audit-service-scales.ts && tsx scripts/finalize-scale-audit.ts",
+    "validate:scale-audit": "tsx scripts/validate-scale-audit.ts",
+    "summary:observability": "tsx scripts/write-observability-summary.ts"
   },
   "dependencies": {
     "@arcgis/core": "^5.1.25",
