@@ -13,7 +13,7 @@ const sr3857 = { wkid: 3857 };
 const sr102100 = { wkid: 102100 };
 const sr4326 = { wkid: 4326 };
 
-describe("Layer coverage activation watchdog", () => {
+describe("Layer coverage activation geometry", () => {
   it("keeps the camera when the current view already intersects the provider extent", () => {
     const view = { xmin: 0, ymin: 0, xmax: 100, ymax: 100, spatialReference: sr3857 };
     const layer = { xmin: 60, ymin: 20, xmax: 160, ymax: 80, spatialReference: sr3857 };
@@ -106,7 +106,7 @@ describe("Layer coverage activation watchdog", () => {
     expect(coverageSafeScale(Number.NaN, -1, 0)).toBeUndefined();
   });
 
-  it("combines provider center and safe scale into one goTo target", () => {
+  it("combines provider center and safe scale into one target", () => {
     const center = { x: 10, y: 20, spatialReference: sr3857 };
     const layer = {
       xmin: 200,
@@ -140,20 +140,18 @@ describe("Layer coverage activation watchdog", () => {
     expect(expand).toHaveBeenCalledWith(1.12);
   });
 
-  it("boots the coverage watchdog alongside the render watchdog before React", async () => {
+  it("keeps coverage math pure and gives ArcGISRuntime sole activation-navigation ownership", async () => {
     const main = await readFile("src/main.tsx", "utf8");
-    const watchdog = await readFile("src/gis/layerCoverageWatchdog.ts", "utf8");
+    const coverage = await readFile("src/gis/layerCoverageWatchdog.ts", "utf8");
+    const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
 
-    expect(main).toContain('import { installLayerCoverageWatchdog } from "./gis/layerCoverageWatchdog"');
-    expect(main).toContain("installLayerCoverageWatchdog();");
-    expect(main.indexOf("installLayerCoverageWatchdog();")).toBeLessThan(main.indexOf("createRoot(root).render"));
-    expect(watchdog).toContain('document.addEventListener("arcgisViewLayerviewCreate"');
-    expect(watchdog).toContain('layerView.watch("visible"');
-    expect(watchdog).toContain('layer.watch("visible"');
-    expect(watchdog).toContain("projectExtentForComparison");
-    expect(watchdog).toContain("coverageSafeScale");
-    expect(watchdog).toContain("layerCoverageNavigationTarget");
-    expect(watchdog).toContain("shouldAutoFocusLayerCoverage(scene.extent, fullExtent)");
-    expect(watchdog).toContain("ACTIVATION_NAVIGATION_DEBOUNCE_MS");
+    expect(main).not.toContain("installLayerCoverageWatchdog");
+    expect(coverage).not.toContain('document.addEventListener("arcgisViewLayerviewCreate"');
+    expect(coverage).not.toContain("scene.goTo");
+    expect(coverage).toContain("projectExtentForComparison");
+    expect(coverage).toContain("coverageSafeScale");
+    expect(runtime).toContain("planAtomicLayerActivation");
+    expect(runtime).toContain("waitForLayerViewCreation");
+    expect(runtime).toContain("layerCoverageTarget");
   });
 });
