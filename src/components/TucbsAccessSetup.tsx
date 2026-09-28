@@ -7,7 +7,7 @@ import {
 import {
   describeTucbsVerificationFailure,
   selectVerifiedTucbsEndpoints,
-  verifyTucbsBrowserAccess
+  verifyTucbsBrowserAccess as verifyTucbsEndpoints
 } from "../lib/tucbsBrowserVerification";
 import {
   discoverTucbsCoverageProfiles,
@@ -55,7 +55,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
     setStatus("Yetkili servisler, katman ölçekleri ve veri kapsamları bu bağlantı üzerinden doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
-      const report = await verifyTucbsBrowserAccess(endpoints);
+      const report = await verifyTucbsEndpoints(endpoints);
       if (report.verified === 0) {
         throw new Error(describeTucbsVerificationFailure(report));
       }
