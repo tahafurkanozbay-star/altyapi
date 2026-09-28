@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
-import { installLayerCoverageWatchdog } from "./gis/layerCoverageWatchdog";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import "@arcgis/core/assets/esri/themes/light/main.css";
@@ -29,12 +28,11 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error("[Başkent 3B CBS] Unhandled rejection", event.reason);
 });
 
-// Install the render-health store before the watchdogs and React. This keeps
-// LayerView readiness across panel unmount/remount cycles and guarantees that
-// no fast cached LayerView event races past the citizen-facing status bridge.
+// Install the render-health store before the LayerView watchdog and React. The
+// runtime owns activation navigation; the watchdog observes render truth and
+// only performs post-activation recovery when the transaction has completed.
 installLayerRenderHealthStore();
 installSceneLayerWatchdog();
-installLayerCoverageWatchdog();
 
 createRoot(root).render(
   <AppErrorBoundary>
