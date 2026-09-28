@@ -155,13 +155,18 @@ describe("architecture guardrails", () => {
     expect(catalog).toContain("opacity: 1");
   });
 
-  it("ships verified operational extents and atomic continuous scale guardrails", async () => {
+  it("ships one atomic activation camera owner plus continuous post-activation scale guardrails", async () => {
     const navigation = await readFile("src/lib/serviceNavigation.ts", "utf8");
     const runtimeScale = await readFile("src/lib/runtimeScale.ts", "utf8");
     const snapshot = await readFile("public/service-navigation.json", "utf8");
     const runtime = await readFile("src/gis/ArcGISRuntime.ts", "utf8");
+    const planner = await readFile("src/gis/layerActivationPlanner.ts", "utf8");
+    const activationState = await readFile("src/gis/layerActivationState.ts", "utf8");
+    const layerViewWatchdog = await readFile("src/gis/layerViewWatchdog.ts", "utf8");
+    const coverage = await readFile("src/gis/layerCoverageWatchdog.ts", "utf8");
     const factory = await readFile("src/gis/layerFactory.ts", "utf8");
     const app = await readFile("src/App.tsx", "utf8");
+    const entry = await readFile("src/main.tsx", "utf8");
     const serviceWorker = await readFile("public/sw.js", "utf8");
     const packageJson = await readFile("package.json", "utf8");
     const monitor = await readFile(".github/workflows/service-health.yml", "utf8");
@@ -176,19 +181,29 @@ describe("architecture guardrails", () => {
     expect(snapshot).not.toContain("tokenUrl");
     expect(snapshot).not.toContain("http://");
     expect(snapshot).not.toContain("https://");
-    expect(runtime).toContain("prepareLayerActivation");
-    expect(runtime).toContain("operationalExtentCenter");
-    expect(runtime).toContain("activeScaleServices");
-    expect(runtime).toContain("runtimeScaleServices");
-    expect(runtime).toContain("enforceScaleGuard");
-    expect(runtime).toContain("intent time");
-    expect(runtime).toContain("resolveOperationalScaleRange([...this.activeScaleServices.values()], scaleService)");
+    expect(runtime).not.toContain("prepareLayerActivation");
+    expect(app).not.toContain("prepareLayerActivation");
+    expect(runtime).toContain("activateLoadedLayer");
+    expect(runtime).toContain("executeAtomicActivationNavigation");
+    expect(runtime).toContain("waitForLayerViewCreation");
+    expect(runtime).toContain("activationNavigationChain");
+    expect(runtime).toContain("beginAtomicLayerActivation");
+    expect(runtime).toContain("setScaleGuard(reconciledService, true, false)");
     expect(runtime).toContain("runtimeScaleRangeFromLoadedLayer(layer)");
     expect(runtime).toContain("arcgisViewChange");
+    expect(planner).toContain("planAtomicLayerActivation");
+    expect(planner).toContain("resolveOperationalScaleRange");
+    expect(planner).toContain("layerViewVisibleAtCurrentScale");
+    expect(activationState).toContain("ATOMIC_LAYER_ACTIVATION_EVENT");
+    expect(layerViewWatchdog).toContain("isAtomicLayerActivationPending");
+    expect(layerViewWatchdog).toContain("ATOMIC_LAYER_ACTIVATION_EVENT");
+    expect(coverage).not.toContain('document.addEventListener("arcgisViewLayerviewCreate"');
+    expect(entry).not.toContain("installLayerCoverageWatchdog");
     expect(factory).toContain("operationalMinScale");
     expect(factory).toContain("operationalMaxScale");
     expect(factory).toContain("provider metadata");
     expect(app).toContain("loadServiceNavigationSnapshot");
+    expect(app).toContain("result.navigation?.moved");
     expect(serviceWorker).toContain("service-navigation.json");
     expect(packageJson).toContain("validate:navigation");
     expect(packageJson).toContain("audit:scales");
