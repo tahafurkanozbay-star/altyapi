@@ -72,6 +72,7 @@ describe("Layer coverage activation watchdog", () => {
     expect(main.indexOf("installLayerCoverageWatchdog();")).toBeLessThan(main.indexOf("createRoot(root).render"));
     expect(watchdog).toContain('document.addEventListener("arcgisViewLayerviewCreate"');
     expect(watchdog).toContain('layerView.watch("visible"');
+    expect(watchdog).toContain('layer.watch("visible"');
     expect(watchdog).toContain("shouldAutoFocusLayerCoverage(scene.extent, fullExtent)");
     expect(watchdog).toContain("ACTIVATION_NAVIGATION_DEBOUNCE_MS");
   });
