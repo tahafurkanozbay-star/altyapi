@@ -9,7 +9,6 @@ import {
   clampScaleToOperationalRange,
   hasOperationalScaleConstraint,
   operationalExtentCenter,
-  operationalExtentContains,
   recommendedActivationScale,
   resolveOperationalScaleRange
 } from "../lib/serviceNavigation";
@@ -27,6 +26,16 @@ import {
   withRuntimeTimeout,
   type ServiceFailureClass
 } from "../lib/serviceRuntime";
+import {
+  planAtomicLayerActivation,
+  type AtomicLayerActivationReason
+} from "./layerActivationPlanner";
+import { layerCoverageTarget, type ExtentLike } from "./layerCoverageWatchdog";
+import {
+  beginAtomicLayerActivation,
+  clearAtomicLayerActivationState,
+  endAtomicLayerActivation
+} from "./layerActivationState";
 import type {
   AttributeQueryOptions,
   AttributeTableResult,
@@ -50,6 +59,15 @@ type GraphicHit = {
 };
 type SceneHitResult = GraphicHit | { type: string };
 type ScenePointerDetail = { x: number; y: number };
+type LayerViewLike = {
+  layer?: Layer;
+  visible?: boolean;
+  visibleAtCurrentScale?: boolean;
+};
+type LayerViewEventDetail = {
+  layer?: Layer;
+  layerView?: LayerViewLike;
+};
 type ArcGISSceneElement = HTMLElement & {
   autoDestroyDisabled?: boolean;
   basemap?: string;
@@ -64,6 +82,7 @@ type ArcGISSceneElement = HTMLElement & {
   popupDisabled?: boolean;
   map?: ArcGISMap | null;
   scale?: number;
+  extent?: ExtentLike | null;
   fatalError?: Error | null;
   componentOnReady?: () => Promise<unknown>;
   viewOnReady?: () => Promise<void>;
@@ -98,6 +117,12 @@ export interface RuntimeCallbacks {
   onGraphicsRecovery?: (event: GraphicsRecoveryEvent) => void;
 }
 
+export interface OperationalNavigationResult {
+  moved: boolean;
+  reason?: AtomicLayerActivationReason;
+  targetScale?: number;
+}
+
 export interface LayerLoadResult {
   ok: boolean;
   error?: string;
@@ -106,12 +131,7 @@ export interface LayerLoadResult {
   attempts?: number;
   recovered?: boolean;
   failureClass?: ServiceFailureClass;
-}
-
-export interface OperationalNavigationResult {
-  moved: boolean;
-  reason?: "outside-extent" | "scale-too-far" | "scale-too-close";
-  targetScale?: number;
+  navigation?: OperationalNavigationResult;
 }
 
 const HOME_CAMERA: CameraState = {
@@ -121,6 +141,8 @@ const HOME_CAMERA: CameraState = {
   heading: 2,
   tilt: 58
 };
+
+const LAYER_VIEW_ACTIVATION_WAIT_MS = 720;
 
 export class ArcGISRuntime {
   private map?: ArcGISMap;
@@ -142,6 +164,8 @@ export class ArcGISRuntime {
   private destroyed = false;
   private recoveringGraphics = false;
   private scaleGuardApplying = false;
+  private activationGuardDepth = 0;
+  private activationNavigationChain: Promise<void> = Promise.resolve();
 
   constructor(profile: PerformanceProfile) {
     this.profile = profile;
@@ -271,10 +295,6 @@ export class ArcGISRuntime {
       return { ok: true, durationMs: 0 };
     }
 
-    // Register the guard at intent time, not after a potentially slow network load.
-    // This makes startup restore, workspace import and manual activation share the same atomic zoom policy.
-    this.setScaleGuard(service, true);
-
     const existingLoad = this.loadingLayers.get(service.id);
     if (existingLoad) {
       const result = await existingLoad;
@@ -291,9 +311,11 @@ export class ArcGISRuntime {
 
     const existing = this.layers.get(service.id);
     if (existing) {
-      existing.opacity = clampOpacity(service.opacity);
-      existing.visible = true;
-      return { ok: true, durationMs: 0 };
+      const navigation = await this.activateLoadedLayer(service, existing, false);
+      if (this.destroyed || this.desiredVisibility.get(service.id) !== true) {
+        return { ok: true, durationMs: 0, superseded: true, navigation };
+      }
+      return { ok: true, durationMs: 0, navigation };
     }
 
     const operation = this.loadLayer(service);
@@ -421,67 +443,6 @@ export class ArcGISRuntime {
       };
     } finally {
       if (temporary) layer.destroy();
-    }
-  }
-
-  async prepareLayerActivation(service: ServiceDefinition): Promise<OperationalNavigationResult> {
-    const scaleService = this.runtimeScaleServices.get(service.id) ?? service;
-    if (
-      !this.scene ||
-      this.destroyed ||
-      (!scaleService.renderScaleSensitive && !hasOperationalScaleConstraint(scaleService))
-    ) return { moved: false };
-
-    const camera = this.scene.camera;
-    const longitude = camera?.position.longitude;
-    const latitude = camera?.position.latitude;
-    const scale = this.scene.scale ?? Number.NaN;
-    const insideExtent =
-      scaleService.operationalExtent && Number.isFinite(longitude) && Number.isFinite(latitude)
-        ? operationalExtentContains(scaleService, longitude!, latitude!)
-        : true;
-
-    // Plan against the currently active constrained layers plus the candidate before loading it.
-    // This prevents a second corrective snap after the layer becomes active.
-    const range = resolveOperationalScaleRange([...this.activeScaleServices.values()], scaleService);
-    const clampedCurrentScale = clampScaleToOperationalRange(scale, range);
-    const insideScale =
-      !Number.isFinite(scale) ||
-      scale <= 0 ||
-      Math.abs(clampedCurrentScale - scale) / scale < 0.002;
-
-    if (insideExtent && insideScale) return { moved: false };
-
-    let reason: OperationalNavigationResult["reason"];
-    if (!insideExtent) reason = "outside-extent";
-    else if (range.minScale && scale > range.minScale) reason = "scale-too-far";
-    else if (range.maxScale && scale < range.maxScale) reason = "scale-too-close";
-
-    const preferredScale = targetOperationalScale(scaleService, scale);
-    const targetScale = clampScaleToOperationalRange(preferredScale, range);
-    const targetCenter =
-      !insideExtent && scaleService.operationalExtent
-        ? operationalExtentCenter(scaleService.operationalExtent)
-        : {
-            longitude: longitude ?? HOME_CAMERA.longitude,
-            latitude: latitude ?? HOME_CAMERA.latitude
-          };
-
-    try {
-      const { default: Point } = await import("@arcgis/core/geometry/Point.js");
-      if (!this.scene || this.destroyed) return { moved: false };
-      const target = new Point({
-        longitude: targetCenter.longitude,
-        latitude: targetCenter.latitude,
-        spatialReference: { wkid: 4326 }
-      });
-      await this.scene.goTo?.(
-        { target, scale: targetScale },
-        { duration: 780, easing: "ease-in-out" }
-      );
-      return { moved: true, reason, targetScale };
-    } catch {
-      return { moved: false };
     }
   }
 
@@ -618,6 +579,9 @@ export class ArcGISRuntime {
     this.desiredVisibility.clear();
     this.activeScaleServices.clear();
     this.runtimeScaleServices.clear();
+    clearAtomicLayerActivationState();
+    this.activationGuardDepth = 0;
+    this.activationNavigationChain = Promise.resolve();
     this.callbacks = {};
     this.recoveringGraphics = false;
     this.scaleGuardApplying = false;
@@ -696,24 +660,24 @@ export class ArcGISRuntime {
           };
         }
 
-        // Live provider metadata is authoritative only when it tightens the
-        // verified/client-learned profile. Cache it for hide/show cycles so a
-        // reopened layer enters its real range before any network work starts.
-        const runtimeScale = runtimeScaleRangeFromLoadedLayer(layer);
-        const reconciledService = reconcileServiceRuntimeScale(service, runtimeScale);
-        this.runtimeScaleServices.set(service.id, reconciledService);
-        this.setScaleGuard(reconciledService, true);
+        const navigation = await this.activateLoadedLayer(service, layer, true);
+        if (this.destroyed || this.desiredVisibility.get(service.id) !== true) {
+          return {
+            ok: true,
+            durationMs: Math.round(performance.now() - startedAt),
+            superseded: true,
+            attempts,
+            navigation
+          };
+        }
 
-        layer.opacity = clampOpacity(service.opacity);
-        layer.visible = true;
-        this.layers.set(service.id, layer);
-        this.map?.add(layer);
         this.pruneLayerCache();
         return {
           ok: true,
           durationMs: Math.round(performance.now() - startedAt),
           attempts,
-          recovered: attempts > 1
+          recovered: attempts > 1,
+          navigation
         };
       } catch (error) {
         lastError = error;
@@ -753,6 +717,167 @@ export class ArcGISRuntime {
     };
   }
 
+  private async activateLoadedLayer(
+    service: ServiceDefinition,
+    layer: Layer,
+    attachToMap: boolean
+  ): Promise<OperationalNavigationResult> {
+    const layerId = layer.id;
+    const runtimeScale = runtimeScaleRangeFromLoadedLayer(layer);
+    const reconciledService = reconcileServiceRuntimeScale(service, runtimeScale);
+    this.runtimeScaleServices.set(service.id, reconciledService);
+
+    beginAtomicLayerActivation(layerId);
+    this.activationGuardDepth += 1;
+    window.clearTimeout(this.scaleGuardTimer);
+
+    const layerViewPromise = attachToMap
+      ? this.waitForLayerViewCreation(layer)
+      : Promise.resolve(undefined);
+
+    try {
+      // Register the loaded provider range before the one camera decision, but
+      // do not let the continuous scale guard move the Scene during activation.
+      this.setScaleGuard(reconciledService, true, false);
+      layer.opacity = clampOpacity(service.opacity);
+      layer.visible = true;
+      this.layers.set(service.id, layer);
+      if (attachToMap) this.map?.add(layer);
+
+      const layerView = await layerViewPromise;
+      if (this.destroyed || this.desiredVisibility.get(service.id) !== true) {
+        layer.visible = false;
+        this.setScaleGuard(reconciledService, false, false);
+        return { moved: false };
+      }
+
+      return await this.queueActivationNavigation(() =>
+        this.executeAtomicActivationNavigation(reconciledService, layer, layerView)
+      );
+    } finally {
+      this.activationGuardDepth = Math.max(0, this.activationGuardDepth - 1);
+      endAtomicLayerActivation(layerId);
+      if (this.activationGuardDepth === 0) this.scheduleScaleGuard();
+    }
+  }
+
+  private async executeAtomicActivationNavigation(
+    service: ServiceDefinition,
+    layer: Layer,
+    layerView: LayerViewLike | undefined
+  ): Promise<OperationalNavigationResult> {
+    const scene = this.scene;
+    if (!scene || this.destroyed || this.desiredVisibility.get(service.id) !== true) return { moved: false };
+
+    const camera = scene.camera;
+    const plan = planAtomicLayerActivation({
+      service,
+      activeServices: [...this.activeScaleServices.values()],
+      currentScale: scene.scale,
+      cameraLongitude: camera?.position.longitude ?? undefined,
+      cameraLatitude: camera?.position.latitude ?? undefined,
+      viewExtent: scene.extent,
+      providerExtent: layer.fullExtent as ExtentLike | null | undefined,
+      layerViewVisibleAtCurrentScale: layerView?.visibleAtCurrentScale
+    });
+
+    if (!plan.moved || !scene.goTo) return { moved: false };
+
+    try {
+      let target: unknown;
+      const providerExtent = layer.fullExtent as ExtentLike | null | undefined;
+
+      if (plan.focus === "provider-extent" && providerExtent) {
+        target = plan.fitProviderExtent
+          ? layerCoverageTarget(providerExtent)
+          : { target: providerExtent.center ?? providerExtent, scale: plan.targetScale };
+      } else if (plan.focus === "operational-center" && service.operationalExtent) {
+        if (plan.targetScale) {
+          const { default: Point } = await import("@arcgis/core/geometry/Point.js");
+          if (!this.scene || this.destroyed) return { moved: false };
+          const center = operationalExtentCenter(service.operationalExtent);
+          target = {
+            target: new Point({
+              longitude: center.longitude,
+              latitude: center.latitude,
+              spatialReference: { wkid: 4326 }
+            }),
+            scale: plan.targetScale
+          };
+        } else {
+          const { default: Extent } = await import("@arcgis/core/geometry/Extent.js");
+          if (!this.scene || this.destroyed) return { moved: false };
+          target = new Extent({
+            xmin: service.operationalExtent.xmin,
+            ymin: service.operationalExtent.ymin,
+            xmax: service.operationalExtent.xmax,
+            ymax: service.operationalExtent.ymax,
+            spatialReference: { wkid: 4326 }
+          }).expand(1.08);
+        }
+      } else if (plan.focus === "current-center" && plan.targetScale) {
+        const { default: Point } = await import("@arcgis/core/geometry/Point.js");
+        if (!this.scene || this.destroyed) return { moved: false };
+        target = {
+          target: new Point({
+            longitude: camera?.position.longitude ?? HOME_CAMERA.longitude,
+            latitude: camera?.position.latitude ?? HOME_CAMERA.latitude,
+            spatialReference: { wkid: 4326 }
+          }),
+          scale: plan.targetScale
+        };
+      }
+
+      if (!target || !this.scene || this.destroyed || this.desiredVisibility.get(service.id) !== true) {
+        return { moved: false };
+      }
+
+      await this.scene.goTo?.(target, { duration: 820, easing: "ease-in-out" });
+      return { moved: true, reason: plan.reason, targetScale: plan.targetScale };
+    } catch {
+      return { moved: false };
+    }
+  }
+
+  private waitForLayerViewCreation(layer: Layer): Promise<LayerViewLike | undefined> {
+    if (typeof document === "undefined") return Promise.resolve(undefined);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = 0;
+
+      const finish = (layerView?: LayerViewLike) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        document.removeEventListener("arcgisViewLayerviewCreate", onCreate as EventListener);
+        document.removeEventListener("arcgisViewLayerviewCreateError", onError as EventListener);
+        resolve(layerView);
+      };
+
+      const matches = (candidate?: Layer) => candidate === layer || candidate?.id === layer.id;
+      const onCreate = (event: Event) => {
+        const detail = layerViewDetail(event);
+        const layerView = detail?.layerView;
+        if (layerView && matches(layerView.layer ?? detail?.layer)) finish(layerView);
+      };
+      const onError = (event: Event) => {
+        const detail = layerViewDetail(event);
+        if (matches(detail?.layer ?? detail?.layerView?.layer)) finish();
+      };
+
+      document.addEventListener("arcgisViewLayerviewCreate", onCreate as EventListener);
+      document.addEventListener("arcgisViewLayerviewCreateError", onError as EventListener);
+      timer = window.setTimeout(() => finish(), LAYER_VIEW_ACTIVATION_WAIT_MS);
+    });
+  }
+
+  private queueActivationNavigation<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.activationNavigationChain.then(task, task);
+    this.activationNavigationChain = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   private cleanupLayer(serviceId: string, layer: Layer): void {
     if (this.layers.get(serviceId) === layer) this.layers.delete(serviceId);
     try {
@@ -767,7 +892,7 @@ export class ArcGISRuntime {
     }
   }
 
-  private setScaleGuard(service: ServiceDefinition, active: boolean): void {
+  private setScaleGuard(service: ServiceDefinition, active: boolean, enforce = true): void {
     const scaleService = active ? (this.runtimeScaleServices.get(service.id) ?? service) : service;
     if (!hasOperationalScaleConstraint(scaleService)) {
       this.activeScaleServices.delete(service.id);
@@ -778,11 +903,11 @@ export class ArcGISRuntime {
       // Reinsert so Map iteration preserves most-recent activation priority for impossible intersections.
       this.activeScaleServices.delete(service.id);
       this.activeScaleServices.set(service.id, scaleService);
-      this.enforceScaleGuard();
+      if (enforce && this.activationGuardDepth === 0) this.enforceScaleGuard();
     } else {
       this.activeScaleServices.delete(service.id);
     }
-    this.scheduleScaleGuard();
+    if (enforce && this.activationGuardDepth === 0) this.scheduleScaleGuard();
   }
 
   private scheduleScaleGuard(): void {
@@ -793,7 +918,13 @@ export class ArcGISRuntime {
 
   private enforceScaleGuard(): void {
     const scene = this.scene;
-    if (!scene || this.destroyed || this.scaleGuardApplying || this.activeScaleServices.size === 0) return;
+    if (
+      !scene ||
+      this.destroyed ||
+      this.activationGuardDepth > 0 ||
+      this.scaleGuardApplying ||
+      this.activeScaleServices.size === 0
+    ) return;
 
     const range = resolveOperationalScaleRange([...this.activeScaleServices.values()]);
     const currentScale = scene.scale;
@@ -1014,23 +1145,6 @@ function pointProperties(camera: CameraState) {
   };
 }
 
-function targetOperationalScale(service: ServiceDefinition, currentScale: number): number {
-  const recommended = recommendedActivationScale(service);
-  if (!Number.isFinite(currentScale) || currentScale <= 0) return recommended ?? 250_000;
-
-  if (service.operationalMinScale && currentScale > service.operationalMinScale) {
-    return recommended && recommended <= service.operationalMinScale
-      ? recommended
-      : Math.round(service.operationalMinScale * 0.75);
-  }
-
-  if (service.operationalMaxScale && currentScale < service.operationalMaxScale) {
-    return Math.round(service.operationalMaxScale * 1.25);
-  }
-
-  return currentScale;
-}
-
 function clampOpacity(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
 }
@@ -1067,6 +1181,12 @@ function formatValue(value: unknown): string {
 function coordinateLabel(point: { latitude?: number | null; longitude?: number | null }): string | undefined {
   if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) return undefined;
   return `${point.latitude!.toFixed(5)}° N · ${point.longitude!.toFixed(5)}° E`;
+}
+
+function layerViewDetail(event: Event): LayerViewEventDetail | undefined {
+  return event instanceof CustomEvent && event.detail && typeof event.detail === "object"
+    ? event.detail as LayerViewEventDetail
+    : undefined;
 }
 
 function domHandle(target: EventTarget, type: string, listener: EventListener): Removable {
