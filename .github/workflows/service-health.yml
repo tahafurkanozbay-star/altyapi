@@ -22,6 +22,8 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
       - name: Probe external services
         run: npm run probe:services
       - name: Validate sanitized snapshot
