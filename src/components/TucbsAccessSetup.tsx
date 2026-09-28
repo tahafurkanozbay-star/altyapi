@@ -5,6 +5,10 @@ import {
   saveTucbsScaleProfiles,
   verifyTucbsEndpoints
 } from "../lib/tucbsAccess";
+import {
+  discoverTucbsCoverageProfiles,
+  saveTucbsCoverageProfiles
+} from "../lib/tucbsCoverage";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -44,10 +48,13 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   const applyText = async (value: string) => {
     setBusy(true);
     setError(null);
-    setStatus("Yetkili servisler ve katman ölçekleri bu bağlantı üzerinden doğrulanıyor…");
+    setStatus("Yetkili servisler, katman ölçekleri ve veri kapsamları bu bağlantı üzerinden doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
-      const report = await verifyTucbsEndpoints(endpoints);
+      const [report, coverageReport] = await Promise.all([
+        verifyTucbsEndpoints(endpoints),
+        discoverTucbsCoverageProfiles(endpoints)
+      ]);
       if (report.verified === 0) {
         throw new Error(
           "TUCBS servislerinden hiçbiri bu tarayıcıdan doğrulanamadı. Onaylı dış IP'nizi ve güncel yetkili servis JSON'unu kontrol edin."
@@ -56,10 +63,15 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
 
       saveTucbsEndpoints(endpoints, remember);
       saveTucbsScaleProfiles(report.scaleProfiles, remember);
+      saveTucbsCoverageProfiles(coverageReport.profiles, remember);
       const scaleCount = Object.keys(report.scaleProfiles).length;
+      const coverageCount = Object.keys(coverageReport.profiles).length;
+      const learned: string[] = [];
+      if (scaleCount > 0) learned.push(`${scaleCount} katmana ölçek profili`);
+      if (coverageCount > 0) learned.push(`${coverageCount} katmana coğrafi kapsam`);
       setStatus(
-        scaleCount > 0
-          ? `${report.verified}/${report.total} TUCBS servisi doğrulandı; ${scaleCount} katmana sağlayıcı ölçek profili uygulandı. Harita yenileniyor…`
+        learned.length > 0
+          ? `${report.verified}/${report.total} TUCBS servisi doğrulandı; ${learned.join(" ve ")} uygulandı. Harita yenileniyor…`
           : `${report.verified}/${report.total} TUCBS servisi doğrulandı. Harita yenileniyor…`
       );
       onApplied(Object.keys(endpoints).length);
@@ -106,7 +118,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
           <p>
             TUCBS servis adreslerini içeren JSON dosyanızı bu tarayıcıya tanımlayın. Bilgiler GitHub'a veya başka bir sunucuya gönderilmez;
             servisler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> üzerinden ve mevcut dış IP'nizle doğrulanır. WMS servisinin ilan ettiği
-            ölçek aralığı varsa aynı veri kümesinin WMS/WFS katmanlarına otomatik uygulanır.
+            ölçek aralığı ve coğrafi veri kapsamı varsa aynı veri kümesinin WMS/WFS katmanlarına otomatik uygulanır.
           </p>
 
           <input
