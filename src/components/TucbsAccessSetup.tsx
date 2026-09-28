@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   parseTucbsEndpointImport,
   saveTucbsEndpoints,
-  saveTucbsScaleProfiles,
-  verifyTucbsEndpoints
+  saveTucbsScaleProfiles
 } from "../lib/tucbsAccess";
+import {
+  describeTucbsVerificationFailure,
+  selectVerifiedTucbsEndpoints,
+  verifyTucbsBrowserAccess as verifyTucbsEndpoints
+} from "../lib/tucbsBrowserVerification";
 import {
   discoverTucbsCoverageProfiles,
   saveTucbsCoverageProfiles
@@ -53,15 +57,17 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       const endpoints = parseTucbsEndpointImport(value);
       const report = await verifyTucbsEndpoints(endpoints);
       if (report.verified === 0) {
-        throw new Error(
-          "TUCBS servislerinden hiçbiri bu tarayıcıdan doğrulanamadı. Onaylı dış IP'nizi ve güncel yetkili servis JSON'unu kontrol edin."
-        );
+        throw new Error(describeTucbsVerificationFailure(report));
       }
+
+      // Failed endpoints are deliberately not persisted. A partial verification
+      // must not turn into a later layer-load failure with a known-bad URL.
+      const verifiedEndpoints = selectVerifiedTucbsEndpoints(endpoints, report);
 
       // Coverage discovery is deliberately second-stage: only a proven
       // approved-IP TUCBS connection earns the additional WMS metadata pass.
-      const coverageReport = await discoverTucbsCoverageProfiles(endpoints);
-      saveTucbsEndpoints(endpoints, remember);
+      const coverageReport = await discoverTucbsCoverageProfiles(verifiedEndpoints);
+      saveTucbsEndpoints(verifiedEndpoints, remember);
       saveTucbsScaleProfiles(report.scaleProfiles, remember);
       saveTucbsCoverageProfiles(coverageReport.profiles, remember);
       const scaleCount = Object.keys(report.scaleProfiles).length;
@@ -69,12 +75,13 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       const learned: string[] = [];
       if (scaleCount > 0) learned.push(`${scaleCount} katmana ölçek profili`);
       if (coverageCount > 0) learned.push(`${coverageCount} katmana coğrafi kapsam`);
+      if (report.failed > 0) learned.push(`${report.failed} doğrulanamayan servis kaydedilmedi`);
       setStatus(
         learned.length > 0
-          ? `${report.verified}/${report.total} TUCBS servisi doğrulandı; ${learned.join(" ve ")} uygulandı. Harita yenileniyor…`
+          ? `${report.verified}/${report.total} TUCBS servisi doğrulandı; ${learned.join("; ")}. Harita yenileniyor…`
           : `${report.verified}/${report.total} TUCBS servisi doğrulandı. Harita yenileniyor…`
       );
-      onApplied(Object.keys(endpoints).length);
+      onApplied(Object.keys(verifiedEndpoints).length);
     } catch (cause) {
       setStatus(null);
       setError(cause instanceof Error ? cause.message : "TUCBS servis bilgileri okunamadı.");
@@ -118,7 +125,8 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
           <p>
             TUCBS servis adreslerini içeren JSON dosyanızı bu tarayıcıya tanımlayın. Bilgiler GitHub'a veya başka bir sunucuya gönderilmez;
             servisler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> üzerinden ve mevcut dış IP'nizle doğrulanır. WMS servisinin ilan ettiği
-            ölçek aralığı ve coğrafi veri kapsamı varsa aynı veri kümesinin WMS/WFS katmanlarına otomatik uygulanır.
+            ölçek aralığı ve coğrafi veri kapsamı varsa aynı veri kümesinin WMS/WFS katmanlarına otomatik uygulanır. Doğrulanamayan servis
+            adresleri runtime'a kaydedilmez; böylece kısmi erişim daha sonra bilinen bir katman hatasına dönüşmez.
           </p>
 
           <input
