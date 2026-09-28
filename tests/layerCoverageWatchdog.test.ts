@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import {
+  coverageSafeScale,
   extentOverlapState,
+  layerCoverageNavigationTarget,
   layerCoverageTarget,
   projectExtentForComparison,
   shouldAutoFocusLayerCoverage
@@ -91,7 +93,37 @@ describe("Layer coverage activation watchdog", () => {
     expect(extentOverlapState(view, invalidGeographic)).toBe("unknown");
   });
 
-  it("adds a small framing margin when the ArcGIS extent supports expand", () => {
+  it("keeps an already valid provider scale and moves invalid scales safely inside the boundary", () => {
+    expect(coverageSafeScale(300_000, 400_000, 0)).toBe(300_000);
+    expect(coverageSafeScale(800_000, 400_000, 0)).toBe(384_000);
+    expect(coverageSafeScale(500, 0, 1_128)).toBe(1_173);
+    expect(coverageSafeScale(undefined, 400_000, 1_128)).toBe(Math.round(Math.sqrt(400_000 * 1_128)));
+  });
+
+  it("ignores conflicting or unconstrained scale metadata instead of issuing unsafe zooms", () => {
+    expect(coverageSafeScale(100_000, 0, 0)).toBeUndefined();
+    expect(coverageSafeScale(100_000, 1_000, 2_000)).toBeUndefined();
+    expect(coverageSafeScale(Number.NaN, -1, 0)).toBeUndefined();
+  });
+
+  it("combines provider center and safe scale into one goTo target", () => {
+    const center = { x: 10, y: 20, spatialReference: sr3857 };
+    const layer = {
+      xmin: 200,
+      ymin: 200,
+      xmax: 300,
+      ymax: 300,
+      center,
+      spatialReference: sr3857
+    };
+
+    expect(layerCoverageNavigationTarget(layer, 800_000, 400_000, 0)).toEqual({
+      target: center,
+      scale: 384_000
+    });
+  });
+
+  it("keeps extent-fit framing for providers that declare no scale limits", () => {
     const expanded = { id: "expanded" };
     const expand = vi.fn(() => expanded);
     const layer = {
@@ -104,6 +136,7 @@ describe("Layer coverage activation watchdog", () => {
     };
 
     expect(layerCoverageTarget(layer)).toBe(expanded);
+    expect(layerCoverageNavigationTarget(layer, 300_000, 0, 0)).toBe(expanded);
     expect(expand).toHaveBeenCalledWith(1.12);
   });
 
@@ -118,6 +151,8 @@ describe("Layer coverage activation watchdog", () => {
     expect(watchdog).toContain('layerView.watch("visible"');
     expect(watchdog).toContain('layer.watch("visible"');
     expect(watchdog).toContain("projectExtentForComparison");
+    expect(watchdog).toContain("coverageSafeScale");
+    expect(watchdog).toContain("layerCoverageNavigationTarget");
     expect(watchdog).toContain("shouldAutoFocusLayerCoverage(scene.extent, fullExtent)");
     expect(watchdog).toContain("ACTIVATION_NAVIGATION_DEBOUNCE_MS");
   });

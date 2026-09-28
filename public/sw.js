@@ -1,5 +1,5 @@
-const SHELL_CACHE = "altyapi-shell-v24";
-const DATA_CACHE = "altyapi-data-v24";
+const SHELL_CACHE = "altyapi-shell-v25";
+const DATA_CACHE = "altyapi-data-v25";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
 
