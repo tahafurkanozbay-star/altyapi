@@ -1,4 +1,8 @@
 import { runtimeScaleRangeFromLoadedLayer } from "../lib/runtimeScale";
+import {
+  ATOMIC_LAYER_ACTIVATION_EVENT,
+  isAtomicLayerActivationPending
+} from "./layerActivationState";
 
 const MAIN_SCENE_ID = "altyapi-main-scene";
 const SCALE_REPAIR_INSET = 0.04;
@@ -183,8 +187,9 @@ export function shouldRecycleLayerView(error: unknown): boolean {
 /**
  * Uses ArcGIS LayerView state as the final render truth signal. Accessor watches
  * are attached when available, so scale visibility and first-render readiness
- * are observed immediately without polling. Hidden layers are ignored and all
- * watches/timers are detached when their LayerView is destroyed.
+ * are observed immediately without polling. During runtime-owned atomic layer
+ * activation the watchdog observes health but defers scale repair; once the
+ * transaction completes it re-audits and becomes the continuous recovery net.
  */
 export function installSceneLayerWatchdog(): () => void {
   if (typeof window === "undefined" || typeof document === "undefined") return () => undefined;
@@ -338,6 +343,12 @@ export function installSceneLayerWatchdog(): () => void {
     const state = layerViewScaleIntersection(layerViews.values());
     if (state.violatingLayerIds.length === 0 || state.conflict) return;
 
+    // The runtime owns the only activation camera decision. A LayerView can be
+    // created before that decision is committed, so never race it with an
+    // independent scene.scale write. The completion event below schedules a
+    // fresh audit immediately after the atomic transaction ends.
+    if (state.violatingLayerIds.some((layerId) => isAtomicLayerActivationPending(layerId))) return;
+
     const actionable = state.violatingLayerIds.filter(
       (layerId) => (scaleRepairCounts.get(layerId) ?? 0) < MAX_SCALE_REPAIRS_PER_VIOLATION
     );
@@ -430,11 +441,17 @@ export function installSceneLayerWatchdog(): () => void {
     if (scene) scheduleAudit(scene, 120);
   };
 
+  const onAtomicActivationComplete = () => {
+    const scene = document.getElementById(MAIN_SCENE_ID) as SceneLike | null;
+    if (scene) scheduleAudit(scene, 30);
+  };
+
   document.addEventListener("arcgisViewLayerviewCreate", onLayerViewCreate as EventListener);
   document.addEventListener("arcgisViewLayerviewDestroy", onLayerViewDestroy as EventListener);
   document.addEventListener("arcgisViewLayerviewCreateError", onLayerViewCreateError as EventListener);
   document.addEventListener("arcgisViewChange", onViewChange as EventListener);
   window.addEventListener("online", onOnline);
+  window.addEventListener(ATOMIC_LAYER_ACTIVATION_EVENT, onAtomicActivationComplete);
 
   return () => {
     window.clearTimeout(auditTimer);
@@ -443,6 +460,7 @@ export function installSceneLayerWatchdog(): () => void {
     document.removeEventListener("arcgisViewLayerviewCreateError", onLayerViewCreateError as EventListener);
     document.removeEventListener("arcgisViewChange", onViewChange as EventListener);
     window.removeEventListener("online", onOnline);
+    window.removeEventListener(ATOMIC_LAYER_ACTIVATION_EVENT, onAtomicActivationComplete);
     for (const layerId of [...layerViewHandles.keys()]) clearLayerViewHandles(layerId);
     for (const layerId of [...stallTimers.keys()]) clearStallTimer(layerId);
     layerViews.clear();
