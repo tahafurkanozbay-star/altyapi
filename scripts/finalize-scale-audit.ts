@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { summarizeScaleCoverage } from "./observability-coverage.ts";
+import { summarizeScaleCoverage } from "../src/lib/observabilityCoverage.ts";
 
 const path = "service-scale-audit.json";
 const report = JSON.parse(await readFile(path, "utf8"));
