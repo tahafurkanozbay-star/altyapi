@@ -22,6 +22,7 @@ type LayerLike = {
   id?: string;
   visible?: boolean;
   fullExtent?: ExtentLike | null;
+  watch?: (property: "visible", callback: (value: unknown) => void) => Removable;
 };
 
 type LayerViewLike = {
@@ -137,21 +138,28 @@ export function installLayerCoverageWatchdog(): () => void {
     const scene = sceneFromEvent(event);
     const detail = customDetail(event);
     const layerView = detail?.layerView;
-    const layerId = layerView?.layer?.id ?? detail?.layer?.id;
-    if (!scene || !layerView || !layerId?.startsWith("svc-")) return;
+    const layer = layerView?.layer ?? detail?.layer;
+    const layerId = layer?.id;
+    if (!scene || !layerView || !layer || !layerId?.startsWith("svc-")) return;
 
     clearHandles(layerId);
     evaluateActivation(scene, layerView);
 
-    if (typeof layerView.watch === "function") {
-      try {
-        handles.set(layerId, [
-          layerView.watch("visible", () => evaluateActivation(scene, layerView))
-        ]);
-      } catch {
-        clearHandles(layerId);
+    const nextHandles: Removable[] = [];
+    try {
+      if (typeof layerView.watch === "function") {
+        nextHandles.push(layerView.watch("visible", () => evaluateActivation(scene, layerView)));
       }
+      if (typeof layer.watch === "function") {
+        nextHandles.push(layer.watch("visible", () => evaluateActivation(scene, layerView)));
+      }
+    } catch {
+      for (const handle of nextHandles) {
+        try { handle.remove(); } catch { /* best-effort */ }
+      }
+      nextHandles.length = 0;
     }
+    if (nextHandles.length) handles.set(layerId, nextHandles);
   };
 
   const onLayerViewDestroy = (event: Event) => {
