@@ -3,7 +3,7 @@ import {
   renderObservabilitySummary,
   summarizeHealthCoverage,
   summarizeScaleCoverage
-} from "../scripts/observability-coverage.ts";
+} from "../src/lib/observabilityCoverage";
 
 describe("service observability coverage", () => {
   it("excludes client-IP-restricted TUCBS entries from public-runner health coverage", () => {
