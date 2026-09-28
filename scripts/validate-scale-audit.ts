@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { summarizeScaleCoverage } from "./observability-coverage.ts";
+import { summarizeScaleCoverage } from "../src/lib/observabilityCoverage.ts";
 
 const report = JSON.parse(await readFile("service-scale-audit.json", "utf8"));
 const errors: string[] = [];
