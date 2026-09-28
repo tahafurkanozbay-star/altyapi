@@ -1,5 +1,6 @@
 const MAIN_SCENE_ID = "altyapi-main-scene";
 const COVERAGE_PADDING_FACTOR = 1.12;
+const ACTIVATION_NAVIGATION_DEBOUNCE_MS = 120;
 
 type Removable = { remove(): void };
 
@@ -94,6 +95,7 @@ export function installLayerCoverageWatchdog(): () => void {
   const visibility = new Map<string, boolean>();
   const handles = new Map<string, Removable[]>();
   let navigationGeneration = 0;
+  let navigationTimer = 0;
 
   const clearHandles = (layerId: string) => {
     for (const handle of handles.get(layerId) ?? []) {
@@ -116,11 +118,19 @@ export function installLayerCoverageWatchdog(): () => void {
     if (!fullExtent || !scene.goTo || !shouldAutoFocusLayerCoverage(scene.extent, fullExtent)) return;
 
     const generation = ++navigationGeneration;
-    const target = layerCoverageTarget(fullExtent);
-    void scene.goTo(target, { duration: 820, easing: "ease-in-out" }).catch(() => undefined).then(() => {
-      // A newer activation is allowed to become the authoritative camera move.
-      if (generation !== navigationGeneration) return;
-    });
+    window.clearTimeout(navigationTimer);
+    navigationTimer = window.setTimeout(() => {
+      if (
+        generation !== navigationGeneration ||
+        !scene.isConnected ||
+        layer.visible === false ||
+        layerView.visible === false ||
+        !shouldAutoFocusLayerCoverage(scene.extent, fullExtent)
+      ) return;
+
+      const target = layerCoverageTarget(fullExtent);
+      void scene.goTo?.(target, { duration: 820, easing: "ease-in-out" }).catch(() => undefined);
+    }, ACTIVATION_NAVIGATION_DEBOUNCE_MS);
   };
 
   const onLayerViewCreate = (event: Event) => {
@@ -160,6 +170,7 @@ export function installLayerCoverageWatchdog(): () => void {
   document.addEventListener("arcgisViewLayerviewDestroy", onLayerViewDestroy as EventListener);
 
   return () => {
+    window.clearTimeout(navigationTimer);
     document.removeEventListener("arcgisViewLayerviewCreate", onLayerViewCreate as EventListener);
     document.removeEventListener("arcgisViewLayerviewDestroy", onLayerViewDestroy as EventListener);
     for (const layerId of [...handles.keys()]) clearHandles(layerId);
