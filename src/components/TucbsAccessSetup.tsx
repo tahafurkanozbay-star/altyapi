@@ -51,16 +51,16 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
     setStatus("Yetkili servisler, katman ölçekleri ve veri kapsamları bu bağlantı üzerinden doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
-      const [report, coverageReport] = await Promise.all([
-        verifyTucbsEndpoints(endpoints),
-        discoverTucbsCoverageProfiles(endpoints)
-      ]);
+      const report = await verifyTucbsEndpoints(endpoints);
       if (report.verified === 0) {
         throw new Error(
           "TUCBS servislerinden hiçbiri bu tarayıcıdan doğrulanamadı. Onaylı dış IP'nizi ve güncel yetkili servis JSON'unu kontrol edin."
         );
       }
 
+      // Coverage discovery is deliberately second-stage: only a proven
+      // approved-IP TUCBS connection earns the additional WMS metadata pass.
+      const coverageReport = await discoverTucbsCoverageProfiles(endpoints);
       saveTucbsEndpoints(endpoints, remember);
       saveTucbsScaleProfiles(report.scaleProfiles, remember);
       saveTucbsCoverageProfiles(coverageReport.profiles, remember);
