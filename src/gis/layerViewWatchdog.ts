@@ -7,11 +7,13 @@ const SCALE_REPAIR_RECHECK_MS = 280;
 const MAX_SCALE_REPAIRS_PER_VIOLATION = 2;
 const MAX_LAYER_VIEW_RECYCLES = 2;
 const LAYER_VIEW_RECYCLE_DELAYS_MS = [320, 900] as const;
+const DEFAULT_RENDER_STALL_TIMEOUT_MS = 25_000;
 
 type Removable = { remove(): void };
 
 type LayerLike = {
   id?: string;
+  type?: unknown;
   visible?: boolean;
   minScale?: unknown;
   maxScale?: unknown;
@@ -54,7 +56,9 @@ export type LayerViewHealthPhase =
   | "created"
   | "stable"
   | "scale-repair"
+  | "render-stalled"
   | "recycle-attempt"
+  | "render-failed"
   | "recovery-exhausted"
   | "destroyed";
 
@@ -64,6 +68,7 @@ export interface LayerViewHealthDetail {
   serviceId: string;
   attempt?: number;
   targetScale?: number;
+  elapsedMs?: number;
 }
 
 export interface LayerViewScaleIntersection {
@@ -133,6 +138,25 @@ export function isLayerViewRenderStable(layerView: Pick<LayerViewLike, "visible"
   return layerView.visible !== false && layerView.visibleAtCurrentScale !== false && layerView.updating === false;
 }
 
+export function layerViewStallTimeoutMs(layer?: Pick<LayerLike, "type">): number {
+  const type = typeof layer?.type === "string" ? layer.type.toLocaleLowerCase("en-US") : "";
+  if (type.includes("scene")) return 35_000;
+  if (type.includes("map-image") || type.includes("mapimage")) return 28_000;
+  if (type.includes("wms")) return 24_000;
+  if (type.includes("wfs") || type.includes("feature")) return 26_000;
+  return DEFAULT_RENDER_STALL_TIMEOUT_MS;
+}
+
+export function isLayerViewStalled(
+  layerView: LayerViewLike,
+  elapsedMs: number,
+  timeoutMs = layerViewStallTimeoutMs(layerView.layer)
+): boolean {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < timeoutMs) return false;
+  if (layerView.layer?.visible === false || layerView.visible === false || layerView.visibleAtCurrentScale === false) return false;
+  return !isLayerViewRenderStable(layerView);
+}
+
 export function layerViewRecoveryDelayMs(attempt: number): number {
   const index = Math.max(0, Math.min(LAYER_VIEW_RECYCLE_DELAYS_MS.length - 1, Math.trunc(attempt) - 1));
   return LAYER_VIEW_RECYCLE_DELAYS_MS[index]!;
@@ -160,16 +184,18 @@ export function shouldRecycleLayerView(error: unknown): boolean {
  * Uses ArcGIS LayerView state as the final render truth signal. Accessor watches
  * are attached when available, so scale visibility and first-render readiness
  * are observed immediately without polling. Hidden layers are ignored and all
- * watches are detached when their LayerView is destroyed.
+ * watches/timers are detached when their LayerView is destroyed.
  */
 export function installSceneLayerWatchdog(): () => void {
   if (typeof window === "undefined" || typeof document === "undefined") return () => undefined;
 
   const layerViews = new Map<string, LayerViewLike>();
   const layerViewHandles = new Map<string, Removable[]>();
+  const stallTimers = new Map<string, number>();
   const stableLayerIds = new Set<string>();
   const scaleRepairCounts = new Map<string, number>();
   const recycleCounts = new Map<string, number>();
+  const recyclePending = new Set<string>();
   let auditTimer = 0;
   let lastScaleRepairAt = 0;
 
@@ -179,6 +205,12 @@ export function installSceneLayerWatchdog(): () => void {
     window.dispatchEvent(new CustomEvent<LayerViewHealthDetail>("altyapi:layerview-health", {
       detail: { phase, layerId, serviceId, ...extra }
     }));
+  };
+
+  const clearStallTimer = (layerId: string) => {
+    const timer = stallTimers.get(layerId);
+    if (timer !== undefined) window.clearTimeout(timer);
+    stallTimers.delete(layerId);
   };
 
   const clearLayerViewHandles = (layerId: string) => {
@@ -191,6 +223,8 @@ export function installSceneLayerWatchdog(): () => void {
   const markStable = (layerId: string, layerView: LayerViewLike) => {
     if (!isLayerViewRenderStable(layerView) || stableLayerIds.has(layerId)) return;
     stableLayerIds.add(layerId);
+    clearStallTimer(layerId);
+    recyclePending.delete(layerId);
     recycleCounts.delete(layerId);
     scaleRepairCounts.delete(layerId);
     emitHealth(layerId, "stable");
@@ -201,6 +235,59 @@ export function installSceneLayerWatchdog(): () => void {
     auditTimer = window.setTimeout(() => audit(scene), delay);
   };
 
+  const requestRecycle = (scene: SceneLike, layerId: string, layer: LayerLike) => {
+    if (layer.visible === false) return;
+    const recycleCount = recycleCounts.get(layerId) ?? 0;
+    if (recycleCount >= MAX_LAYER_VIEW_RECYCLES) {
+      recyclePending.delete(layerId);
+      emitHealth(layerId, "recovery-exhausted", { attempt: recycleCount });
+      return;
+    }
+
+    const attempt = recycleCount + 1;
+    recycleCounts.set(layerId, attempt);
+    recyclePending.add(layerId);
+    stableLayerIds.delete(layerId);
+    clearStallTimer(layerId);
+    emitHealth(layerId, "recycle-attempt", { attempt });
+
+    window.setTimeout(() => {
+      if (layer.visible === false || !scene.isConnected) {
+        recyclePending.delete(layerId);
+        return;
+      }
+      const scheduled = recycleLayer(scene, layer, () => {
+        if (layer.visible === false) return;
+        recyclePending.delete(layerId);
+        emitHealth(layerId, "recovery-exhausted", { attempt });
+      });
+      if (!scheduled) {
+        recyclePending.delete(layerId);
+        emitHealth(layerId, "recovery-exhausted", { attempt });
+      }
+    }, layerViewRecoveryDelayMs(attempt));
+  };
+
+  const armStallTimer = (scene: SceneLike, layerId: string, layerView: LayerViewLike) => {
+    clearStallTimer(layerId);
+    if (stableLayerIds.has(layerId)) return;
+    if (layerView.layer?.visible === false || layerView.visible === false || layerView.visibleAtCurrentScale === false) return;
+
+    const timeoutMs = layerViewStallTimeoutMs(layerView.layer);
+    const startedAt = Date.now();
+    const timer = window.setTimeout(() => {
+      stallTimers.delete(layerId);
+      if (layerViews.get(layerId) !== layerView) return;
+      const elapsedMs = Date.now() - startedAt;
+      if (!isLayerViewStalled(layerView, elapsedMs, timeoutMs)) return;
+      emitHealth(layerId, "render-stalled", { elapsedMs });
+      const layer = layerView.layer;
+      if (layer) requestRecycle(scene, layerId, layer);
+      else emitHealth(layerId, "render-failed");
+    }, timeoutMs);
+    stallTimers.set(layerId, timer);
+  };
+
   const attachLayerViewWatches = (scene: SceneLike, layerId: string, layerView: LayerViewLike) => {
     clearLayerViewHandles(layerId);
     const handles: Removable[] = [];
@@ -208,15 +295,20 @@ export function installSceneLayerWatchdog(): () => void {
       try {
         handles.push(layerView.watch("visibleAtCurrentScale", () => {
           stableLayerIds.delete(layerId);
+          if (layerView.visibleAtCurrentScale === false) clearStallTimer(layerId);
+          else armStallTimer(scene, layerId, layerView);
           markStable(layerId, layerView);
           scheduleAudit(scene, 30);
         }));
         handles.push(layerView.watch("updating", () => {
+          if (!isLayerViewRenderStable(layerView)) armStallTimer(scene, layerId, layerView);
           markStable(layerId, layerView);
           scheduleAudit(scene, 45);
         }));
         handles.push(layerView.watch("visible", () => {
           stableLayerIds.delete(layerId);
+          if (layerView.visible === false) clearStallTimer(layerId);
+          else armStallTimer(scene, layerId, layerView);
           markStable(layerId, layerView);
           scheduleAudit(scene, 30);
         }));
@@ -229,6 +321,7 @@ export function installSceneLayerWatchdog(): () => void {
     }
     if (handles.length) layerViewHandles.set(layerId, handles);
     markStable(layerId, layerView);
+    if (!stableLayerIds.has(layerId)) armStallTimer(scene, layerId, layerView);
   };
 
   const audit = (scene: SceneLike) => {
@@ -238,6 +331,7 @@ export function installSceneLayerWatchdog(): () => void {
       if (layerView.visibleAtCurrentScale !== false || layerView.layer?.visible === false || layerView.visible === false) {
         scaleRepairCounts.delete(layerId);
       }
+      if (layerView.visibleAtCurrentScale === false) clearStallTimer(layerId);
       markStable(layerId, layerView);
     }
 
@@ -267,6 +361,7 @@ export function installSceneLayerWatchdog(): () => void {
     lastScaleRepairAt = now;
     for (const layerId of actionable) {
       stableLayerIds.delete(layerId);
+      clearStallTimer(layerId);
       scaleRepairCounts.set(layerId, (scaleRepairCounts.get(layerId) ?? 0) + 1);
       emitHealth(layerId, "scale-repair", { targetScale });
     }
@@ -281,23 +376,31 @@ export function installSceneLayerWatchdog(): () => void {
     const layerView = detail?.layerView;
     const layerId = layerView?.layer?.id ?? detail?.layer?.id;
     if (!layerView || !layerId?.startsWith("svc-")) return;
+    const recovering = recyclePending.delete(layerId);
     layerViews.set(layerId, layerView);
     stableLayerIds.delete(layerId);
     scaleRepairCounts.delete(layerId);
-    emitHealth(layerId, "created");
+    if (!recovering) emitHealth(layerId, "created");
     attachLayerViewWatches(scene, layerId, layerView);
     scheduleAudit(scene, 40);
   };
 
   const onLayerViewDestroy = (event: Event) => {
     const detail = customDetail(event);
-    const layerId = detail?.layerView?.layer?.id ?? detail?.layer?.id;
+    const layer = detail?.layerView?.layer ?? detail?.layer;
+    const layerId = layer?.id;
     if (!layerId?.startsWith("svc-")) return;
+    const recovering = recyclePending.has(layerId) && layer?.visible !== false;
     clearLayerViewHandles(layerId);
+    clearStallTimer(layerId);
     layerViews.delete(layerId);
     stableLayerIds.delete(layerId);
     scaleRepairCounts.delete(layerId);
-    emitHealth(layerId, "destroyed");
+    if (!recovering) {
+      recyclePending.delete(layerId);
+      recycleCounts.delete(layerId);
+      emitHealth(layerId, "destroyed");
+    }
   };
 
   const onLayerViewCreateError = (event: Event) => {
@@ -307,19 +410,14 @@ export function installSceneLayerWatchdog(): () => void {
     const layer = detail?.layer;
     const layerId = layer?.id;
     if (!layer || !layerId?.startsWith("svc-") || layer.visible === false) return;
-    if (!shouldRecycleLayerView(detail?.error)) return;
+    clearStallTimer(layerId);
 
-    const recycleCount = recycleCounts.get(layerId) ?? 0;
-    if (recycleCount >= MAX_LAYER_VIEW_RECYCLES) {
-      emitHealth(layerId, "recovery-exhausted", { attempt: recycleCount });
+    if (!shouldRecycleLayerView(detail?.error)) {
+      recyclePending.delete(layerId);
+      emitHealth(layerId, "render-failed");
       return;
     }
-
-    const attempt = recycleCount + 1;
-    recycleCounts.set(layerId, attempt);
-    stableLayerIds.delete(layerId);
-    emitHealth(layerId, "recycle-attempt", { attempt });
-    window.setTimeout(() => recycleLayer(scene, layer), layerViewRecoveryDelayMs(attempt));
+    requestRecycle(scene, layerId, layer);
   };
 
   const onViewChange = (event: Event) => {
@@ -346,10 +444,12 @@ export function installSceneLayerWatchdog(): () => void {
     document.removeEventListener("arcgisViewChange", onViewChange as EventListener);
     window.removeEventListener("online", onOnline);
     for (const layerId of [...layerViewHandles.keys()]) clearLayerViewHandles(layerId);
+    for (const layerId of [...stallTimers.keys()]) clearStallTimer(layerId);
     layerViews.clear();
     stableLayerIds.clear();
     scaleRepairCounts.clear();
     recycleCounts.clear();
+    recyclePending.clear();
   };
 }
 
@@ -371,8 +471,8 @@ function customDetail(event: Event): LayerViewEventDetail | undefined {
     : undefined;
 }
 
-function recycleLayer(scene: SceneLike, layer: LayerLike): void {
-  if (!scene.isConnected || layer.visible === false || !scene.map) return;
+function recycleLayer(scene: SceneLike, layer: LayerLike, onFailure: () => void): boolean {
+  if (!scene.isConnected || layer.visible === false || !scene.map) return false;
   const map = scene.map;
   const currentIndex = map.layers?.indexOf?.(layer) ?? -1;
   try {
@@ -383,11 +483,12 @@ function recycleLayer(scene: SceneLike, layer: LayerLike): void {
         if (currentIndex >= 0) map.add(layer, currentIndex);
         else map.add(layer);
       } catch {
-        // The existing runtime retry/failover path remains the final recovery layer.
+        onFailure();
       }
     });
+    return true;
   } catch {
-    // A concurrent hide/reload may already have detached the layer.
+    return false;
   }
 }
 
