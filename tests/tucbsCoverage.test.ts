@@ -64,7 +64,9 @@ describe("TUCBS WMS coverage discovery", () => {
   });
 
   it("learns WMS coverage from the browser and mirrors it to the WFS peer without persisting URLs", async () => {
-    const fetchMock = vi.fn(async () => new Response(exCapabilities, { status: 200, headers: { "content-type": "text/xml" } }));
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
+      new Response(exCapabilities, { status: 200, headers: { "content-type": "text/xml" } })
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const endpoints = {
