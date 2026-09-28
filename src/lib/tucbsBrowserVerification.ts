@@ -1,4 +1,5 @@
 import {
+  extractWmsScaleProfile,
   sanitizeTucbsUrl,
   verifyTucbsEndpoints,
   type TucbsEndpointMap,
@@ -23,6 +24,8 @@ export interface TucbsBrowserEndpointVerification extends TucbsEndpointVerificat
   failureCode?: TucbsVerificationFailureCode;
   guidance?: string;
   retryable?: boolean;
+  capabilityVersion?: string;
+  compatibilityFallback?: boolean;
 }
 
 export interface TucbsBrowserVerificationReport extends Omit<TucbsVerificationReport, "results"> {
@@ -57,6 +60,9 @@ const verificationInFlight = new Map<string, Promise<TucbsBrowserVerificationRep
  *   double click / React re-entry cannot create a request storm.
  * - Successful results are cached briefly. Failures have a deliberately short
  *   TTL so an IP/VPN/CORS correction can be retried quickly.
+ * - Modern WMS/WFS capability versions are preferred. A legacy capability
+ *   version is attempted only for version/OGC-format compatibility failures;
+ *   access-denied responses never trigger an unnecessary second request.
  */
 export async function verifyTucbsBrowserAccess(
   endpoints: TucbsEndpointMap,
@@ -77,16 +83,17 @@ export async function verifyTucbsBrowserAccess(
   const request = verifyTucbsEndpoints(endpoints, {
     timeoutMs: options.timeoutMs,
     concurrency: options.concurrency
-  }).then((report) => {
-    const enriched = enrichTucbsVerificationReport(report);
-    const ttl = enriched.failed === 0
-      ? clampCacheTtl(options.successCacheTtlMs ?? DEFAULT_SUCCESS_CACHE_TTL_MS)
-      : clampCacheTtl(options.failureCacheTtlMs ?? DEFAULT_FAILURE_CACHE_TTL_MS);
-    if (ttl > 0) verificationCache.set(fingerprint, { expiresAt: Date.now() + ttl, report: enriched });
-    return enriched;
-  }).finally(() => {
-    verificationInFlight.delete(fingerprint);
-  });
+  }).then((report) => applyLegacyCapabilitiesFallback(report, endpoints, options))
+    .then((report) => {
+      const enriched = enrichTucbsVerificationReport(report);
+      const ttl = enriched.failed === 0
+        ? clampCacheTtl(options.successCacheTtlMs ?? DEFAULT_SUCCESS_CACHE_TTL_MS)
+        : clampCacheTtl(options.failureCacheTtlMs ?? DEFAULT_FAILURE_CACHE_TTL_MS);
+      if (ttl > 0) verificationCache.set(fingerprint, { expiresAt: Date.now() + ttl, report: enriched });
+      return enriched;
+    }).finally(() => {
+      verificationInFlight.delete(fingerprint);
+    });
 
   verificationInFlight.set(fingerprint, request);
   return request;
@@ -242,6 +249,118 @@ export function classifyTucbsVerificationFailure(reason?: string): {
   };
 }
 
+async function applyLegacyCapabilitiesFallback(
+  report: TucbsVerificationReport,
+  endpoints: TucbsEndpointMap,
+  options: TucbsBrowserVerificationOptions
+): Promise<TucbsVerificationReport> {
+  const candidates = report.results.filter((result) => !result.ok && shouldTryLegacyCapabilities(result));
+  if (candidates.length === 0) return report;
+
+  const timeoutMs = clampInteger(options.timeoutMs ?? 12_000, 3_000, 30_000);
+  const concurrency = clampInteger(options.concurrency ?? 3, 1, 6);
+  const fallback = await mapWithConcurrency(candidates, concurrency, async (result) => {
+    const endpoint = endpoints[result.key];
+    if (!endpoint) return undefined;
+    return probeLegacyCapabilities(result.key, sanitizeTucbsUrl(endpoint), timeoutMs);
+  });
+
+  const replacements = new Map<string, TucbsBrowserEndpointVerification>();
+  for (const result of fallback) {
+    if (result?.ok) replacements.set(result.key, result);
+  }
+  if (replacements.size === 0) return report;
+
+  const results = report.results.map((result) => replacements.get(result.key) ?? result);
+  return {
+    total: results.length,
+    verified: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+    scaleProfiles: rebuildScaleProfiles(results)
+  };
+}
+
+function shouldTryLegacyCapabilities(result: TucbsEndpointVerification): boolean {
+  if (!result.reason) return false;
+  return /OGC servis hata|Capabilities yanıtı/i.test(result.reason) || /^HTTP\s+(?:400|406|415)$/i.test(result.reason);
+}
+
+async function probeLegacyCapabilities(
+  key: string,
+  endpoint: string,
+  timeoutMs: number
+): Promise<TucbsBrowserEndpointVerification | undefined> {
+  const isWms = key.endsWith(".wms");
+  const capabilityVersion = isWms ? "1.1.1" : "1.1.0";
+  const startedAt = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const target = new URL(endpoint);
+    target.searchParams.set("SERVICE", isWms ? "WMS" : "WFS");
+    target.searchParams.set("REQUEST", "GetCapabilities");
+    target.searchParams.set("VERSION", capabilityVersion);
+    const response = await fetch(target.toString(), {
+      method: "GET",
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { Accept: "application/xml,text/xml,*/*" }
+    });
+    if (!response.ok) return undefined;
+
+    const text = await response.text();
+    if (/ServiceException|ExceptionReport|ExceptionText|ows:Exception/i.test(text)) return undefined;
+    const valid = isWms
+      ? /WMS_Capabilities|WMT_MS_Capabilities/i.test(text)
+      : /WFS_Capabilities/i.test(text);
+    if (!valid) return undefined;
+
+    const scaleProfile = isWms ? extractWmsScaleProfile(text) : undefined;
+    return {
+      key,
+      ok: true,
+      latencyMs: Math.round(performance.now() - startedAt),
+      minScale: scaleProfile?.minScale,
+      maxScale: scaleProfile?.maxScale,
+      recommendedScale: scaleProfile?.recommendedScale,
+      capabilityVersion,
+      compatibilityFallback: true
+    };
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function rebuildScaleProfiles(results: TucbsEndpointVerification[]): TucbsScaleProfileMap {
+  const verifiedAt = new Date().toISOString();
+  const output: TucbsScaleProfileMap = {};
+
+  for (const result of results) {
+    if (!result.ok || !result.key.endsWith(".wms") || (!result.minScale && !result.maxScale)) continue;
+    output[result.key] = {
+      minScale: result.minScale,
+      maxScale: result.maxScale,
+      recommendedScale: result.recommendedScale,
+      verifiedAt,
+      source: "wms-capabilities"
+    };
+  }
+
+  for (const result of results) {
+    if (!result.ok || !result.key.endsWith(".wfs")) continue;
+    const peer = output[result.key.replace(/\.wfs$/, ".wms")];
+    if (!peer) continue;
+    output[result.key] = { ...peer, source: "paired-wms-capabilities" };
+  }
+  return output;
+}
+
 function enrichEndpointVerification(result: TucbsEndpointVerification): TucbsBrowserEndpointVerification {
   if (result.ok) return result;
   return {
@@ -266,6 +385,23 @@ function fingerprintEndpointMap(endpoints: TucbsEndpointMap): string {
     }
   }
   return `tucbs-v29-${(hash >>> 0).toString(16).padStart(8, "0")}-${normalized.length}`;
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
 
 function clampCacheTtl(value: number): number {
