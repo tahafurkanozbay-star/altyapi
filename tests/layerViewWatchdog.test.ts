@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   isLayerViewRenderStable,
+  isLayerViewStalled,
   layerViewRecoveryDelayMs,
   layerViewRecoveryScale,
   layerViewScaleIntersection,
+  layerViewStallTimeoutMs,
   shouldRecycleLayerView
 } from "../src/gis/layerViewWatchdog";
 
@@ -79,6 +81,29 @@ describe("LayerView provider-scale watchdog", () => {
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, updating: true })).toBe(false);
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: false, updating: false })).toBe(false);
     expect(isLayerViewRenderStable({ visible: false, visibleAtCurrentScale: true, updating: false })).toBe(false);
+  });
+
+  it("uses service-aware first-render deadlines", () => {
+    expect(layerViewStallTimeoutMs({ type: "scene" })).toBe(35_000);
+    expect(layerViewStallTimeoutMs({ type: "map-image" })).toBe(28_000);
+    expect(layerViewStallTimeoutMs({ type: "wms" })).toBe(24_000);
+    expect(layerViewStallTimeoutMs({ type: "wfs" })).toBe(26_000);
+    expect(layerViewStallTimeoutMs({ type: "feature" })).toBe(26_000);
+    expect(layerViewStallTimeoutMs({ type: "unknown" })).toBe(25_000);
+  });
+
+  it("only classifies visible in-scale unsettled LayerViews as stalled", () => {
+    const layerView = {
+      layer: { id: "svc-water", type: "feature", visible: true },
+      visible: true,
+      visibleAtCurrentScale: true,
+      updating: true
+    };
+    expect(isLayerViewStalled(layerView, 25_999, 26_000)).toBe(false);
+    expect(isLayerViewStalled(layerView, 26_000, 26_000)).toBe(true);
+    expect(isLayerViewStalled({ ...layerView, updating: false }, 40_000, 26_000)).toBe(false);
+    expect(isLayerViewStalled({ ...layerView, visibleAtCurrentScale: false }, 40_000, 26_000)).toBe(false);
+    expect(isLayerViewStalled({ ...layerView, visible: false }, 40_000, 26_000)).toBe(false);
   });
 
   it("uses bounded progressive recovery delays", () => {

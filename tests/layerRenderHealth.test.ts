@@ -23,6 +23,18 @@ describe("LayerView render health UI state", () => {
       targetScale: 394000
     });
 
+    expect(parseLayerRenderHealthDetail({
+      phase: "render-stalled",
+      layerId: "svc-12",
+      serviceId: "12",
+      elapsedMs: 26000
+    })).toEqual({
+      phase: "render-stalled",
+      layerId: "svc-12",
+      serviceId: "12",
+      elapsedMs: 26000
+    });
+
     expect(parseLayerRenderHealthDetail({ phase: "stable", layerId: "svc-12", serviceId: "13" })).toBeNull();
     expect(parseLayerRenderHealthDetail({ phase: "unknown", layerId: "svc-12", serviceId: "12" })).toBeNull();
     expect(parseLayerRenderHealthDetail({ phase: "stable", layerId: "foreign-12", serviceId: "12" })).toBeNull();
@@ -46,7 +58,17 @@ describe("LayerView render health UI state", () => {
     expect(scaleRepair?.state).toBe("scale-adjusting");
     expect(layerRenderHealthLabel(scaleRepair)).toContain("1:300.000");
 
-    const recovering = reduceLayerRenderHealth(scaleRepair, {
+    const stalled = reduceLayerRenderHealth(scaleRepair, {
+      phase: "render-stalled",
+      layerId: "svc-2",
+      serviceId: "2",
+      elapsedMs: 26000
+    }, 25);
+    expect(stalled?.state).toBe("stalled");
+    expect(layerRenderHealthLabel(stalled)).toBe("Render gecikti · 26 sn");
+    expect(layerRenderHealthVisualStatus(stalled)).toBe("loading");
+
+    const recovering = reduceLayerRenderHealth(stalled, {
       phase: "recycle-attempt",
       layerId: "svc-2",
       serviceId: "2",
@@ -62,6 +84,13 @@ describe("LayerView render health UI state", () => {
     }, 40);
     expect(isLayerRenderFailure(failed)).toBe(true);
     expect(layerRenderHealthVisualStatus(failed)).toBe("error");
+
+    const fatal = reduceLayerRenderHealth(created, {
+      phase: "render-failed",
+      layerId: "svc-2",
+      serviceId: "2"
+    }, 45);
+    expect(fatal).toEqual({ state: "failed", updatedAt: 45 });
 
     const stable = reduceLayerRenderHealth(failed, {
       phase: "stable",
@@ -92,12 +121,15 @@ describe("LayerView render health UI state", () => {
   it("persists watchdog health outside the panel lifecycle and exposes render recovery", async () => {
     const main = await readFile("src/main.tsx", "utf8");
     const store = await readFile("src/lib/layerRenderHealth.ts", "utf8");
+    const watchdog = await readFile("src/gis/layerViewWatchdog.ts", "utf8");
     const explorer = await readFile("src/components/LayerExplorer.tsx", "utf8");
 
     expect(main).toContain("installLayerRenderHealthStore();");
     expect(main.indexOf("installLayerRenderHealthStore();")).toBeLessThan(main.indexOf("installSceneLayerWatchdog();"));
     expect(store).toContain('window.addEventListener("altyapi:layerview-health"');
     expect(store).toContain("subscribeLayerRenderHealth");
+    expect(watchdog).toContain('emitHealth(layerId, "render-stalled"');
+    expect(watchdog).toContain("recyclePending");
     expect(explorer).toContain("useSyncExternalStore");
     expect(explorer).toContain("Render bekleniyor");
     expect(explorer).toContain("Render katmanını yeniden oluştur");

@@ -2,7 +2,9 @@ export type LayerRenderHealthPhase =
   | "created"
   | "stable"
   | "scale-repair"
+  | "render-stalled"
   | "recycle-attempt"
+  | "render-failed"
   | "recovery-exhausted"
   | "destroyed";
 
@@ -10,6 +12,7 @@ export type LayerRenderState =
   | "preparing"
   | "ready"
   | "scale-adjusting"
+  | "stalled"
   | "recovering"
   | "failed";
 
@@ -19,12 +22,14 @@ export interface LayerRenderHealthDetail {
   serviceId: string;
   attempt?: number;
   targetScale?: number;
+  elapsedMs?: number;
 }
 
 export interface LayerRenderHealthState {
   state: LayerRenderState;
   attempt?: number;
   targetScale?: number;
+  elapsedMs?: number;
   updatedAt: number;
 }
 
@@ -34,7 +39,9 @@ const PHASES = new Set<LayerRenderHealthPhase>([
   "created",
   "stable",
   "scale-repair",
+  "render-stalled",
   "recycle-attempt",
+  "render-failed",
   "recovery-exhausted",
   "destroyed"
 ]);
@@ -103,13 +110,15 @@ export function parseLayerRenderHealthDetail(value: unknown): LayerRenderHealthD
 
   const attempt = positiveInteger(record.attempt);
   const targetScale = positiveFinite(record.targetScale);
+  const elapsedMs = positiveFinite(record.elapsedMs);
 
   return {
     phase: record.phase as LayerRenderHealthPhase,
     layerId: record.layerId,
     serviceId: record.serviceId,
     ...(attempt !== undefined ? { attempt } : {}),
-    ...(targetScale !== undefined ? { targetScale } : {})
+    ...(targetScale !== undefined ? { targetScale } : {}),
+    ...(elapsedMs !== undefined ? { elapsedMs } : {})
   };
 }
 
@@ -121,7 +130,8 @@ export function reduceLayerRenderHealth(
   const base = {
     updatedAt: now,
     ...(detail.attempt !== undefined ? { attempt: detail.attempt } : {}),
-    ...(detail.targetScale !== undefined ? { targetScale: detail.targetScale } : {})
+    ...(detail.targetScale !== undefined ? { targetScale: detail.targetScale } : {}),
+    ...(detail.elapsedMs !== undefined ? { elapsedMs: detail.elapsedMs } : {})
   };
 
   switch (detail.phase) {
@@ -131,8 +141,12 @@ export function reduceLayerRenderHealth(
       return { state: "ready", updatedAt: now };
     case "scale-repair":
       return { state: "scale-adjusting", ...base };
+    case "render-stalled":
+      return { state: "stalled", ...base };
     case "recycle-attempt":
       return { state: "recovering", ...base };
+    case "render-failed":
+      return { state: "failed", updatedAt: now };
     case "recovery-exhausted":
       return {
         state: "failed",
@@ -151,6 +165,9 @@ export function layerRenderHealthLabel(state: LayerRenderHealthState | undefined
   if (state.state === "scale-adjusting") return state.targetScale
     ? `Ölçek ayarlanıyor · 1:${formatScale(state.targetScale)}`
     : "Ölçek ayarlanıyor";
+  if (state.state === "stalled") return state.elapsedMs
+    ? `Render gecikti · ${Math.max(1, Math.round(state.elapsedMs / 1_000))} sn`
+    : "Render gecikti";
   if (state.state === "recovering") return state.attempt
     ? `Render kurtarılıyor · ${state.attempt}. deneme`
     : "Render kurtarılıyor";
@@ -201,7 +218,8 @@ function commitServiceState(serviceId: string, state: LayerRenderHealthState): v
   if (
     previous?.state === state.state &&
     previous.attempt === state.attempt &&
-    previous.targetScale === state.targetScale
+    previous.targetScale === state.targetScale &&
+    previous.elapsedMs === state.elapsedMs
   ) return;
   snapshot = { ...snapshot, [serviceId]: state };
   notifySubscribers();
