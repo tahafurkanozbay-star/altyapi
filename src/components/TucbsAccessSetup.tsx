@@ -10,6 +10,10 @@ import {
   verifyTucbsBrowserAccess as verifyTucbsEndpoints
 } from "../lib/tucbsBrowserVerification";
 import {
+  clientHealthProfilesFromVerification,
+  saveTucbsClientHealthProfiles
+} from "../lib/tucbsClientHealth";
+import {
   discoverTucbsCoverageProfiles,
   saveTucbsCoverageProfiles
 } from "../lib/tucbsCoverage";
@@ -70,6 +74,12 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       saveTucbsEndpoints(verifiedEndpoints, remember);
       saveTucbsScaleProfiles(report.scaleProfiles, remember);
       saveTucbsCoverageProfiles(coverageReport.profiles, remember);
+
+      // Persist only endpoint-key health metadata, never the protected URL.
+      // This lets the next app boot distinguish GitHub-runner "unknown" from
+      // access that this exact browser/IP has actually verified.
+      saveTucbsClientHealthProfiles(clientHealthProfilesFromVerification(report), remember);
+
       const scaleCount = Object.keys(report.scaleProfiles).length;
       const coverageCount = Object.keys(coverageReport.profiles).length;
       const learned: string[] = [];
@@ -126,7 +136,8 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
             TUCBS servis adreslerini içeren JSON dosyanızı bu tarayıcıya tanımlayın. Bilgiler GitHub'a veya başka bir sunucuya gönderilmez;
             servisler doğrudan <strong>ucbp-api.tucbs.gov.tr</strong> üzerinden ve mevcut dış IP'nizle doğrulanır. WMS servisinin ilan ettiği
             ölçek aralığı ve coğrafi veri kapsamı varsa aynı veri kümesinin WMS/WFS katmanlarına otomatik uygulanır. Doğrulanamayan servis
-            adresleri runtime'a kaydedilmez; böylece kısmi erişim daha sonra bilinen bir katman hatasına dönüşmez.
+            adresleri runtime'a kaydedilmez; böylece kısmi erişim daha sonra bilinen bir katman hatasına dönüşmez. Doğrulama sonucu yalnız
+            servis anahtarı, süre ve güvenli durum kodu olarak saklanır; yetkili URL sağlık kaydına kopyalanmaz.
           </p>
 
           <input
