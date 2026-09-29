@@ -82,6 +82,31 @@ describe("serviceHealth", () => {
     expect(enriched && shouldAutoLoadService(enriched, now)).toBe(true);
   });
 
+  it("retries fresh public-runner network restrictions from the real browser", () => {
+    const restricted = service({
+      kind: "MapServer",
+      servisTuruAdi: "MapServer",
+      url: "https://example.com/arcgis/rest/services/altyapi/MapServer",
+      tokenUrl: "https://example.com/arcgis/rest/services/altyapi/MapServer",
+      availability: "degraded",
+      access: "network-restricted",
+      verificationStale: false
+    });
+    expect(shouldAutoLoadService(restricted)).toBe(true);
+  });
+
+  it("does not bypass fresh server, browser or cooldown circuit breakers", () => {
+    expect(shouldAutoLoadService(service({ availability: "unavailable", access: "server-error" }))).toBe(false);
+    expect(shouldAutoLoadService(service({ availability: "degraded", access: "browser-blocked" }))).toBe(false);
+
+    const now = Date.parse("2026-09-19T19:00:00.000Z");
+    expect(shouldAutoLoadService(service({
+      availability: "degraded",
+      access: "network-restricted",
+      cooldownUntil: new Date(now + 60_000).toISOString()
+    }), now)).toBe(false);
+  });
+
   it("requires local configuration for a TUCBS runtime sentinel but allows a configured IP-scoped URL", () => {
     const sentinel = service({
       kind: "WMS",
@@ -105,6 +130,23 @@ describe("serviceHealth", () => {
     expect(availabilityLabel(direct)).toBe("IP yetkili erişim");
   });
 
+  it("promotes a successful real-browser layer load above runner health", () => {
+    const now = Date.parse("2026-09-19T19:00:00.000Z");
+    const recovered = {
+      ...service({ availability: "degraded", access: "network-restricted", browserCompatible: null }),
+      ...successPatch(812.4, now)
+    };
+
+    expect(recovered.status).toBe("ready");
+    expect(recovered.availability).toBe("verified");
+    expect(recovered.access).toBe("public-browser");
+    expect(recovered.browserCompatible).toBe(true);
+    expect(recovered.verificationLatencyMs).toBe(812);
+    expect(recovered.verifiedAt).toBe(new Date(now).toISOString());
+    expect(recovered.verificationStale).toBe(false);
+    expect(recovered.verificationReason).toContain("Bu tarayıcı");
+  });
+
   it("implements exponential cooldown after repeated failures", () => {
     const now = Date.parse("2026-09-19T19:00:00.000Z");
     const first = { ...service(), ...failurePatch(service(), "x", 100, now) };
@@ -118,6 +160,7 @@ describe("serviceHealth", () => {
     const recovered = { ...second, ...successPatch(80, now + 60_000) };
     expect(recovered.failureCount).toBe(0);
     expect(recovered.cooldownUntil).toBeUndefined();
+    expect(recovered.availability).toBe("verified");
   });
 
   it("enforces snapshot freshness window", () => {
