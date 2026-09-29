@@ -32,6 +32,7 @@ export interface ServiceDefinition extends RawServiceDefinition {
   organization: string;
   owner: string;
   url: string;
+  tucbsEndpointKey?: string;
   status: ServiceStatus;
   error?: string;
   visible: boolean;
