@@ -1,5 +1,6 @@
 import type { ServiceAccess, ServiceAvailability, ServiceDefinition } from "../types";
 import {
+  endpointKeyFor,
   isTucbsEndpointKey,
   isUnconfiguredTucbsUrl
 } from "./tucbsAccess";
@@ -109,7 +110,7 @@ export function applyTucbsClientHealthToService(
   profiles: TucbsClientHealthProfileMap,
   now = Date.now()
 ): ServiceDefinition {
-  const key = service.tucbsEndpointKey;
+  const key = service.tucbsEndpointKey ?? endpointKeyFor(service.displayName, service.kind);
   if (!key || isUnconfiguredTucbsUrl(service.url)) return service;
 
   const profile = profiles[key];
@@ -119,6 +120,7 @@ export function applyTucbsClientHealthToService(
   if (profile.state === "verified") {
     return {
       ...service,
+      tucbsEndpointKey: key,
       availability: "verified",
       access: "public-browser",
       browserCompatible: true,
@@ -134,6 +136,7 @@ export function applyTucbsClientHealthToService(
   const availability = failedAvailability(service, profile, stale);
   return {
     ...service,
+    tucbsEndpointKey: key,
     availability,
     access: failureAccess(profile.failureCode),
     browserCompatible: profile.failureCode === "browser-network" ? false : null,
