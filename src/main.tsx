@@ -4,6 +4,7 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
+import { installPublicServiceWarmup } from "./lib/serviceWarmup";
 import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
@@ -33,6 +34,7 @@ window.addEventListener("unhandledrejection", (event) => {
 // only performs post-activation recovery when the transaction has completed.
 installLayerRenderHealthStore();
 installSceneLayerWatchdog();
+installPublicServiceWarmup();
 
 createRoot(root).render(
   <AppErrorBoundary>
