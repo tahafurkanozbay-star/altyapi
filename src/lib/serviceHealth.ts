@@ -113,7 +113,16 @@ export function shouldAutoLoadService(service: ServiceDefinition, now = Date.now
   if (isUnconfiguredTucbsUrl(service.url)) return false;
   if (isServiceCoolingDown(service, now)) return false;
   if (service.verificationStale) return true;
-  return service.availability === "verified" || service.availability === "unknown";
+  if (service.availability === "verified" || service.availability === "unknown") return true;
+
+  // A public GitHub runner cannot prove reachability from the citizen's actual
+  // network. For non-TUCBS services, a runner timeout/network restriction is
+  // therefore a retry hint rather than a startup circuit breaker. The browser
+  // gets one real attempt and normal runtime retry/cooldown still applies if it
+  // cannot reach the service either.
+  return !isDirectTucbsUrl(service.url)
+    && service.availability === "degraded"
+    && service.access === "network-restricted";
 }
 
 export function isServiceHealthSnapshotFresh(
@@ -152,11 +161,26 @@ export function failurePatch(
 }
 
 export function successPatch(durationMs: number | undefined, now = Date.now()): Partial<ServiceDefinition> {
+  const verifiedAt = new Date(now).toISOString();
+  const measuredLatency = typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0
+    ? Math.round(durationMs)
+    : undefined;
+
+  // A successful ArcGIS/OGC Layer.load() happened inside the actual browser,
+  // so it is stronger reachability evidence than a public-runner snapshot.
+  // This state is runtime-local; no endpoint or credential is persisted here.
   return {
     status: "ready",
     error: undefined,
     latencyMs: durationMs,
-    lastLoadedAt: new Date(now).toISOString(),
+    lastLoadedAt: verifiedAt,
+    availability: "verified",
+    access: "public-browser",
+    browserCompatible: true,
+    verificationLatencyMs: measuredLatency,
+    verificationReason: "Bu tarayıcı ve mevcut ağ üzerinden katman başarıyla yüklendi.",
+    verifiedAt,
+    verificationStale: false,
     failureCount: 0,
     cooldownUntil: undefined,
     lastFailureAt: undefined
