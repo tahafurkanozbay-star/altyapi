@@ -6,6 +6,10 @@ import type {
   ServiceVerificationEntry
 } from "../types";
 import { isDirectTucbsUrl, isUnconfiguredTucbsUrl } from "./tucbsAccess";
+import {
+  applyTucbsClientHealth,
+  loadTucbsClientHealthProfiles
+} from "./tucbsClientHealth";
 
 const AVAILABILITY = new Set<ServiceAvailability>(["verified", "degraded", "unavailable", "unknown"]);
 const ACCESS = new Set<ServiceAccess>(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
@@ -71,8 +75,22 @@ export function applyServiceHealthSnapshot(
   snapshot: ServiceHealthSnapshot | null,
   now = Date.now()
 ): ServiceDefinition[] {
-  if (!snapshot) return services;
+  const publicRunnerCatalog = snapshot
+    ? applyPublicRunnerHealth(services, snapshot, now)
+    : services;
 
+  // Public GitHub runners cannot prove source-IP-restricted TUCBS access. A
+  // sanitized endpoint-key-only browser profile therefore overlays the public
+  // snapshot only for locally configured TUCBS rows. No protected URL crosses
+  // into service-health.json or this client-health store.
+  return applyTucbsClientHealth(publicRunnerCatalog, loadTucbsClientHealthProfiles(), now);
+}
+
+function applyPublicRunnerHealth(
+  services: ServiceDefinition[],
+  snapshot: ServiceHealthSnapshot,
+  now: number
+): ServiceDefinition[] {
   const stale = !isServiceHealthSnapshotFresh(snapshot, now);
   const entries = new Map(snapshot.services.map((entry) => [entry.index, entry]));
   return services.map((service, index) => {
@@ -147,6 +165,9 @@ export function successPatch(durationMs: number | undefined, now = Date.now()): 
 
 export function availabilityLabel(service: ServiceDefinition): string {
   if (isUnconfiguredTucbsUrl(service.url)) return "Yetkili bağlantı gerekli";
+  if (isDirectTucbsUrl(service.url) && service.access === "public-browser" && service.availability === "verified") {
+    return service.verificationStale ? "Onaylı IP’den doğrulandı · eski" : "Onaylı IP’den doğrulandı";
+  }
   if (isDirectTucbsUrl(service.url) && service.access === "network-restricted") return "IP yetkili erişim";
 
   const suffix = service.verificationStale ? " · eski" : "";
