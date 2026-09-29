@@ -87,9 +87,9 @@ export function selectPublicServiceWarmupCandidates(
   return healthEntries.flatMap((entry): ServiceWarmupCandidate[] => {
     const index = entry.index;
     const latencyMs = entry.latencyMs;
-    if (!Number.isInteger(index) || index === undefined || index < 0 || index >= rawServices.length) return [];
+    if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= rawServices.length) return [];
     if (entry.availability !== "verified" || entry.access !== "public-browser" || entry.browserCompatible !== true) return [];
-    if (!Number.isFinite(latencyMs) || latencyMs === undefined || latencyMs < WARMUP_LATENCY_THRESHOLD_MS) return [];
+    if (typeof latencyMs !== "number" || !Number.isFinite(latencyMs) || latencyMs < WARMUP_LATENCY_THRESHOLD_MS) return [];
 
     const raw = rawServices[index];
     const kind = raw?.servisTuruAdi as ServiceKind | undefined;
