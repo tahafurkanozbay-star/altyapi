@@ -16,7 +16,8 @@ describe("typed Service Worker pipeline", () => {
     expect(source).toContain("ExtendableMessageEvent");
     expect(source).toContain("__ALTYAPI_RELEASE__");
     expect(generator).toContain('execFileAsync("tsc"');
-    expect(generator).toContain('"--module", "none"');
+    expect(generator).toContain('"--module", "esnext"');
+    expect(generator).toContain("classic registration");
     expect(generator).toContain('writeFile("public/sw.js"');
     expect(generated).toMatch(/^\/\* AUTO-GENERATED from worker\/service-worker\.ts\. DO NOT EDIT\. \*\//);
     expect(generated).not.toContain("__ALTYAPI_RELEASE__");
