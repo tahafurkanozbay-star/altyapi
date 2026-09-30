@@ -27,5 +27,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
+      - name: Standardize npm
+        run: npm install --global npm@11.19.0
       - run: npm install --no-audit --no-fund
       - run: npm run check

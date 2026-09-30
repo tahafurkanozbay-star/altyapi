@@ -22,6 +22,7 @@ type QueuedJob<T> = {
   healthRank: number;
   priority: number;
   sequence: number;
+  enqueuedAt: number;
   run: () => Promise<T>;
   cancelledValue: T;
   resolve: (value: T) => void;
@@ -31,6 +32,7 @@ type QueuedJob<T> = {
 type InternalJob = QueuedJob<unknown>;
 type NetworkReader = () => NetworkQualitySnapshot;
 type NetworkSubscriber = (listener: () => void) => () => void;
+type Clock = () => number;
 
 const PRIORITY: Record<LayerLoadPriority, number> = {
   interactive: 0,
@@ -38,18 +40,34 @@ const PRIORITY: Record<LayerLoadPriority, number> = {
   restore: 2
 };
 
+const RETRY_PROMOTION_MS = 15_000;
+const RESTORE_RETRY_PROMOTION_MS = 12_000;
+const RESTORE_INTERACTIVE_PROMOTION_MS = 30_000;
+
+export interface LayerLoadSchedulerDiagnostics {
+  active: number;
+  activeCost: number;
+  queued: number;
+  effectiveLimit: number;
+  pausedByNetwork: boolean;
+  oldestQueuedMs: number;
+  activeLanes: number;
+}
+
 /**
  * Bounds expensive remote Layer.load() work without changing ArcGIS retry or
  * failover semantics. Admission is weighted by the freshest sanitized/browser
  * health signals and coarse local connection hints so slow providers or weak
  * networks cannot receive the same request pressure as healthy conditions.
  * Network/visibility changes wake the queue immediately; no signal is persisted
- * or transmitted.
+ * or transmitted. Long-waiting retry/restore jobs age upward so frequent user
+ * activity cannot starve recovery work forever.
  */
 export class LayerLoadScheduler {
   private readonly profileLimit: number;
   private readonly profile: PerformanceProfile;
   private readonly readNetwork: NetworkReader;
+  private readonly now: Clock;
   private readonly unsubscribeNetwork: () => void;
   private readonly queue: InternalJob[] = [];
   private readonly activeByLane = new Map<string, number>();
@@ -61,11 +79,13 @@ export class LayerLoadScheduler {
   constructor(
     profile: PerformanceProfile,
     readNetwork: NetworkReader = browserNetworkQuality,
-    subscribeNetwork: NetworkSubscriber = subscribeNetworkQualityChanges
+    subscribeNetwork: NetworkSubscriber = subscribeNetworkQualityChanges,
+    now: Clock = monotonicNow
   ) {
     this.profile = profile;
     this.profileLimit = globalLimitFor(profile);
     this.readNetwork = readNetwork;
+    this.now = now;
 
     let unsubscribe: () => void = () => undefined;
     try {
@@ -103,6 +123,7 @@ export class LayerLoadScheduler {
         healthRank,
         priority: PRIORITY[priority],
         sequence: this.sequence++,
+        enqueuedAt: this.now(),
         run,
         cancelledValue,
         resolve,
@@ -150,6 +171,24 @@ export class LayerLoadScheduler {
       queued: this.queue.length,
       globalLimit: this.profileLimit,
       effectiveLimit: this.effectiveGlobalLimit()
+    };
+  }
+
+  diagnostics(): LayerLoadSchedulerDiagnostics {
+    const now = this.now();
+    const effectiveLimit = this.effectiveGlobalLimit();
+    const oldestQueuedAt = this.queue.reduce<number | undefined>(
+      (oldest, job) => oldest === undefined ? job.enqueuedAt : Math.min(oldest, job.enqueuedAt),
+      undefined
+    );
+    return {
+      active: this.active,
+      activeCost: this.activeCost,
+      queued: this.queue.length,
+      effectiveLimit,
+      pausedByNetwork: effectiveLimit <= 0,
+      oldestQueuedMs: oldestQueuedAt === undefined ? 0 : Math.max(0, Math.round(now - oldestQueuedAt)),
+      activeLanes: this.activeByLane.size
     };
   }
 
@@ -203,19 +242,24 @@ export class LayerLoadScheduler {
   }
 
   private nextRunnableIndex(effectiveLimit: number): number {
+    const now = this.now();
     const candidates = this.queue
-      .map((job, index) => ({ job, index }))
+      .map((job, index) => ({ job, index, effectivePriority: agedPriority(job, now) }))
       .filter(({ job }) =>
         (this.activeByLane.get(job.lane) ?? 0) < job.laneLimit
         && this.activeCost + job.cost <= effectiveLimit
       )
       .sort((left, right) => {
-        const priorityDelta = left.job.priority - right.job.priority;
+        const priorityDelta = left.effectivePriority - right.effectivePriority;
         if (priorityDelta !== 0) return priorityDelta;
 
-        // Preserve exact click/retry order. Only background restore work is
-        // health-ranked so a risky provider cannot delay known-fast layers.
-        if (left.job.priority === PRIORITY.restore) {
+        // Preserve exact click/retry order. Only jobs that are still genuinely
+        // background restore work are health-ranked; once aged upward, FIFO wins.
+        if (
+          left.effectivePriority === PRIORITY.restore
+          && left.job.priority === PRIORITY.restore
+          && right.job.priority === PRIORITY.restore
+        ) {
           const healthDelta = left.job.healthRank - right.job.healthRank;
           if (healthDelta !== 0) return healthDelta;
         }
@@ -281,6 +325,20 @@ export function loadHealthRank(service: LoadHealthSignal): number {
   return Math.min(6, rank);
 }
 
+export function agedPriority(
+  job: Pick<InternalJob, "priority" | "enqueuedAt">,
+  now: number
+): number {
+  const waitedMs = Math.max(0, now - job.enqueuedAt);
+  if (job.priority === PRIORITY.interactive) return PRIORITY.interactive;
+  if (job.priority === PRIORITY.retry) {
+    return waitedMs >= RETRY_PROMOTION_MS ? PRIORITY.interactive : PRIORITY.retry;
+  }
+  if (waitedMs >= RESTORE_INTERACTIVE_PROMOTION_MS) return PRIORITY.interactive;
+  if (waitedMs >= RESTORE_RETRY_PROMOTION_MS) return PRIORITY.retry;
+  return PRIORITY.restore;
+}
+
 function measuredLatency(service: LoadHealthSignal): number {
   const samples = [service.verificationLatencyMs, service.latencyMs]
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0);
@@ -295,4 +353,10 @@ function loadLane(service: Pick<ServiceDefinition, "kind" | "url">): string {
     // Fall through to a non-sensitive kind lane for malformed/sentinel URLs.
   }
   return `kind:${service.kind}`;
+}
+
+function monotonicNow(): number {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
 }
