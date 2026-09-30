@@ -20,7 +20,7 @@
     "validate:dependencies": "tsx scripts/validate-dependencies.ts",
     "validate:services": "tsx scripts/validate-services.ts",
     "verify:build": "tsx scripts/verify-build.ts",
-    "check": "npm run validate:source && npm run validate:dependencies && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
+    "check": "npm run generate:sw && npm run validate:source && npm run validate:dependencies && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "tsx scripts/validate-service-health.ts",
     "probe:services": "tsx scripts/probe-service-health.ts",
     "validate:navigation": "tsx scripts/validate-service-navigation.ts",
