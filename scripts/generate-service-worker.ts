@@ -16,7 +16,7 @@ await rm(outputDirectory, { recursive: true, force: true });
 await execFileAsync("tsc", [
   "worker/service-worker.ts",
   "--target", "ES2023",
-  "--module", "none",
+  "--module", "esnext",
   "--lib", "ES2023,WebWorker",
   "--strict",
   "--noUncheckedIndexedAccess",
@@ -27,6 +27,9 @@ await execFileAsync("tsc", [
 ]);
 
 const emitted = await readFile(outputFile, "utf8");
+if (/^\s*(?:import|export)\b/m.test(emitted)) {
+  throw new Error("Service Worker classic registration için modül sözdizimi üretildi.");
+}
 const prepared = emitted.replaceAll("__ALTYAPI_RELEASE__", String(major));
 if (prepared.includes("__ALTYAPI_RELEASE__")) {
   throw new Error("Service Worker release placeholder çözümlenemedi.");
