@@ -221,28 +221,30 @@ export default function App() {
         }
         setReady(true);
 
-        await mapWithConcurrency(restored.filter((service) => service.visible), 2, async (service) => {
-          if (cancelled) return;
-          patchService(service.id, { status: "loading" });
-          const result = await runtime.setLayerVisible(service, true);
-          if (result.superseded) return;
-          patchService(
-            service.id,
-            result.ok
-              ? { ...successPatch(result.durationMs), visible: true }
-              : failurePatch(service, result.error, result.durationMs)
-          );
-          if (!result.ok) {
-            recordIncident({
-              severity: "error",
-              kind: "layer-load",
-              message: result.error ?? "Başlangıç katmanı yüklenemedi.",
-              serviceId: service.id,
-              serviceName: service.displayName,
-              durationMs: result.durationMs
-            });
-          }
-        });
+        await runtime.withLayerActivationBatch(async () => {
+          await mapWithConcurrency(restored.filter((service) => service.visible), 2, async (service) => {
+            if (cancelled) return;
+            patchService(service.id, { status: "loading" });
+            const result = await runtime.setLayerVisible(service, true);
+            if (result.superseded) return;
+            patchService(
+              service.id,
+              result.ok
+                ? { ...successPatch(result.durationMs), visible: true }
+                : failurePatch(service, result.error, result.durationMs)
+            );
+            if (!result.ok) {
+              recordIncident({
+                severity: "error",
+                kind: "layer-load",
+                message: result.error ?? "Başlangıç katmanı yüklenemedi.",
+                serviceId: service.id,
+                serviceName: service.displayName,
+                durationMs: result.durationMs
+              });
+            }
+          });
+        }, { navigate: !share?.camera });
 
         if (cancelled) return;
         persistLayerPreferences(servicesRef.current);
@@ -474,12 +476,16 @@ export default function App() {
   }, [preferences.bookmarks, pushToast]);
 
   const goBookmark = useCallback(async (bookmark: Bookmark) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
     const desired = new Set(bookmark.layerIds);
     const snapshot = servicesRef.current;
-    await mapWithConcurrency(snapshot.filter((service) => service.visible !== desired.has(service.id)), 2, async (service) => {
-      await toggleLayer(service, desired.has(service.id));
-    });
-    await runtimeRef.current?.goTo(bookmark.camera);
+    await runtime.withLayerActivationBatch(async () => {
+      await mapWithConcurrency(snapshot.filter((service) => service.visible !== desired.has(service.id)), 2, async (service) => {
+        await toggleLayer(service, desired.has(service.id));
+      });
+    }, { navigate: false });
+    await runtime.goTo(bookmark.camera);
   }, [toggleLayer]);
 
   const deleteBookmark = useCallback((bookmark: Bookmark) => {
