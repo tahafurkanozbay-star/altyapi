@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v34 layer load scheduler integration", () => {
-  it("routes restore, interactive and retry layer loads through one scheduler", async () => {
+describe("v35 health-aware layer load scheduler integration", () => {
+  it("routes restore, interactive and retry layer loads through one health-aware scheduler", async () => {
     const app = await readFile("src/App.tsx", "utf8");
     const scheduler = await readFile("src/gis/layerLoadScheduler.ts", "utf8");
 
@@ -18,7 +18,12 @@ describe("v34 layer load scheduler integration", () => {
     expect(scheduler).toContain("retry: 1");
     expect(scheduler).toContain("restore: 2");
     expect(scheduler).toContain('service.kind === "WMS" || service.kind === "WFS"');
-    expect(scheduler).toContain("profile === \"high\" ? 2 : 1");
+    expect(scheduler).toContain('if (profile !== "high") return 1');
+    expect(scheduler).toContain("return loadHealthRank(service) >= 2 ? 1 : 2");
+    expect(scheduler).toContain("loadCostFor(this.profile, service)");
+    expect(scheduler).toContain("activeCost");
+    expect(scheduler).toContain("verificationStale");
+    expect(scheduler).toContain("PRIORITY.restore");
     expect(scheduler).not.toContain("console.");
     expect(scheduler).not.toContain("localStorage");
   });
