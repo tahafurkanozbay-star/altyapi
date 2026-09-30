@@ -1,6 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import * as ts from "typescript";
+
+type TypeScriptApi = typeof import("typescript");
+const tsModule = await import("typescript");
+const ts = (((tsModule as unknown as { default?: TypeScriptApi }).default) ?? tsModule) as TypeScriptApi;
 
 const SOURCE = resolve("worker/sw.ts");
 const OUTPUT = resolve("public/sw.js");
@@ -37,7 +40,7 @@ const transpiled = ts.transpileModule(injectedSource, {
 const diagnostics = transpiled.diagnostics ?? [];
 const errors = diagnostics.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 if (errors.length > 0) {
-  const host: ts.FormatDiagnosticsHost = {
+  const host: import("typescript").FormatDiagnosticsHost = {
     getCanonicalFileName: (fileName) => fileName,
     getCurrentDirectory: () => process.cwd(),
     getNewLine: () => "\n"
