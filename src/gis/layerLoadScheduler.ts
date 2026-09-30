@@ -1,4 +1,10 @@
 import type { PerformanceProfile, ServiceDefinition } from "../types";
+import {
+  browserNetworkQuality,
+  networkConcurrencyCap,
+  type NetworkQualitySnapshot
+} from "../platform/networkQuality";
+import { cancelAllTrackedLayerLoads, cancelTrackedLayerLoad } from "./layerLoadRegistry";
 
 export type LayerLoadPriority = "interactive" | "retry" | "restore";
 
@@ -22,6 +28,7 @@ type QueuedJob<T> = {
 };
 
 type InternalJob = QueuedJob<unknown>;
+type NetworkReader = () => NetworkQualitySnapshot;
 
 const PRIORITY: Record<LayerLoadPriority, number> = {
   interactive: 0,
@@ -32,13 +39,14 @@ const PRIORITY: Record<LayerLoadPriority, number> = {
 /**
  * Bounds expensive remote Layer.load() work without changing ArcGIS retry or
  * failover semantics. Admission is weighted by the freshest sanitized/browser
- * health signals so slow or recently failing providers cannot consume the same
- * concurrency budget as healthy providers. Lane identifiers and health state
- * remain in memory and are never logged or persisted.
+ * health signals and coarse local connection hints so slow providers or weak
+ * networks cannot receive the same request pressure as healthy conditions.
+ * None of these scheduling signals are persisted or transmitted.
  */
 export class LayerLoadScheduler {
-  private readonly globalLimit: number;
+  private readonly profileLimit: number;
   private readonly profile: PerformanceProfile;
+  private readonly readNetwork: NetworkReader;
   private readonly queue: InternalJob[] = [];
   private readonly activeByLane = new Map<string, number>();
   private active = 0;
@@ -46,9 +54,10 @@ export class LayerLoadScheduler {
   private sequence = 0;
   private disposed = false;
 
-  constructor(profile: PerformanceProfile) {
+  constructor(profile: PerformanceProfile, readNetwork: NetworkReader = browserNetworkQuality) {
     this.profile = profile;
-    this.globalLimit = globalLimitFor(profile);
+    this.profileLimit = globalLimitFor(profile);
+    this.readNetwork = readNetwork;
   }
 
   schedule<T>(
@@ -59,10 +68,10 @@ export class LayerLoadScheduler {
   ): Promise<T> {
     if (this.disposed) return Promise.resolve(cancelledValue);
 
-    // A newer request for the same service supersedes only work that has not
-    // started yet. Running ArcGIS work is allowed to finish and the runtime's
-    // desiredVisibility guard decides whether its result is still relevant.
-    this.cancel(service.id);
+    // A newer request for the same service supersedes queued work only. Do not
+    // cancel an already-running visible layer merely because a duplicate UI
+    // request arrived; explicit hide/dispose actions own active cancellation.
+    this.cancelQueued(service.id);
 
     const lane = loadLane(service);
     const laneLimit = laneLimitFor(this.profile, service);
@@ -87,8 +96,42 @@ export class LayerLoadScheduler {
     });
   }
 
-  /** Cancels a queued activation. In-flight ArcGIS work is not force-aborted. */
+  /**
+   * Cancels queued work and asks the newest tracked ArcGIS Layer for this
+   * service to cancel its in-flight load. Late resolutions remain harmless
+   * because ArcGISRuntime still enforces desiredVisibility before attachment.
+   */
   cancel(serviceId: string): boolean {
+    const queued = this.cancelQueued(serviceId);
+    const active = cancelTrackedLayerLoad(serviceId);
+    return queued || active;
+  }
+
+  /** Resolves queued work as superseded and cancels tracked active ArcGIS loads. */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const job of this.queue.splice(0)) job.resolve(job.cancelledValue);
+    cancelAllTrackedLayerLoads();
+  }
+
+  snapshot(): {
+    active: number;
+    activeCost: number;
+    queued: number;
+    globalLimit: number;
+    effectiveLimit: number;
+  } {
+    return {
+      active: this.active,
+      activeCost: this.activeCost,
+      queued: this.queue.length,
+      globalLimit: this.profileLimit,
+      effectiveLimit: this.effectiveGlobalLimit()
+    };
+  }
+
+  private cancelQueued(serviceId: string): boolean {
     let cancelled = false;
     for (let index = this.queue.length - 1; index >= 0; index -= 1) {
       const job = this.queue[index];
@@ -100,27 +143,20 @@ export class LayerLoadScheduler {
     return cancelled;
   }
 
-  /** Resolves all queued work as superseded and prevents future scheduling. */
-  dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    for (const job of this.queue.splice(0)) job.resolve(job.cancelledValue);
-  }
-
-  snapshot(): { active: number; activeCost: number; queued: number; globalLimit: number } {
-    return {
-      active: this.active,
-      activeCost: this.activeCost,
-      queued: this.queue.length,
-      globalLimit: this.globalLimit
-    };
+  private effectiveGlobalLimit(): number {
+    try {
+      return networkConcurrencyCap(this.profileLimit, this.readNetwork());
+    } catch {
+      return this.profileLimit;
+    }
   }
 
   private drain(): void {
     if (this.disposed) return;
 
-    while (this.activeCost < this.globalLimit && this.queue.length > 0) {
-      const nextIndex = this.nextRunnableIndex();
+    const effectiveLimit = this.effectiveGlobalLimit();
+    while (this.activeCost < effectiveLimit && this.queue.length > 0) {
+      const nextIndex = this.nextRunnableIndex(effectiveLimit);
       if (nextIndex < 0) return;
       const [job] = this.queue.splice(nextIndex, 1);
       if (!job) return;
@@ -142,12 +178,12 @@ export class LayerLoadScheduler {
     }
   }
 
-  private nextRunnableIndex(): number {
+  private nextRunnableIndex(effectiveLimit: number): number {
     const candidates = this.queue
       .map((job, index) => ({ job, index }))
       .filter(({ job }) =>
         (this.activeByLane.get(job.lane) ?? 0) < job.laneLimit
-        && this.activeCost + job.cost <= this.globalLimit
+        && this.activeCost + job.cost <= effectiveLimit
       )
       .sort((left, right) => {
         const priorityDelta = left.job.priority - right.job.priority;
