@@ -3,7 +3,8 @@ import { detectPerformanceProfile } from "./performance";
 
 const WARMUP_LATENCY_THRESHOLD_MS = 1_500;
 const WARMUP_TIMEOUT_MS = 9_000;
-const WARMUP_SESSION_KEY = "altyapi:public-service-warmup-v1";
+const WARMUP_SESSION_KEY = "altyapi:public-service-warmup-v2";
+const WARMUP_LOCK_NAME = "altyapi:public-service-warmup";
 const TUCBS_HOST = "ucbp-api.tucbs.gov.tr";
 const ARCGIS_KINDS = new Set<ServiceKind>(["MapServer", "FeatureServer", "SceneServer"]);
 const SENSITIVE_QUERY_KEYS = /^(?:token|access_token|api_?key|apikey|secret|password|pass|signature|sig|auth|authorization)$/i;
@@ -39,10 +40,19 @@ type ConnectionHints = {
   effectiveType?: string;
 };
 
-type NavigatorWithConnection = Navigator & {
+type WarmupLockManager = {
+  request(
+    name: string,
+    options: { mode: "exclusive"; ifAvailable: true; signal?: AbortSignal },
+    callback: (lock: { name: string } | null) => Promise<void>
+  ): Promise<void>;
+};
+
+type NavigatorWithConnection = Pick<Navigator, "onLine"> & {
   connection?: ConnectionHints;
   mozConnection?: ConnectionHints;
   webkitConnection?: ConnectionHints;
+  locks?: WarmupLockManager;
 };
 
 type WindowWithIdleCallback = Window & {
@@ -102,7 +112,7 @@ export function selectPublicServiceWarmupCandidates(
     .slice(0, maxCandidates);
 }
 
-export function shouldRunPublicServiceWarmup(navigatorLike: NavigatorWithConnection = navigator): boolean {
+export function shouldRunPublicServiceWarmup(navigatorLike: NavigatorWithConnection = navigator as NavigatorWithConnection): boolean {
   if (navigatorLike.onLine === false) return false;
   const connection = navigatorLike.connection ?? navigatorLike.mozConnection ?? navigatorLike.webkitConnection;
   if (connection?.saveData) return false;
@@ -115,10 +125,18 @@ export function installPublicServiceWarmup(): void {
   if (typeof window === "undefined" || typeof document === "undefined" || typeof navigator === "undefined") return;
   if (!shouldRunPublicServiceWarmup()) return;
 
+  const lifecycle = new AbortController();
+  const abortWarmup = () => lifecycle.abort();
+  window.addEventListener("pagehide", abortWarmup, { once: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") abortWarmup();
+  }, { once: true });
+
   const start = () => {
     const windowWithIdle = window as WindowWithIdleCallback;
-    const run = () => void warmSlowPublicServices().catch(() => undefined);
+    const run = () => void runCoordinatedWarmup(lifecycle.signal).catch(() => undefined);
     window.setTimeout(() => {
+      if (lifecycle.signal.aborted) return;
       if (windowWithIdle.requestIdleCallback) windowWithIdle.requestIdleCallback(run, { timeout: 5_000 });
       else window.setTimeout(run, 900);
     }, 2_000);
@@ -128,19 +146,37 @@ export function installPublicServiceWarmup(): void {
   else window.addEventListener("load", start, { once: true });
 }
 
-async function warmSlowPublicServices(): Promise<void> {
-  if (!shouldRunPublicServiceWarmup()) return;
+async function runCoordinatedWarmup(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return;
+  const lockManager = (navigator as NavigatorWithConnection).locks;
+  if (!lockManager) {
+    await warmSlowPublicServices(signal);
+    return;
+  }
+
+  await lockManager.request(
+    WARMUP_LOCK_NAME,
+    { mode: "exclusive", ifAvailable: true, signal },
+    async (lock) => {
+      if (!lock || signal.aborted) return;
+      await warmSlowPublicServices(signal);
+    }
+  );
+}
+
+async function warmSlowPublicServices(signal: AbortSignal): Promise<void> {
+  if (signal.aborted || !shouldRunPublicServiceWarmup()) return;
 
   const [catalogResponse, healthResponse] = await Promise.all([
-    fetch("./services.json", { cache: "no-store", credentials: "same-origin" }),
-    fetch("./service-health.json", { cache: "no-store", credentials: "same-origin" })
+    fetch("./services.json", { cache: "no-store", credentials: "same-origin", signal }),
+    fetch("./service-health.json", { cache: "no-store", credentials: "same-origin", signal })
   ]);
-  if (!catalogResponse.ok || !healthResponse.ok) return;
+  if (!catalogResponse.ok || !healthResponse.ok || signal.aborted) return;
 
   const [catalog, health] = await Promise.all([catalogResponse.json(), healthResponse.json()]);
   const profile = detectPerformanceProfile();
   const candidates = selectPublicServiceWarmupCandidates(catalog, health, profile);
-  if (candidates.length === 0) return;
+  if (candidates.length === 0 || signal.aborted) return;
 
   const generatedAt = health && typeof health === "object" && typeof (health as HealthDocument).generatedAt === "string"
     ? (health as HealthDocument).generatedAt
@@ -153,7 +189,8 @@ async function warmSlowPublicServices(): Promise<void> {
   }
 
   const { concurrency } = serviceWarmupBudget(profile);
-  await mapWithConcurrency(candidates, concurrency, warmCandidate);
+  await mapWithConcurrency(candidates, concurrency, (candidate) => warmCandidate(candidate, signal), signal);
+  if (signal.aborted) return;
 
   try {
     sessionStorage.setItem(WARMUP_SESSION_KEY, fingerprint);
@@ -162,11 +199,14 @@ async function warmSlowPublicServices(): Promise<void> {
   }
 }
 
-async function warmCandidate(candidate: ServiceWarmupCandidate): Promise<void> {
+async function warmCandidate(candidate: ServiceWarmupCandidate, parentSignal: AbortSignal): Promise<void> {
+  if (parentSignal.aborted) return;
   const target = new URL(candidate.url);
   target.searchParams.set("f", "json");
 
   const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  parentSignal.addEventListener("abort", abortFromParent, { once: true });
   const timer = window.setTimeout(() => controller.abort(), WARMUP_TIMEOUT_MS);
   try {
     const response = await fetch(target.toString(), {
@@ -182,14 +222,20 @@ async function warmCandidate(candidate: ServiceWarmupCandidate): Promise<void> {
   } catch {
     // Warmup is best-effort and must never affect layer availability/status.
   } finally {
+    parentSignal.removeEventListener("abort", abortFromParent);
     window.clearTimeout(timer);
   }
 }
 
-async function mapWithConcurrency<T>(items: T[], limit: number, mapper: (item: T) => Promise<void>): Promise<void> {
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  mapper: (item: T) => Promise<void>,
+  signal: AbortSignal
+): Promise<void> {
   let cursor = 0;
-  async function worker() {
-    while (cursor < items.length) {
+  async function worker(): Promise<void> {
+    while (cursor < items.length && !signal.aborted) {
       const index = cursor++;
       const item = items[index];
       if (item !== undefined) await mapper(item);
