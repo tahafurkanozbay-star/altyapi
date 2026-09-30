@@ -44,8 +44,12 @@ if (typeof release !== "string" || !/^\d+\.\d+\.\d+$/.test(release)) {
 } else {
   if (!serviceWorker.includes(`release ${release}`)) errors.push("Service Worker üretim banner'ı package sürümüyle eşleşmiyor.");
   if (!serviceWorker.includes(`const RELEASE = "${release}"`)) errors.push("Service Worker runtime release değeri package sürümüyle eşleşmiyor.");
-  for (const prefix of ["altyapi-shell-v", "altyapi-data-v", "altyapi-runtime-v"]) {
-    if (!serviceWorker.includes(prefix)) errors.push(`Service Worker cache ailesi eksik: ${prefix}`);
+  for (const name of [
+    `altyapi-shell-v${release}`,
+    `altyapi-data-v${release}`,
+    `altyapi-runtime-v${release}`
+  ]) {
+    if (!serviceWorker.includes(name)) errors.push(`Service Worker cache sürümü eksik: ${name}`);
   }
 }
 if (serviceWorker.includes("__ALTYAPI_RELEASE__")) errors.push("Service Worker release placeholder üretim çıktısında kaldı.");

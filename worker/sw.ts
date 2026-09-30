@@ -1,7 +1,7 @@
 const RELEASE = "__ALTYAPI_RELEASE__";
-const SHELL_CACHE = "altyapi-shell-v" + RELEASE;
-const DATA_CACHE = "altyapi-data-v" + RELEASE;
-const RUNTIME_CACHE = "altyapi-runtime-v" + RELEASE;
+const SHELL_CACHE = "altyapi-shell-v__ALTYAPI_RELEASE__";
+const DATA_CACHE = "altyapi-data-v__ALTYAPI_RELEASE__";
+const RUNTIME_CACHE = "altyapi-runtime-v__ALTYAPI_RELEASE__";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg", "./health.html"];
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
 const DATA_NETWORK_TIMEOUT_MS = 4_500;

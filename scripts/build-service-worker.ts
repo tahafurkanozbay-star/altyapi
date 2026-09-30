@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { transformWithEsbuild } from "vite";
+import { transformWithOxc } from "vite";
 
 const SOURCE = resolve("worker/sw.ts");
 const OUTPUT = resolve("public/sw.js");
@@ -21,13 +21,7 @@ if (!sourceText.includes(PLACEHOLDER)) {
 }
 
 const injectedSource = sourceText.replaceAll(PLACEHOLDER, release);
-const transformed = await transformWithEsbuild(injectedSource, SOURCE, {
-  loader: "ts",
-  target: "es2023",
-  format: "iife",
-  minify: false,
-  sourcemap: false
-});
+const transformed = await transformWithOxc(injectedSource, SOURCE);
 
 await mkdir(dirname(OUTPUT), { recursive: true });
 const banner = `/* AUTO-GENERATED from worker/sw.ts for release ${release}. Do not edit public/sw.js directly. */\n`;

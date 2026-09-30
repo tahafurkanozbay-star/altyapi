@@ -15,14 +15,15 @@ describe("release coherence", () => {
     expect(release).toMatch(/^\d+\.\d+\.\d+$/);
     expect(workerSource).toContain('__ALTYAPI_RELEASE__');
     expect(generator).toContain('replaceAll(PLACEHOLDER, release)');
+    expect(generator).toContain('transformWithOxc');
     expect(generator).toContain('public/sw.js');
     expect(packageJson.scripts?.["build:sw"]).toContain("scripts/build-service-worker.ts");
     expect(packageJson.scripts?.pretest).toContain("npm run build:sw");
     expect(generatedWorker).toContain(`release ${release}`);
     expect(generatedWorker).toContain(`const RELEASE = "${release}"`);
-    expect(generatedWorker).toContain('const SHELL_CACHE = "altyapi-shell-v" + RELEASE');
-    expect(generatedWorker).toContain('const DATA_CACHE = "altyapi-data-v" + RELEASE');
-    expect(generatedWorker).toContain('const RUNTIME_CACHE = "altyapi-runtime-v" + RELEASE');
+    expect(generatedWorker).toContain(`const SHELL_CACHE = "altyapi-shell-v${release}"`);
+    expect(generatedWorker).toContain(`const DATA_CACHE = "altyapi-data-v${release}"`);
+    expect(generatedWorker).toContain(`const RUNTIME_CACHE = "altyapi-runtime-v${release}"`);
     expect(generatedWorker).not.toContain("__ALTYAPI_RELEASE__");
   });
 
