@@ -17,6 +17,7 @@ describe("health-aware load admission release coherence", () => {
     expect(scheduler).toContain("verificationStale");
     expect(scheduler).toContain("PRIORITY.restore");
     expect(scheduler).toContain("networkConcurrencyCap");
+    expect(scheduler).toContain("subscribeNetworkQualityChanges");
     expect(scheduler).toContain("cancelTrackedLayerLoad");
   });
 });
