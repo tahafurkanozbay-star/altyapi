@@ -23,13 +23,16 @@ if (arcgisCore !== arcgisComponents) {
   errors.push("@arcgis/core ile @arcgis/map-components aynı sürümde olmalıdır.");
 }
 
-const react = stableVersion(dependencies.react);
-const reactDom = stableVersion(dependencies["react-dom"]);
-if (!react || !reactDom || react !== reactDom) {
-  errors.push("react ve react-dom aynı stabil sürüm ailesinde olmalıdır.");
+const react = dependencies.react;
+const reactDom = dependencies["react-dom"];
+if (!isExactStableVersion(react) || !isExactStableVersion(reactDom) || react !== reactDom) {
+  errors.push("react ve react-dom aynı tam stabil sürüme sabitlenmelidir.");
 }
 
 for (const [name, version] of Object.entries({ ...dependencies, ...devDependencies })) {
+  if (!isExactStableVersion(version)) {
+    errors.push(`${name} tam stabil sürüme sabitlenmemiş: ${version}`);
+  }
   if (/(?:^|[-.])(alpha|beta|canary|dev|next|nightly|rc)(?:[.-]|$)/i.test(version)) {
     errors.push(`${name} prerelease sürüm kullanıyor: ${version}`);
   }
@@ -47,26 +50,22 @@ if (majorOf(devDependencies.vite) < 8) {
 if (!/(?:^|\s)>=\s*22(?:\.|\s|$)/.test(manifest.engines?.node ?? "")) {
   errors.push("Node engine en az 22 olmalıdır.");
 }
+if (!/(?:^|\s)>=\s*10(?:\.|\s|$)/.test(manifest.engines?.npm ?? "")) {
+  errors.push("npm engine en az 10 olmalıdır.");
+}
 
 if (errors.length > 0) {
   console.error("Bağımlılık doğrulaması başarısız:\n- " + errors.join("\n- "));
   process.exit(1);
 }
 
-console.log(`✓ Bağımlılık zinciri uyumlu: ArcGIS ${arcgisCore}, React ${react}, TypeScript ${stableVersion(devDependencies.typescript)}, Vite ${stableVersion(devDependencies.vite)}.`);
+console.log(`✓ Bağımlılık zinciri tam sürümlere sabitli: ArcGIS ${arcgisCore}, React ${react}, TypeScript ${devDependencies.typescript}, Vite ${devDependencies.vite}.`);
 
 function isExactStableVersion(value: string | undefined): value is string {
   return typeof value === "string" && /^\d+\.\d+\.\d+$/.test(value);
 }
 
-function stableVersion(value: string | undefined): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const match = value.match(/\d+\.\d+\.\d+/);
-  return match?.[0];
-}
-
 function majorOf(value: string | undefined): number {
-  const version = stableVersion(value);
-  if (!version) return 0;
-  return Number(version.split(".", 1)[0]) || 0;
+  if (!isExactStableVersion(value)) return 0;
+  return Number(value.split(".", 1)[0]) || 0;
 }
