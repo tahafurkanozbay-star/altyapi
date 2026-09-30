@@ -21,11 +21,15 @@ describe("networkConcurrencyCap", () => {
 
   it("serializes new loads when the browser signals strong network pressure", () => {
     expect(networkConcurrencyCap(3, quality({ saveData: true }))).toBe(1);
-    expect(networkConcurrencyCap(3, quality({ online: false }))).toBe(1);
     expect(networkConcurrencyCap(3, quality({ hidden: true }))).toBe(1);
     expect(networkConcurrencyCap(3, quality({ effectiveType: "2g" }))).toBe(1);
     expect(networkConcurrencyCap(3, quality({ rttMs: 1_200 }))).toBe(1);
     expect(networkConcurrencyCap(3, quality({ downlinkMbps: 0.7 }))).toBe(1);
+  });
+
+  it("pauses new remote admissions while the browser is explicitly offline", () => {
+    expect(networkConcurrencyCap(3, quality({ online: false }))).toBe(0);
+    expect(networkConcurrencyCap(1, quality({ online: false }))).toBe(0);
   });
 
   it("uses a middle cap for moderately constrained links", () => {
@@ -34,7 +38,7 @@ describe("networkConcurrencyCap", () => {
     expect(networkConcurrencyCap(3, quality({ downlinkMbps: 1.5 }))).toBe(2);
   });
 
-  it("never exceeds or drops below the profile's safe floor", () => {
+  it("never exceeds the profile budget and keeps the online safe floor", () => {
     expect(networkConcurrencyCap(1, quality({ saveData: true }))).toBe(1);
     expect(networkConcurrencyCap(0, quality())).toBe(1);
   });
