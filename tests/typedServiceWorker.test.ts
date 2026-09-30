@@ -15,11 +15,13 @@ describe("typed Service Worker pipeline", () => {
     expect(source).toContain("FetchEvent");
     expect(source).toContain("ExtendableMessageEvent");
     expect(source).toContain("__ALTYAPI_RELEASE__");
-    expect(generator).toContain("ts.transpileModule");
+    expect(generator).toContain('execFileAsync("tsc"');
+    expect(generator).toContain('"--module", "none"');
     expect(generator).toContain('writeFile("public/sw.js"');
     expect(generated).toMatch(/^\/\* AUTO-GENERATED from worker\/service-worker\.ts\. DO NOT EDIT\. \*\//);
     expect(generated).not.toContain("__ALTYAPI_RELEASE__");
     expect(packageText).toContain('"generate:sw"');
+    expect(packageText).toContain('"packageManager": "npm@11.19.0"');
     expect(rootTsconfig).toContain("tsconfig.worker.json");
     expect(rootTsconfig).toContain("tsconfig.tools.json");
   });
