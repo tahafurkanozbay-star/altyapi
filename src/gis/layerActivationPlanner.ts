@@ -40,6 +40,11 @@ export interface AtomicLayerActivationPlan {
   fitProviderExtent?: boolean;
 }
 
+export interface PlannedActivationCandidate<T> {
+  value: T;
+  plan: AtomicLayerActivationPlan;
+}
+
 /**
  * Resolves coverage, catalogue constraints, loaded-provider scale metadata and
  * the first LayerView scale signal into one camera decision. The planner is
@@ -125,6 +130,40 @@ export function planAtomicLayerActivation(input: AtomicLayerActivationInput): At
   }
 
   return { moved: false };
+}
+
+/**
+ * Chooses the single camera owner for a bulk activation transaction. Coverage
+ * misses are more important than scale-only corrections because a layer cannot
+ * be seen at any scale while the camera is outside its data envelope. ArcGIS
+ * LayerView scale truth comes next, then ordinary catalogue/provider clamping.
+ * Equal-priority candidates deliberately prefer the last activation so the
+ * result matches the existing "latest constrained layer wins" conflict policy.
+ */
+export function selectBatchActivationCandidate<T>(
+  candidates: PlannedActivationCandidate<T>[]
+): PlannedActivationCandidate<T> | undefined {
+  let selected: PlannedActivationCandidate<T> | undefined;
+  let selectedPriority = -1;
+
+  for (const candidate of candidates) {
+    if (!candidate.plan.moved) continue;
+    const priority = activationPlanPriority(candidate.plan);
+    if (priority >= selectedPriority) {
+      selected = candidate;
+      selectedPriority = priority;
+    }
+  }
+
+  return selected;
+}
+
+export function activationPlanPriority(plan: AtomicLayerActivationPlan): number {
+  if (!plan.moved) return 0;
+  if (plan.reason === "outside-extent") return 30;
+  if (plan.reason === "layer-view-scale") return 20;
+  if (plan.reason === "scale-too-far" || plan.reason === "scale-too-close") return 10;
+  return 5;
 }
 
 function recommendedScaleInsideRange(
