@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import * as ts from "typescript";
+import ts from "typescript";
 
 type PackageManifest = { version?: string };
 
