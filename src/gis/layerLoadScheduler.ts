@@ -2,6 +2,7 @@ import type { PerformanceProfile, ServiceDefinition } from "../types";
 import {
   browserNetworkQuality,
   networkConcurrencyCap,
+  subscribeNetworkQualityChanges,
   type NetworkQualitySnapshot
 } from "../platform/networkQuality";
 import { cancelAllTrackedLayerLoads, cancelTrackedLayerLoad } from "./layerLoadRegistry";
@@ -29,6 +30,7 @@ type QueuedJob<T> = {
 
 type InternalJob = QueuedJob<unknown>;
 type NetworkReader = () => NetworkQualitySnapshot;
+type NetworkSubscriber = (listener: () => void) => () => void;
 
 const PRIORITY: Record<LayerLoadPriority, number> = {
   interactive: 0,
@@ -41,12 +43,14 @@ const PRIORITY: Record<LayerLoadPriority, number> = {
  * failover semantics. Admission is weighted by the freshest sanitized/browser
  * health signals and coarse local connection hints so slow providers or weak
  * networks cannot receive the same request pressure as healthy conditions.
- * None of these scheduling signals are persisted or transmitted.
+ * Network/visibility changes wake the queue immediately; no signal is persisted
+ * or transmitted.
  */
 export class LayerLoadScheduler {
   private readonly profileLimit: number;
   private readonly profile: PerformanceProfile;
   private readonly readNetwork: NetworkReader;
+  private readonly unsubscribeNetwork: () => void;
   private readonly queue: InternalJob[] = [];
   private readonly activeByLane = new Map<string, number>();
   private active = 0;
@@ -54,10 +58,23 @@ export class LayerLoadScheduler {
   private sequence = 0;
   private disposed = false;
 
-  constructor(profile: PerformanceProfile, readNetwork: NetworkReader = browserNetworkQuality) {
+  constructor(
+    profile: PerformanceProfile,
+    readNetwork: NetworkReader = browserNetworkQuality,
+    subscribeNetwork: NetworkSubscriber = subscribeNetworkQualityChanges
+  ) {
     this.profile = profile;
     this.profileLimit = globalLimitFor(profile);
     this.readNetwork = readNetwork;
+
+    let unsubscribe = () => undefined;
+    try {
+      unsubscribe = subscribeNetwork(() => this.drain());
+    } catch {
+      // Browser connection hints are optional. Scheduling remains functional
+      // with request/completion-driven draining if subscription is unavailable.
+    }
+    this.unsubscribeNetwork = unsubscribe;
   }
 
   schedule<T>(
@@ -111,6 +128,11 @@ export class LayerLoadScheduler {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    try {
+      this.unsubscribeNetwork();
+    } catch {
+      // Optional browser event cleanup must never block scheduler disposal.
+    }
     for (const job of this.queue.splice(0)) job.resolve(job.cancelledValue);
     cancelAllTrackedLayerLoads();
   }
@@ -155,6 +177,8 @@ export class LayerLoadScheduler {
     if (this.disposed) return;
 
     const effectiveLimit = this.effectiveGlobalLimit();
+    if (effectiveLimit <= 0) return;
+
     while (this.activeCost < effectiveLimit && this.queue.length > 0) {
       const nextIndex = this.nextRunnableIndex(effectiveLimit);
       if (nextIndex < 0) return;
@@ -220,7 +244,7 @@ export function laneLimitFor(profile: PerformanceProfile, service: LoadHealthSig
 /**
  * Weighted global admission cost. A risky/slow job consumes two budget units
  * on balanced/high profiles, automatically reducing concurrent upstream load.
- * Eco mode always has a single unit so every job remains runnable.
+ * Eco mode always has a single unit so every job remains runnable when online.
  */
 export function loadCostFor(profile: PerformanceProfile, service: LoadHealthSignal): number {
   const limit = globalLimitFor(profile);
