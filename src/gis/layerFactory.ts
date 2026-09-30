@@ -3,6 +3,7 @@ import type { ServiceDefinition } from "../types";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
 import { serviceAttemptCandidates } from "../lib/serviceFailover";
 import { applyLoadedLayerVisuals } from "./layerVisuals";
+import { releaseTrackedLayerLoad, trackLayerLoad } from "./layerLoadRegistry";
 
 const creationCursor = new Map<string, number>();
 const effectiveServiceByLayer = new WeakMap<Layer, ServiceDefinition>();
@@ -60,11 +61,15 @@ export function ogcLayerMatchScore(
  * semantic high-visibility renderer using the actual geometry metadata.
  */
 export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): void {
-  const effectiveService = effectiveServiceByLayer.get(layer) ?? service;
-  if (effectiveService.kind === "WMS") selectBestWmsSublayer(effectiveService, layer);
-  applyLoadedLayerVisuals(effectiveService, layer);
-  creationCursor.delete(service.id);
-  effectiveServiceByLayer.delete(layer);
+  try {
+    const effectiveService = effectiveServiceByLayer.get(layer) ?? service;
+    if (effectiveService.kind === "WMS") selectBestWmsSublayer(effectiveService, layer);
+    applyLoadedLayerVisuals(effectiveService, layer);
+  } finally {
+    creationCursor.delete(service.id);
+    effectiveServiceByLayer.delete(layer);
+    releaseTrackedLayerLoad(service.id, layer);
+  }
 }
 
 /**
@@ -136,6 +141,7 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
   }
 
   effectiveServiceByLayer.set(layer, effectiveService);
+  trackLayerLoad(service.id, layer);
   return layer;
 }
 
