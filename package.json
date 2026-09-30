@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "35.0.0",
+  "version": "36.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript, tekil ve batch atomik katman aktivasyon navigasyonu, sağlık/latency ağırlıklı ve host-duyarlı adaptif katman yükleme zamanlayıcısı, canlı provider/LayerView ölçek doğrulaması, servis-tipine duyarlı render recovery, WGS84/Web Mercator kapsam farkındalığı, yüksek görünürlük kartografisi, WMS/WFS failover, adaptif servis kurtarma, onaylı-IP TUCBS sağlık uzlaştırması, ölçülmüş yavaş public ArcGIS servisleri için güvenli idle cold-start prewarm ve gerçek tarayıcı/ağ yükleme başarısını public-runner sağlık ölçümünün üzerinde uzlaştıran profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, tekil ve batch atomik katman aktivasyon navigasyonu, ağ/sağlık/latency duyarlı adaptif katman yükleme ve gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, servis-tipine duyarlı render recovery, WGS84/Web Mercator kapsam farkındalığı, yüksek görünürlük kartografisi, WMS/WFS failover, adaptif servis kurtarma, onaylı-IP TUCBS sağlık uzlaştırması ve deterministik SDK uyumluluk guardrail'leri sunan profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
@@ -15,9 +15,10 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
+    "validate:dependencies": "tsx scripts/validate-dependencies.ts",
     "validate:services": "tsx scripts/validate-services.ts",
     "verify:build": "tsx scripts/verify-build.ts",
-    "check": "npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
+    "check": "npm run validate:dependencies && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "tsx scripts/validate-service-health.ts",
     "probe:services": "tsx scripts/probe-service-health.ts",
     "validate:navigation": "tsx scripts/validate-service-navigation.ts",
@@ -26,10 +27,10 @@
     "summary:observability": "tsx scripts/write-observability-summary.ts"
   },
   "dependencies": {
-    "@arcgis/core": "^5.1.25",
+    "@arcgis/core": "5.1.26",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "@arcgis/map-components": "^5.1.25",
+    "@arcgis/map-components": "5.1.26",
     "@esri/calcite-components": "^5.1.2"
   },
   "devDependencies": {
