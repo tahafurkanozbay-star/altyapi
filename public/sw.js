@@ -1,5 +1,5 @@
-const SHELL_CACHE = "altyapi-shell-v35";
-const DATA_CACHE = "altyapi-data-v35";
+const SHELL_CACHE = "altyapi-shell-v36";
+const DATA_CACHE = "altyapi-data-v36";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
 
@@ -15,18 +15,17 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key.startsWith("altyapi-") && key !== SHELL_CACHE && key !== DATA_CACHE)
-            .map((key) => caches.delete(key))
-        )
+  const cleanup = caches
+    .keys()
+    .then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => key.startsWith("altyapi-") && key !== SHELL_CACHE && key !== DATA_CACHE)
+          .map((key) => caches.delete(key))
       )
-      .then(() => self.clients.claim())
-  );
+    );
+  const preload = self.registration.navigationPreload?.enable?.() ?? Promise.resolve();
+  event.waitUntil(Promise.all([cleanup, preload]).then(() => self.clients.claim()));
 });
 
 self.addEventListener("message", (event) => {
@@ -64,7 +63,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate" || request.destination === "document") {
-    event.respondWith(networkFirst(request, SHELL_CACHE));
+    event.respondWith(networkFirst(request, SHELL_CACHE, event.preloadResponse));
     return;
   }
 
@@ -86,9 +85,17 @@ async function networkFirstData(request) {
   }
 }
 
-async function networkFirst(request, cacheName) {
+async function networkFirst(request, cacheName, preloadResponse) {
   try {
-    const response = await fetch(request);
+    let response;
+    if (preloadResponse) {
+      try {
+        response = await preloadResponse;
+      } catch {
+        // Navigation preload is an optimization only; normal fetch remains authoritative.
+      }
+    }
+    response ??= await fetch(request);
     if (response.ok) {
       const cache = await caches.open(cacheName);
       await cache.put(request, response.clone());
