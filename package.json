@@ -1,24 +1,26 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "37.0.0",
+  "version": "38.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, tekil ve batch atomik katman aktivasyon navigasyonu, event-driven çevrimdışı bekletme/yeniden başlatma ile ağ-sağlık-latency duyarlı adaptif katman yükleme ve gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, servis-tipine duyarlı render recovery, WGS84/Web Mercator kapsam farkındalığı, yüksek görünürlük kartografisi, WMS/WFS failover, adaptif servis kurtarma, onaylı-IP TUCBS sağlık uzlaştırması ve deterministik SDK uyumluluk guardrail'leri sunan profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, typed Service Worker üretimi, tekil ve batch atomik katman aktivasyon navigasyonu, event-driven çevrimdışı bekletme/yeniden başlatma, ağ-sağlık-latency duyarlı starvation-safe katman yükleme, canlı provider/LayerView ölçek doğrulaması, servis-tipine duyarlı render recovery, WGS84/Web Mercator kapsam farkındalığı, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması ve deterministik SDK guardrail'leri sunan profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
     "start": "npm run dev",
-    "build": "tsc -b && vite build && tsx scripts/verify-build.ts",
+    "generate:sw": "tsx scripts/generate-service-worker.ts",
+    "build": "npm run generate:sw && tsc -b && vite build && tsx scripts/verify-build.ts",
     "build:watch": "vite build --watch",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "preview:host": "vite preview --host 0.0.0.0 --port 4173",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
+    "validate:source": "tsx scripts/validate-source-language.ts",
     "validate:dependencies": "tsx scripts/validate-dependencies.ts",
     "validate:services": "tsx scripts/validate-services.ts",
     "verify:build": "tsx scripts/verify-build.ts",
-    "check": "npm run validate:dependencies && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
+    "check": "npm run validate:source && npm run validate:dependencies && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "tsx scripts/validate-service-health.ts",
     "probe:services": "tsx scripts/probe-service-health.ts",
     "validate:navigation": "tsx scripts/validate-service-navigation.ts",
@@ -28,22 +30,23 @@
   },
   "dependencies": {
     "@arcgis/core": "5.1.26",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
     "@arcgis/map-components": "5.1.26",
-    "@esri/calcite-components": "^5.1.2"
+    "@esri/calcite-components": "5.1.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.1",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.1",
-    "vitest": "^5.0.1",
-    "@types/node": "^24.10.0",
-    "tsx": "^4.23.15"
+    "@types/node": "24.10.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "vitest": "5.0.1"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "npm": ">=10.9.0"
   }
 }
