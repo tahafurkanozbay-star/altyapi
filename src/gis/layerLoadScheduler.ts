@@ -67,7 +67,7 @@ export class LayerLoadScheduler {
     this.profileLimit = globalLimitFor(profile);
     this.readNetwork = readNetwork;
 
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
     try {
       unsubscribe = subscribeNetwork(() => this.drain());
     } catch {
