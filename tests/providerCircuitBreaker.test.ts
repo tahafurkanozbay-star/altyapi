@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { LayerLoadScheduler, providerCircuitCooldownMs } from "../src/gis/layerLoadScheduler";
 import type { ServiceDefinition, ServiceKind } from "../src/types";
 import type { NetworkQualitySnapshot } from "../src/platform/networkQuality";
+import type { ServiceFailureClass } from "../src/lib/serviceRuntime";
+
+type TestLoadResult = {
+  ok: boolean;
+  superseded?: boolean;
+  durationMs?: number;
+  failureClass?: ServiceFailureClass;
+  error?: string;
+};
+
+const CANCELLED: TestLoadResult = { ok: true, superseded: true };
 
 function service(id: string, kind: ServiceKind, url: string): ServiceDefinition {
   return {
@@ -40,7 +51,7 @@ async function tick(): Promise<void> {
 
 function controlledScheduler(profile: "eco" | "balanced" | "high" = "eco") {
   let now = 1_000;
-  let notify = () => undefined;
+  let notify: () => void = () => undefined;
   const quality: NetworkQualitySnapshot = {
     online: true,
     saveData: false,
@@ -66,21 +77,21 @@ function controlledScheduler(profile: "eco" | "balanced" | "high" = "eco") {
   };
 }
 
-const timeoutFailure = () => ({
-  ok: false as const,
-  failureClass: "timeout" as const,
+const timeoutFailure = (): TestLoadResult => ({
+  ok: false,
+  failureClass: "timeout",
   error: "Servis zaman aşımına uğradı.",
   durationMs: 9_000
 });
 
-const authFailure = () => ({
-  ok: false as const,
-  failureClass: "authorization" as const,
+const authFailure = (): TestLoadResult => ({
+  ok: false,
+  failureClass: "authorization",
   error: "403 Forbidden",
   durationMs: 250
 });
 
-const success = (durationMs = 250) => ({ ok: true as const, durationMs });
+const success = (durationMs = 250): TestLoadResult => ({ ok: true, durationMs });
 
 describe("provider-local layer load circuit breaker", () => {
   it("uses bounded exponential cooldowns after repeated transient failures", () => {
@@ -100,20 +111,20 @@ describe("provider-local layer load circuit breaker", () => {
     const other = service("other", "FeatureServer", "https://good.example/arcgis/other/FeatureServer");
     const order: string[] = [];
 
-    await scheduler.schedule(a1, "interactive", async () => timeoutFailure(), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(a1, "interactive", async () => timeoutFailure(), CANCELLED);
     await tick();
-    await scheduler.schedule(a2, "interactive", async () => timeoutFailure(), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(a2, "interactive", async () => timeoutFailure(), CANCELLED);
     await tick();
     expect(scheduler.snapshot().providerCircuitsOpen).toBe(1);
 
-    const blocked = scheduler.schedule(a3, "interactive", async () => {
+    const blocked = scheduler.schedule<TestLoadResult>(a3, "interactive", async () => {
       order.push("bad:start");
       return success();
-    }, { ok: true, superseded: true });
-    const healthy = scheduler.schedule(other, "interactive", async () => {
+    }, CANCELLED);
+    const healthy = scheduler.schedule<TestLoadResult>(other, "interactive", async () => {
       order.push("good:start");
       return success();
-    }, { ok: true, superseded: true });
+    }, CANCELLED);
 
     await expect(healthy).resolves.toMatchObject({ ok: true });
     expect(order).toEqual(["good:start"]);
@@ -128,16 +139,16 @@ describe("provider-local layer load circuit breaker", () => {
     const a3 = service("auth-3", "MapServer", "https://secured.example/c/MapServer");
     const order: string[] = [];
 
-    await scheduler.schedule(a1, "interactive", async () => authFailure(), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(a1, "interactive", async () => authFailure(), CANCELLED);
     await tick();
-    await scheduler.schedule(a2, "interactive", async () => authFailure(), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(a2, "interactive", async () => authFailure(), CANCELLED);
     await tick();
     expect(scheduler.snapshot().providerCircuitsOpen).toBe(0);
 
-    const third = scheduler.schedule(a3, "interactive", async () => {
+    const third = scheduler.schedule<TestLoadResult>(a3, "interactive", async () => {
       order.push("third:start");
       return success();
-    }, { ok: true, superseded: true });
+    }, CANCELLED);
     await expect(third).resolves.toMatchObject({ ok: true });
     expect(order).toEqual(["third:start"]);
     scheduler.dispose();
@@ -150,22 +161,22 @@ describe("provider-local layer load circuit breaker", () => {
     const a2 = service("probe-fail-2", "MapServer", "https://probe.example/b/MapServer");
     const a3 = service("probe-1", "MapServer", "https://probe.example/c/MapServer");
     const a4 = service("probe-2", "MapServer", "https://probe.example/d/MapServer");
-    const gate = deferred<ReturnType<typeof success>>();
+    const gate = deferred<TestLoadResult>();
     const order: string[] = [];
 
-    await scheduler.schedule(a1, "interactive", async () => timeoutFailure(), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(a1, "interactive", async () => timeoutFailure(), CANCELLED);
     await tick();
-    await scheduler.schedule(a2, "interactive", async () => timeoutFailure(), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(a2, "interactive", async () => timeoutFailure(), CANCELLED);
     await tick();
 
-    const firstProbe = scheduler.schedule(a3, "interactive", async () => {
+    const firstProbe = scheduler.schedule<TestLoadResult>(a3, "interactive", async () => {
       order.push("probe-1:start");
       return gate.promise;
-    }, { ok: true, superseded: true });
-    const secondProbe = scheduler.schedule(a4, "interactive", async () => {
+    }, CANCELLED);
+    const secondProbe = scheduler.schedule<TestLoadResult>(a4, "interactive", async () => {
       order.push("probe-2:start");
       return success();
-    }, { ok: true, superseded: true });
+    }, CANCELLED);
 
     controlled.advance(4_001);
     controlled.notify();
@@ -187,25 +198,25 @@ describe("provider-local layer load circuit breaker", () => {
     const slowA = service("slow-a", "MapServer", "https://slow.example/b/MapServer");
     const slowB = service("slow-b", "MapServer", "https://slow.example/c/MapServer");
     const other = service("fast-other", "MapServer", "https://fast.example/a/MapServer");
-    const slowGate = deferred<ReturnType<typeof success>>();
-    const otherGate = deferred<ReturnType<typeof success>>();
+    const slowGate = deferred<TestLoadResult>();
+    const otherGate = deferred<TestLoadResult>();
     const order: string[] = [];
 
-    await scheduler.schedule(warmup, "interactive", async () => success(8_000), { ok: true, superseded: true });
+    await scheduler.schedule<TestLoadResult>(warmup, "interactive", async () => success(8_000), CANCELLED);
     await tick();
 
-    const firstSlow = scheduler.schedule(slowA, "interactive", async () => {
+    const firstSlow = scheduler.schedule<TestLoadResult>(slowA, "interactive", async () => {
       order.push("slow-a:start");
       return slowGate.promise;
-    }, { ok: true, superseded: true });
-    const secondSlow = scheduler.schedule(slowB, "interactive", async () => {
+    }, CANCELLED);
+    const secondSlow = scheduler.schedule<TestLoadResult>(slowB, "interactive", async () => {
       order.push("slow-b:start");
       return success();
-    }, { ok: true, superseded: true });
-    const otherLoad = scheduler.schedule(other, "interactive", async () => {
+    }, CANCELLED);
+    const otherLoad = scheduler.schedule<TestLoadResult>(other, "interactive", async () => {
       order.push("other:start");
       return otherGate.promise;
-    }, { ok: true, superseded: true });
+    }, CANCELLED);
 
     await tick();
     expect(order).toEqual(["slow-a:start", "other:start"]);
@@ -222,10 +233,10 @@ describe("provider-local layer load circuit breaker", () => {
     const { scheduler } = controlledScheduler("eco");
     const current = service("cancel-current", "MapServer", "https://cancel.example/a/MapServer");
     const next = service("cancel-next", "MapServer", "https://cancel.example/b/MapServer");
-    const gate = deferred<ReturnType<typeof timeoutFailure>>();
+    const gate = deferred<TestLoadResult>();
     const order: string[] = [];
 
-    const running = scheduler.schedule(current, "interactive", () => gate.promise, { ok: true, superseded: true });
+    const running = scheduler.schedule<TestLoadResult>(current, "interactive", () => gate.promise, CANCELLED);
     await tick();
     expect(scheduler.cancel(current.id)).toBe(true);
     gate.resolve(timeoutFailure());
@@ -233,10 +244,10 @@ describe("provider-local layer load circuit breaker", () => {
     await tick();
     expect(scheduler.snapshot().providerCircuitsOpen).toBe(0);
 
-    const subsequent = scheduler.schedule(next, "interactive", async () => {
+    const subsequent = scheduler.schedule<TestLoadResult>(next, "interactive", async () => {
       order.push("next:start");
       return success();
-    }, { ok: true, superseded: true });
+    }, CANCELLED);
     await expect(subsequent).resolves.toMatchObject({ ok: true });
     expect(order).toEqual(["next:start"]);
     scheduler.dispose();
@@ -247,15 +258,27 @@ describe("provider-local layer load circuit breaker", () => {
     const { scheduler } = controlled;
     const first = service("offline-1", "MapServer", "https://offline.example/a/MapServer");
     const second = service("offline-2", "MapServer", "https://offline.example/b/MapServer");
+    const firstGate = deferred<TestLoadResult>();
+    const secondGate = deferred<TestLoadResult>();
 
-    const p1 = scheduler.schedule(first, "interactive", async () => timeoutFailure(), { ok: true, superseded: true });
+    const p1 = scheduler.schedule<TestLoadResult>(first, "interactive", () => firstGate.promise, CANCELLED);
     await tick();
     controlled.setOnline(false);
+    firstGate.resolve(timeoutFailure());
     await expect(p1).resolves.toMatchObject({ ok: false });
+    await tick();
+
     controlled.setOnline(true);
     controlled.notify();
-    await scheduler.schedule(second, "interactive", async () => success(), { ok: true, superseded: true });
+    const p2 = scheduler.schedule<TestLoadResult>(second, "interactive", () => secondGate.promise, CANCELLED);
+    await tick();
+    controlled.setOnline(false);
+    secondGate.resolve(timeoutFailure());
+    await expect(p2).resolves.toMatchObject({ ok: false });
     expect(scheduler.snapshot().providerCircuitsOpen).toBe(0);
+
+    controlled.setOnline(true);
+    controlled.notify();
     scheduler.dispose();
   });
 });
