@@ -1,5 +1,6 @@
 import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArcGISRuntime } from "./gis/ArcGISRuntime";
+import { LayerLoadScheduler, type LayerLoadPriority } from "./gis/layerLoadScheduler";
 import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
@@ -52,6 +53,7 @@ const basemaps = [
 export default function App() {
   const initialPreferences = useMemo(() => loadPreferences(), []);
   const effectivePerformance: PerformanceProfile = useMemo(() => detectPerformanceProfile(), []);
+  const layerLoadScheduler = useMemo(() => new LayerLoadScheduler(effectivePerformance), [effectivePerformance]);
   const [preferences, setPreferences] = useState<AppPreferences>(initialPreferences);
   const [services, setServices] = useState<ServiceDefinition[]>([]);
   const [ready, setReady] = useState(false);
@@ -222,10 +224,15 @@ export default function App() {
         setReady(true);
 
         await runtime.withLayerActivationBatch(async () => {
-          await mapWithConcurrency(restored.filter((service) => service.visible), 2, async (service) => {
+          await Promise.all(restored.filter((service) => service.visible).map(async (service) => {
             if (cancelled) return;
             patchService(service.id, { status: "loading" });
-            const result = await runtime.setLayerVisible(service, true);
+            const result = await layerLoadScheduler.schedule(
+              service,
+              "restore",
+              () => runtime.setLayerVisible(service, true),
+              { ok: true, superseded: true }
+            );
             if (result.superseded) return;
             patchService(
               service.id,
@@ -243,7 +250,7 @@ export default function App() {
                 durationMs: result.durationMs
               });
             }
-          });
+          }));
         }, { navigate: !share?.camera });
 
         if (cancelled) return;
@@ -263,13 +270,14 @@ export default function App() {
     return () => {
       cancelled = true;
       controller.abort();
+      layerLoadScheduler.dispose();
       navigationCleanupRef.current?.();
       navigationCleanupRef.current = null;
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
       runtime?.destroy();
     };
-  }, [effectivePerformance, initialPreferences, patchService, persistLayerPreferences, pushToast, recordIncident]);
+  }, [effectivePerformance, initialPreferences, layerLoadScheduler, patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   useEffect(() => {
     if (!ready) return;
@@ -285,14 +293,31 @@ export default function App() {
     return () => cancelAnimationFrame(frame);
   }, [activeTool, ready, pushToast]);
 
-  const toggleLayer = useCallback(async (service: ServiceDefinition, visible: boolean) => {
+  const toggleLayer = useCallback(async (
+    service: ServiceDefinition,
+    visible: boolean,
+    priority: LayerLoadPriority = "interactive"
+  ) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
 
     if (visible) patchService(service.id, { visible: true, status: "loading", error: undefined });
     else patchService(service.id, { visible: false });
 
-    const result = await runtime.setLayerVisible({ ...service, visible }, visible);
+    const targetService = { ...service, visible };
+    let result;
+    if (visible) {
+      result = await layerLoadScheduler.schedule(
+        targetService,
+        priority,
+        () => runtime.setLayerVisible(targetService, true),
+        { ok: true, superseded: true }
+      );
+    } else {
+      layerLoadScheduler.cancel(service.id);
+      result = await runtime.setLayerVisible(targetService, false);
+    }
+
     if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? {
@@ -337,7 +362,7 @@ export default function App() {
         durationMs: result.durationMs
       });
     }
-  }, [patchService, persistLayerPreferences, pushToast, recordIncident]);
+  }, [layerLoadScheduler, patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   const setOpacity = useCallback((service: ServiceDefinition, opacity: number) => {
     const safeOpacity = Math.min(1, Math.max(0, opacity));
@@ -364,7 +389,13 @@ export default function App() {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     patchService(service.id, { visible: true, status: "loading", error: undefined });
-    const result = await runtime.reloadLayer({ ...service, visible: true });
+    const retryService = { ...service, visible: true };
+    const result = await layerLoadScheduler.schedule(
+      retryService,
+      "retry",
+      () => runtime.reloadLayer(retryService),
+      { ok: true, superseded: true }
+    );
     if (result.superseded) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? { ...successPatch(result.durationMs), visible: true }
@@ -383,7 +414,7 @@ export default function App() {
       durationMs: result.durationMs,
       recovered: result.ok
     });
-  }, [patchService, persistLayerPreferences, pushToast, recordIncident]);
+  }, [layerLoadScheduler, patchService, persistLayerPreferences, pushToast, recordIncident]);
 
   const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
@@ -481,9 +512,9 @@ export default function App() {
     const desired = new Set(bookmark.layerIds);
     const snapshot = servicesRef.current;
     await runtime.withLayerActivationBatch(async () => {
-      await mapWithConcurrency(snapshot.filter((service) => service.visible !== desired.has(service.id)), 2, async (service) => {
-        await toggleLayer(service, desired.has(service.id));
-      });
+      await Promise.all(snapshot
+        .filter((service) => service.visible !== desired.has(service.id))
+        .map((service) => toggleLayer(service, desired.has(service.id), "restore")));
     }, { navigate: false });
     await runtime.goTo(bookmark.camera);
   }, [toggleLayer]);
@@ -639,16 +670,4 @@ function toolTitle(tool: Exclude<ToolId, null>): string {
 function createId(): string {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-async function mapWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
-  let cursor = 0;
-  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      const item = items[index];
-      if (item !== undefined) await worker(item);
-    }
-  });
-  await Promise.all(runners);
 }
