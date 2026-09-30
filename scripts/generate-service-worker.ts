@@ -14,6 +14,7 @@ const major = releaseMajor(manifest.version);
 
 await rm(outputDirectory, { recursive: true, force: true });
 await execFileAsync("tsc", [
+  "--ignoreConfig",
   "worker/service-worker.ts",
   "--target", "ES2023",
   "--module", "esnext",
