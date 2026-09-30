@@ -4,6 +4,7 @@ type PackageManifest = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   engines?: Record<string, string>;
+  packageManager?: string;
 };
 
 const manifest = JSON.parse(await readFile("package.json", "utf8")) as PackageManifest;
@@ -50,8 +51,11 @@ if (majorOf(devDependencies.vite) < 8) {
 if (!/(?:^|\s)>=\s*22(?:\.|\s|$)/.test(manifest.engines?.node ?? "")) {
   errors.push("Node engine en az 22 olmalıdır.");
 }
-if (!/(?:^|\s)>=\s*10(?:\.|\s|$)/.test(manifest.engines?.npm ?? "")) {
-  errors.push("npm engine en az 10 olmalıdır.");
+if (!/(?:^|\s)>=\s*11(?:\.|\s|$)/.test(manifest.engines?.npm ?? "")) {
+  errors.push("npm engine en az 11 olmalıdır.");
+}
+if (manifest.packageManager !== "npm@11.19.0") {
+  errors.push("packageManager npm@11.19.0 olarak sabitlenmelidir.");
 }
 
 if (errors.length > 0) {
@@ -59,7 +63,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`✓ Bağımlılık zinciri tam sürümlere sabitli: ArcGIS ${arcgisCore}, React ${react}, TypeScript ${devDependencies.typescript}, Vite ${devDependencies.vite}.`);
+console.log(`✓ Bağımlılık zinciri tam sürümlere sabitli: ArcGIS ${arcgisCore}, React ${react}, TypeScript ${devDependencies.typescript}, Vite ${devDependencies.vite}, ${manifest.packageManager}.`);
 
 function isExactStableVersion(value: string | undefined): value is string {
   return typeof value === "string" && /^\d+\.\d+\.\d+$/.test(value);
