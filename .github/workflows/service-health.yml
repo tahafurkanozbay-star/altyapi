@@ -22,6 +22,8 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      - name: Standardize npm
+        run: npm install --global npm@11.19.0
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Probe external services
