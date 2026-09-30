@@ -11,6 +11,9 @@
     "moduleDetection": "force",
     "noEmit": true,
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
+    "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
   "include": ["vite.config.ts"]
