@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { planAtomicLayerActivation } from "../src/gis/layerActivationPlanner";
+import {
+  planAtomicLayerActivation,
+  selectBatchActivationCandidate
+} from "../src/gis/layerActivationPlanner";
 import type { ServiceDefinition } from "../src/types";
 
 function service(patch: Partial<ServiceDefinition> = {}): ServiceDefinition {
@@ -202,5 +205,40 @@ describe("atomic layer activation planner", () => {
       focus: "current-center",
       targetScale: 120_000
     });
+  });
+
+  it("selects one deterministic camera owner for a bulk activation", () => {
+    const selected = selectBatchActivationCandidate([
+      {
+        value: "scale-only",
+        plan: { moved: true, reason: "scale-too-far", focus: "current-center", targetScale: 200_000 }
+      },
+      {
+        value: "layerview",
+        plan: { moved: true, reason: "layer-view-scale", focus: "current-center", targetScale: 120_000 }
+      },
+      {
+        value: "coverage",
+        plan: { moved: true, reason: "outside-extent", focus: "provider-extent", targetScale: 150_000 }
+      }
+    ]);
+
+    expect(selected?.value).toBe("coverage");
+  });
+
+  it("prefers the most recently activated layer when batch priorities are equal", () => {
+    const selected = selectBatchActivationCandidate([
+      {
+        value: "first",
+        plan: { moved: true, reason: "scale-too-close", focus: "current-center", targetScale: 20_000 }
+      },
+      {
+        value: "last",
+        plan: { moved: true, reason: "scale-too-far", focus: "current-center", targetScale: 200_000 }
+      }
+    ]);
+
+    expect(selected?.value).toBe("last");
+    expect(selectBatchActivationCandidate([{ value: "none", plan: { moved: false } }])).toBeUndefined();
   });
 });

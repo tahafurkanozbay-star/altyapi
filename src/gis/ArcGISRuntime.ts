@@ -28,6 +28,7 @@ import {
 } from "../lib/serviceRuntime";
 import {
   planAtomicLayerActivation,
+  selectBatchActivationCandidate,
   type AtomicLayerActivationReason
 } from "./layerActivationPlanner";
 import { layerCoverageTarget, type ExtentLike } from "./layerCoverageWatchdog";
@@ -66,6 +67,11 @@ type LayerViewLike = {
 };
 type LayerViewEventDetail = {
   layer?: Layer;
+  layerView?: LayerViewLike;
+};
+type DeferredActivationNavigation = {
+  service: ServiceDefinition;
+  layer: Layer;
   layerView?: LayerViewLike;
 };
 type ArcGISSceneElement = HTMLElement & {
@@ -134,6 +140,10 @@ export interface LayerLoadResult {
   navigation?: OperationalNavigationResult;
 }
 
+export interface LayerActivationBatchOptions {
+  navigate?: boolean;
+}
+
 const HOME_CAMERA: CameraState = {
   longitude: 32.8542,
   latitude: 39.9208,
@@ -152,6 +162,7 @@ export class ArcGISRuntime {
   private readonly desiredVisibility = new Map<string, boolean>();
   private readonly activeScaleServices = new Map<string, ServiceDefinition>();
   private readonly runtimeScaleServices = new Map<string, ServiceDefinition>();
+  private readonly deferredActivationNavigations = new Map<string, DeferredActivationNavigation>();
   private activeWidget?: ArcGISComponentElement;
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
@@ -165,6 +176,8 @@ export class ArcGISRuntime {
   private recoveringGraphics = false;
   private scaleGuardApplying = false;
   private activationGuardDepth = 0;
+  private activationBatchDepth = 0;
+  private activationBatchNavigate = true;
   private activationNavigationChain: Promise<void> = Promise.resolve();
 
   constructor(profile: PerformanceProfile) {
@@ -289,6 +302,7 @@ export class ArcGISRuntime {
     this.desiredVisibility.set(service.id, visible);
 
     if (!visible) {
+      this.releaseDeferredActivation(service.id);
       this.setScaleGuard(service, false);
       const existing = this.layers.get(service.id);
       if (existing) existing.visible = false;
@@ -327,6 +341,55 @@ export class ArcGISRuntime {
     }
   }
 
+  /**
+   * Groups several layer visibility mutations into one camera transaction. Every
+   * layer still loads and contributes its live provider scale/extent metadata,
+   * but per-layer goTo calls and the continuous scale guard are held until the
+   * outermost batch completes. Bookmark/share restores can opt out of automatic
+   * navigation when an explicit camera is authoritative.
+   */
+  async withLayerActivationBatch<T>(
+    task: () => Promise<T>,
+    options: LayerActivationBatchOptions = {}
+  ): Promise<T> {
+    const outermost = this.activationBatchDepth === 0;
+    if (outermost) {
+      this.activationBatchNavigate = options.navigate !== false;
+      for (const serviceId of [...this.deferredActivationNavigations.keys()]) {
+        this.releaseDeferredActivation(serviceId);
+      }
+      this.activationGuardDepth += 1;
+      window.clearTimeout(this.scaleGuardTimer);
+    } else if (options.navigate === false) {
+      this.activationBatchNavigate = false;
+    }
+
+    this.activationBatchDepth += 1;
+    let completed = false;
+    try {
+      const result = await task();
+      completed = true;
+      return result;
+    } finally {
+      this.activationBatchDepth = Math.max(0, this.activationBatchDepth - 1);
+      if (outermost) {
+        try {
+          if (completed && this.activationBatchNavigate && !this.destroyed) {
+            await this.flushDeferredActivationNavigation();
+          }
+        } finally {
+          for (const serviceId of [...this.deferredActivationNavigations.keys()]) {
+            this.releaseDeferredActivation(serviceId);
+          }
+          this.activationBatchNavigate = true;
+          this.activationBatchDepth = 0;
+          this.activationGuardDepth = Math.max(0, this.activationGuardDepth - 1);
+          if (this.activationGuardDepth === 0) this.scheduleScaleGuard();
+        }
+      }
+    }
+  }
+
   setOpacity(serviceId: string, opacity: number): void {
     const layer = this.layers.get(serviceId);
     if (layer) layer.opacity = clampOpacity(opacity);
@@ -335,6 +398,7 @@ export class ArcGISRuntime {
   async reloadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
     if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
 
+    this.releaseDeferredActivation(service.id);
     this.setScaleGuard(service, false);
     this.runtimeScaleServices.delete(service.id);
     this.desiredVisibility.set(service.id, false);
@@ -579,8 +643,11 @@ export class ArcGISRuntime {
     this.desiredVisibility.clear();
     this.activeScaleServices.clear();
     this.runtimeScaleServices.clear();
+    this.deferredActivationNavigations.clear();
     clearAtomicLayerActivationState();
     this.activationGuardDepth = 0;
+    this.activationBatchDepth = 0;
+    this.activationBatchNavigate = true;
     this.activationNavigationChain = Promise.resolve();
     this.callbacks = {};
     this.recoveringGraphics = false;
@@ -751,13 +818,18 @@ export class ArcGISRuntime {
         return { moved: false };
       }
 
+      if (this.activationBatchDepth > 0) {
+        this.deferActivationNavigation(reconciledService, layer, layerView);
+        return { moved: false };
+      }
+
       return await this.queueActivationNavigation(() =>
         this.executeAtomicActivationNavigation(reconciledService, layer, layerView)
       );
     } finally {
       this.activationGuardDepth = Math.max(0, this.activationGuardDepth - 1);
       endAtomicLayerActivation(layerId);
-      if (this.activationGuardDepth === 0) this.scheduleScaleGuard();
+      if (this.activationGuardDepth === 0 && this.activationBatchDepth === 0) this.scheduleScaleGuard();
     }
   }
 
@@ -839,6 +911,67 @@ export class ArcGISRuntime {
     }
   }
 
+  private deferActivationNavigation(
+    service: ServiceDefinition,
+    layer: Layer,
+    layerView: LayerViewLike | undefined
+  ): void {
+    const existing = this.deferredActivationNavigations.get(service.id);
+    if (existing && existing.layer.id !== layer.id) {
+      endAtomicLayerActivation(existing.layer.id);
+    }
+    if (!existing || existing.layer.id !== layer.id) {
+      // Keep one extra atomic reference after activateLoadedLayer() releases its
+      // local reference, so the LayerView watchdog cannot repair scale mid-batch.
+      beginAtomicLayerActivation(layer.id);
+    }
+    this.deferredActivationNavigations.delete(service.id);
+    this.deferredActivationNavigations.set(service.id, { service, layer, layerView });
+  }
+
+  private releaseDeferredActivation(serviceId: string): void {
+    const existing = this.deferredActivationNavigations.get(serviceId);
+    if (!existing) return;
+    this.deferredActivationNavigations.delete(serviceId);
+    endAtomicLayerActivation(existing.layer.id);
+  }
+
+  private async flushDeferredActivationNavigation(): Promise<OperationalNavigationResult> {
+    const scene = this.scene;
+    if (!scene || this.destroyed || this.deferredActivationNavigations.size === 0) return { moved: false };
+
+    const camera = scene.camera;
+    const activeServices = [...this.activeScaleServices.values()];
+    const planned = [...this.deferredActivationNavigations.values()]
+      .filter((candidate) =>
+        this.desiredVisibility.get(candidate.service.id) === true && candidate.layer.visible !== false
+      )
+      .map((candidate) => ({
+        value: candidate,
+        plan: planAtomicLayerActivation({
+          service: candidate.service,
+          activeServices,
+          currentScale: scene.scale,
+          cameraLongitude: camera?.position.longitude ?? undefined,
+          cameraLatitude: camera?.position.latitude ?? undefined,
+          viewExtent: scene.extent,
+          providerExtent: candidate.layer.fullExtent as ExtentLike | null | undefined,
+          layerViewVisibleAtCurrentScale: candidate.layerView?.visibleAtCurrentScale
+        })
+      }));
+
+    const selected = selectBatchActivationCandidate(planned);
+    if (!selected) return { moved: false };
+
+    return this.queueActivationNavigation(() =>
+      this.executeAtomicActivationNavigation(
+        selected.value.service,
+        selected.value.layer,
+        selected.value.layerView
+      )
+    );
+  }
+
   private waitForLayerViewCreation(layer: Layer): Promise<LayerViewLike | undefined> {
     if (typeof document === "undefined") return Promise.resolve(undefined);
 
@@ -879,6 +1012,7 @@ export class ArcGISRuntime {
   }
 
   private cleanupLayer(serviceId: string, layer: Layer): void {
+    this.releaseDeferredActivation(serviceId);
     if (this.layers.get(serviceId) === layer) this.layers.delete(serviceId);
     try {
       this.map?.remove(layer);
@@ -903,15 +1037,15 @@ export class ArcGISRuntime {
       // Reinsert so Map iteration preserves most-recent activation priority for impossible intersections.
       this.activeScaleServices.delete(service.id);
       this.activeScaleServices.set(service.id, scaleService);
-      if (enforce && this.activationGuardDepth === 0) this.enforceScaleGuard();
+      if (enforce && this.activationGuardDepth === 0 && this.activationBatchDepth === 0) this.enforceScaleGuard();
     } else {
       this.activeScaleServices.delete(service.id);
     }
-    if (enforce && this.activationGuardDepth === 0) this.scheduleScaleGuard();
+    if (enforce && this.activationGuardDepth === 0 && this.activationBatchDepth === 0) this.scheduleScaleGuard();
   }
 
   private scheduleScaleGuard(): void {
-    if (!this.scene || this.destroyed) return;
+    if (!this.scene || this.destroyed || this.activationBatchDepth > 0) return;
     window.clearTimeout(this.scaleGuardTimer);
     this.scaleGuardTimer = window.setTimeout(() => this.enforceScaleGuard(), 110);
   }
@@ -922,6 +1056,7 @@ export class ArcGISRuntime {
       !scene ||
       this.destroyed ||
       this.activationGuardDepth > 0 ||
+      this.activationBatchDepth > 0 ||
       this.scaleGuardApplying ||
       this.activeScaleServices.size === 0
     ) return;
