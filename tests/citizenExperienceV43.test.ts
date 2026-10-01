@@ -72,7 +72,7 @@ describe("v43 citizen experience", () => {
     expect(panel).toContain('keyName="?"');
   });
 
-  it("loads the final responsive accessibility stylesheet and caches the brand asset", async () => {
+  it("loads the responsive accessibility stylesheet and keeps the current PWA brand asset cached", async () => {
     const [entry, css, swSource, swBuilt] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
       readFile("src/styles/experience-v43.css", "utf8"),
@@ -85,9 +85,9 @@ describe("v43 citizen experience", () => {
     expect(css).toContain("prefers-contrast: more");
     expect(css).toContain("--v43-touch-target: 44px");
     expect(css).toContain(".skip-links");
-    expect(swSource).toContain('altyapi-shell-v43');
+    expect(swSource).toContain('const SHELL_CACHE = "altyapi-shell-v');
     expect(swSource).toContain('"./ankara-logo.png"');
-    expect(swBuilt).toContain('altyapi-shell-v43');
+    expect(swBuilt).toContain('const SHELL_CACHE = "altyapi-shell-v');
     expect(swBuilt).toContain('"./ankara-logo.png"');
   });
 });
