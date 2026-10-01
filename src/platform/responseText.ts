@@ -1,7 +1,10 @@
 export class ResponseSizeLimitError extends Error {
-  constructor(readonly maxBytes: number) {
+  readonly maxBytes: number;
+
+  constructor(maxBytes: number) {
     super(`Response exceeded ${maxBytes} byte limit`);
     this.name = "ResponseSizeLimitError";
+    this.maxBytes = maxBytes;
   }
 }
 
