@@ -1,15 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v40 typed runtime architecture", () => {
+describe("v40+ typed runtime architecture", () => {
   it("keeps release, PWA caches and strict compiler generation aligned", async () => {
     const packageJson = JSON.parse(await readFile("package.json", "utf8")) as { version?: string };
     const worker = await readFile("public/sw.js", "utf8");
+    const workerSource = await readFile("src/sw/sw.ts", "utf8");
     const appConfig = await readFile("tsconfig.app.json", "utf8");
 
-    expect(packageJson.version).toBe("40.0.0");
-    expect(worker).toContain('altyapi-shell-v40');
-    expect(worker).toContain('altyapi-data-v40');
+    const major = Number(packageJson.version?.split(".")[0]);
+    expect(Number.isInteger(major)).toBe(true);
+    expect(major).toBeGreaterThanOrEqual(40);
+    expect(worker).toContain(`altyapi-shell-v${major}`);
+    expect(worker).toContain(`altyapi-data-v${major}`);
+    expect(workerSource).toContain("ServiceWorkerGlobalScope");
     expect(appConfig).toContain('"verbatimModuleSyntax": true');
     expect(appConfig).toContain('"noImplicitReturns": true');
     expect(appConfig).toContain('"noFallthroughCasesInSwitch": true');
