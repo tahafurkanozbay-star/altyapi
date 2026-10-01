@@ -1,8 +1,8 @@
 // GENERATED OUTPUT: `npm run build:sw` compiles this file to public/sw.js.
 // Do not hand-edit public/sw.js; this strict TypeScript file is the source of truth.
 const sw = globalThis;
-const SHELL_CACHE = "altyapi-shell-v41";
-const DATA_CACHE = "altyapi-data-v41";
+const SHELL_CACHE = "altyapi-shell-v42";
+const DATA_CACHE = "altyapi-data-v42";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
 function isWorkerMessage(value) {
