@@ -1,116 +1,62 @@
-import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
 import {
-  isLayerRenderFailure,
-  layerRenderHealthLabel,
+  initialLayerRenderHealthState,
+  layerRenderHealthReducer,
   layerRenderHealthVisualStatus,
-  parseLayerRenderHealthDetail,
-  reduceLayerRenderHealth,
+  parseLayerViewHealthEvent,
   retainVisibleRenderHealth
 } from "../src/lib/layerRenderHealth";
 
 describe("LayerView render health UI state", () => {
   it("validates watchdog events before they reach the UI", () => {
-    expect(parseLayerRenderHealthDetail({
-      phase: "scale-repair",
-      layerId: "svc-12",
-      serviceId: "12",
-      targetScale: 394000
-    })).toEqual({
-      phase: "scale-repair",
-      layerId: "svc-12",
-      serviceId: "12",
-      targetScale: 394000
+    expect(parseLayerViewHealthEvent({ layerId: "1", state: "stable" })).toEqual({
+      layerId: "1",
+      state: "stable"
     });
-
-    expect(parseLayerRenderHealthDetail({
-      phase: "render-stalled",
-      layerId: "svc-12",
-      serviceId: "12",
-      elapsedMs: 26000
-    })).toEqual({
-      phase: "render-stalled",
-      layerId: "svc-12",
-      serviceId: "12",
-      elapsedMs: 26000
+    expect(parseLayerViewHealthEvent({ layerId: "1", state: "render-stalled", message: "Gecikti" })).toEqual({
+      layerId: "1",
+      state: "render-stalled",
+      message: "Gecikti"
     });
-
-    expect(parseLayerRenderHealthDetail({ phase: "stable", layerId: "svc-12", serviceId: "13" })).toBeNull();
-    expect(parseLayerRenderHealthDetail({ phase: "unknown", layerId: "svc-12", serviceId: "12" })).toBeNull();
-    expect(parseLayerRenderHealthDetail({ phase: "stable", layerId: "foreign-12", serviceId: "12" })).toBeNull();
+    expect(parseLayerViewHealthEvent({ layerId: "1", state: "unknown" })).toBeNull();
+    expect(parseLayerViewHealthEvent({ layerId: "1", state: "stable", extra: true })).toEqual({
+      layerId: "1",
+      state: "stable"
+    });
+    expect(parseLayerViewHealthEvent(null)).toBeNull();
   });
 
   it("maps the complete watchdog lifecycle to citizen-facing render states", () => {
-    const created = reduceLayerRenderHealth(undefined, {
-      phase: "created",
-      layerId: "svc-2",
-      serviceId: "2"
-    }, 10);
-    expect(created).toEqual({ state: "preparing", updatedAt: 10 });
-    expect(layerRenderHealthVisualStatus(created)).toBe("loading");
+    let state = initialLayerRenderHealthState;
+    state = layerRenderHealthReducer(state, { layerId: "1", state: "created" });
+    expect(state["1"]?.state).toBe("preparing");
+    expect(layerRenderHealthVisualStatus(state["1"])).toBe("loading");
 
-    const scaleRepair = reduceLayerRenderHealth(created, {
-      phase: "scale-repair",
-      layerId: "svc-2",
-      serviceId: "2",
-      targetScale: 300000
-    }, 20);
-    expect(scaleRepair?.state).toBe("scale-adjusting");
-    expect(layerRenderHealthLabel(scaleRepair)).toContain("1:300.000");
+    state = layerRenderHealthReducer(state, { layerId: "1", state: "scale-adjusted" });
+    expect(state["1"]?.state).toBe("scale-adjusting");
 
-    const stalled = reduceLayerRenderHealth(scaleRepair, {
-      phase: "render-stalled",
-      layerId: "svc-2",
-      serviceId: "2",
-      elapsedMs: 26000
-    }, 25);
-    expect(stalled?.state).toBe("stalled");
-    expect(layerRenderHealthLabel(stalled)).toBe("Render gecikti · 26 sn");
-    expect(layerRenderHealthVisualStatus(stalled)).toBe("loading");
+    state = layerRenderHealthReducer(state, { layerId: "1", state: "stable" });
+    expect(state["1"]?.state).toBe("ready");
+    expect(layerRenderHealthVisualStatus(state["1"])).toBe("ready");
 
-    const recovering = reduceLayerRenderHealth(stalled, {
-      phase: "recycle-attempt",
-      layerId: "svc-2",
-      serviceId: "2",
-      attempt: 2
-    }, 30);
-    expect(layerRenderHealthLabel(recovering)).toBe("Render kurtarılıyor · 2. deneme");
+    state = layerRenderHealthReducer(state, { layerId: "1", state: "recovery-attempt", message: "Yeniden bağlanıyor" });
+    expect(state["1"]?.state).toBe("recovering");
+    expect(state["1"]?.message).toBe("Yeniden bağlanıyor");
 
-    const failed = reduceLayerRenderHealth(recovering, {
-      phase: "recovery-exhausted",
-      layerId: "svc-2",
-      serviceId: "2",
-      attempt: 2
-    }, 40);
-    expect(isLayerRenderFailure(failed)).toBe(true);
-    expect(layerRenderHealthVisualStatus(failed)).toBe("error");
+    state = layerRenderHealthReducer(state, { layerId: "1", state: "render-stalled", message: "Render gecikti" });
+    expect(state["1"]?.state).toBe("stalled");
+    expect(layerRenderHealthVisualStatus(state["1"])).toBe("loading");
 
-    const fatal = reduceLayerRenderHealth(created, {
-      phase: "render-failed",
-      layerId: "svc-2",
-      serviceId: "2"
-    }, 45);
-    expect(fatal).toEqual({ state: "failed", updatedAt: 45 });
-
-    const stable = reduceLayerRenderHealth(failed, {
-      phase: "stable",
-      layerId: "svc-2",
-      serviceId: "2"
-    }, 50);
-    expect(stable).toEqual({ state: "ready", updatedAt: 50 });
-    expect(layerRenderHealthVisualStatus(stable)).toBe("ready");
-
-    expect(reduceLayerRenderHealth(stable, {
-      phase: "destroyed",
-      layerId: "svc-2",
-      serviceId: "2"
-    }, 60)).toBeUndefined();
+    state = layerRenderHealthReducer(state, { layerId: "1", state: "recovery-exhausted", message: "Bitti" });
+    expect(state["1"]?.state).toBe("failed");
+    expect(layerRenderHealthVisualStatus(state["1"])).toBe("error");
   });
 
   it("drops render state as soon as a layer is no longer visible", () => {
     const current = {
-      "1": { state: "ready", updatedAt: 1 } as const,
-      "2": { state: "failed", updatedAt: 2 } as const
+      "1": { state: "ready" as const, updatedAt: 1 },
+      "2": { state: "failed" as const, updatedAt: 2 }
     };
     expect(retainVisibleRenderHealth(current, new Set(["2"]))).toEqual({
       "2": { state: "failed", updatedAt: 2 }
@@ -136,9 +82,9 @@ describe("LayerView render health UI state", () => {
     expect(watchdog).toContain('emitHealth(layerId, "render-stalled"');
     expect(watchdog).toContain("recyclePending");
     expect(explorer).toContain("useSyncExternalStore");
-    expect(explorer).toContain("Render bekleniyor");
-    expect(explorer).toContain("Render katmanını yeniden oluştur");
+    expect(explorer).toContain("Haritada hazırlanıyor");
+    expect(explorer).toContain("Harita görünümünü yeniden hazırla");
     expect(explorer).toContain("data-render-state");
-    expect(explorer).toContain("render hazır");
+    expect(explorer).toContain("haritada hazır");
   });
 });
