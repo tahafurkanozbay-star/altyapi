@@ -6,17 +6,14 @@ import {
 } from "../lib/tucbsAccess";
 import {
   describeTucbsVerificationFailure,
-  selectVerifiedTucbsEndpoints,
-  verifyTucbsBrowserAccess as verifyTucbsEndpoints
+  selectVerifiedTucbsEndpoints
 } from "../lib/tucbsBrowserVerification";
 import {
   clientHealthProfilesFromVerification,
   saveTucbsClientHealthProfiles
 } from "../lib/tucbsClientHealth";
-import {
-  discoverTucbsCoverageProfiles,
-  saveTucbsCoverageProfiles
-} from "../lib/tucbsCoverage";
+import { saveTucbsCoverageProfiles } from "../lib/tucbsCoverage";
+import { inspectTucbsBrowserServices } from "../lib/tucbsInspection";
 import { subscribeRuntimeEvent } from "../platform/runtimeEvents";
 import { Icon } from "./Icon";
 
@@ -53,10 +50,10 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   const applyText = async (value: string) => {
     setBusy(true);
     setError(null);
-    setStatus("Yetkili servisler, katman ölçekleri ve veri kapsamları bu bağlantı üzerinden doğrulanıyor…");
+    setStatus("Yetkili servisler, katman ölçekleri ve veri kapsamları bu bağlantı üzerinden tek geçişte doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
-      const report = await verifyTucbsEndpoints(endpoints);
+      const report = await inspectTucbsBrowserServices(endpoints);
       if (report.verified === 0) {
         throw new Error(describeTucbsVerificationFailure(report));
       }
@@ -65,12 +62,11 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       // must not turn into a later layer-load failure with a known-bad URL.
       const verifiedEndpoints = selectVerifiedTucbsEndpoints(endpoints, report);
 
-      // Coverage discovery is deliberately second-stage: only a proven
-      // approved-IP TUCBS connection earns the additional WMS metadata pass.
-      const coverageReport = await discoverTucbsCoverageProfiles(verifiedEndpoints);
+      // v42 reuses the same successful WMS GetCapabilities body for access,
+      // scale and geographic coverage. No second metadata request is necessary.
       saveTucbsEndpoints(verifiedEndpoints, remember);
       saveTucbsScaleProfiles(report.scaleProfiles, remember);
-      saveTucbsCoverageProfiles(coverageReport.profiles, remember);
+      saveTucbsCoverageProfiles(report.coverageProfiles, remember);
 
       // Persist only endpoint-key health metadata, never the protected URL.
       // This lets the next app boot distinguish GitHub-runner "unknown" from
@@ -78,7 +74,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       saveTucbsClientHealthProfiles(clientHealthProfilesFromVerification(report), remember);
 
       const scaleCount = Object.keys(report.scaleProfiles).length;
-      const coverageCount = Object.keys(coverageReport.profiles).length;
+      const coverageCount = Object.keys(report.coverageProfiles).length;
       const learned: string[] = [];
       if (scaleCount > 0) learned.push(`${scaleCount} katmana ölçek profili`);
       if (coverageCount > 0) learned.push(`${coverageCount} katmana coğrafi kapsam`);
