@@ -77,6 +77,12 @@ export default function App() {
   const servicesRef = useRef<ServiceDefinition[]>([]);
   const incidentsRef = useRef<RuntimeIncident[]>(loadIncidentJournal());
 
+  const shellMetrics = useMemo(() => ({
+    active: services.filter((service) => service.visible).length,
+    loading: services.filter((service) => service.status === "loading").length,
+    error: services.filter((service) => service.status === "error").length
+  }), [services]);
+
   useEffect(() => { servicesRef.current = services; }, [services]);
 
   const pushToast = useCallback((message: string, tone: ToastItem["tone"] = "info") => {
@@ -453,6 +459,14 @@ export default function App() {
     });
   }, []);
 
+  const focusGlobalSearch = useCallback(() => {
+    const host = searchRef.current;
+    if (!host) return;
+    const focusTarget = host.querySelector<HTMLElement>("input, [role='combobox'], button, [tabindex='0']");
+    if (focusTarget) focusTarget.focus();
+    else host.focus();
+  }, []);
+
   const shareView = useCallback(async () => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
@@ -537,6 +551,14 @@ export default function App() {
       if (event.key.toLowerCase() === "l") selectPanel("layers");
       if (event.key.toLowerCase() === "d") selectPanel("data");
       if (event.key.toLowerCase() === "m") setFocusMode((value) => !value);
+      if (event.key === "?") {
+        event.preventDefault();
+        selectPanel("help");
+      }
+      if (event.key === "/") {
+        event.preventDefault();
+        focusGlobalSearch();
+      }
       if (event.key.toLowerCase() === "f") {
         void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
           .catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
@@ -548,31 +570,60 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeTool, panel, pushToast, selectPanel]);
+  }, [activeTool, focusGlobalSearch, panel, pushToast, selectPanel]);
 
   return (
-    <main className={`app-shell ${focusMode ? "is-focus-mode" : ""}`}>
-      <div ref={mapRef} className="map-view" aria-label="Ankara 3B Kent Rehberi haritası" />
+    <main className={`app-shell ${focusMode ? "is-focus-mode" : ""}`} data-connection={online ? "online" : "offline"}>
+      <nav className="skip-links" aria-label="Hızlı erişim">
+        <a href="#kent-rehberi-map">Haritaya geç</a>
+        <a href="#kent-rehberi-tools">Araçlara geç</a>
+        <a href="#kent-rehberi-panels">Katmanlara geç</a>
+      </nav>
+      <p id="map-usage-hint" className="visually-hidden">Harita alanını fare, dokunmatik ekran veya klavye ile gezebilirsiniz. Katmanlar açıkken gerekli zoom aralığı otomatik korunur.</p>
+
+      <div
+        id="kent-rehberi-map"
+        ref={mapRef}
+        className="map-view"
+        role="region"
+        tabIndex={-1}
+        aria-label="Ankara 3B Kent Rehberi haritası"
+        aria-describedby="map-usage-hint"
+      />
       <div className="map-vignette" aria-hidden="true" />
 
-      <header className="topbar">
-        <button type="button" className="mobile-menu" onClick={() => setMobilePanelsVisible((value) => !value)} aria-label="Menüyü aç/kapat"><Icon name="menu" /></button>
-        <div className="brand">
+      <header className="topbar" aria-label="Kent Rehberi üst menüsü">
+        <button
+          type="button"
+          className="mobile-menu"
+          onClick={() => setMobilePanelsVisible((value) => !value)}
+          aria-label="Katman ve araç panelini aç veya kapat"
+          aria-controls="kent-rehberi-panels"
+          aria-expanded={Boolean(panel && mobilePanelsVisible)}
+        >
+          <Icon name="menu" />
+        </button>
+        <div className="brand" aria-label="Ankara Kent Rehberi">
           <div className="brand-symbol"><span>3B</span><i /></div>
           <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi · 3B Kent Haritası</span></div>
         </div>
-        <div className={`live-chip ${online ? "" : "is-offline"}`} title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "CANLI HARİTA" : "ÇEVRİMDIŞI"}</div>
-        <div ref={searchRef} className="global-search" />
+        <div className={`live-chip ${online ? "" : "is-offline"}`} role="status" aria-live="polite" title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "CANLI HARİTA" : "ÇEVRİMDIŞI"}</div>
+        <div className="workspace-summary" role="status" aria-live="polite" aria-label="Katman çalışma özeti">
+          <span><strong>{shellMetrics.active}</strong> açık</span>
+          {shellMetrics.loading > 0 && <span className="is-loading"><strong>{shellMetrics.loading}</strong> hazırlanıyor</span>}
+          {shellMetrics.error > 0 && <span className="is-error"><strong>{shellMetrics.error}</strong> sorunlu</span>}
+        </div>
+        <div ref={searchRef} className="global-search" role="search" aria-label="Adres ve yer arama" tabIndex={-1} />
         <div className="top-actions">
           <select className="compact-select" value={preferences.basemap} onChange={(event) => changeBasemap(event.target.value)} aria-label="Harita görünümü">
             {basemaps.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Haritaya odaklan" aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
-          <button type="button" className="primary-button share-button" onClick={() => void shareView()}><Icon name="share" /> Paylaş</button>
+          <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Haritaya odaklan" aria-label={focusMode ? "Odak modundan çık" : "Haritaya odaklan"} aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
+          <button type="button" className="primary-button share-button" onClick={() => void shareView()} aria-label="Mevcut harita görünümünü paylaş"><Icon name="share" /> Paylaş</button>
         </div>
       </header>
 
-      <div ref={navigationRef} className="arcgis-navigation" />
+      <div ref={navigationRef} className="arcgis-navigation" aria-label="Harita yakınlaştırma ve yön kontrolleri" />
 
       <ToolRail
         activePanel={panel}
@@ -583,11 +634,11 @@ export default function App() {
         onScreenshot={() => void takeScreenshot()}
       />
 
-      <div className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`}>
+      <div id="kent-rehberi-panels" className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri">
         <ViewTransition name="workspace-panel">
           {panel === "layers" ? (
-            <aside className="main-panel" key="layers">
-              <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)}><Icon name="close" /></button>
+            <aside className="main-panel" key="layers" aria-label="Katmanlar paneli">
+              <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)} aria-label="Katmanlar panelini kapat"><Icon name="close" /></button>
               <LayerExplorer
                 services={services}
                 currentScale={telemetry.scale}
@@ -615,8 +666,8 @@ export default function App() {
       </div>
 
       {activeTool && (
-        <aside className="map-tool-panel">
-          <div className="map-tool-header"><strong>{toolTitle(activeTool)}</strong><button type="button" className="icon-ghost" onClick={() => setActiveTool(null)}><Icon name="close" /></button></div>
+        <aside className="map-tool-panel" aria-labelledby="active-map-tool-title">
+          <div className="map-tool-header"><strong id="active-map-tool-title">{toolTitle(activeTool)}</strong><button type="button" className="icon-ghost" onClick={() => setActiveTool(null)} aria-label={`${toolTitle(activeTool)} aracını kapat`}><Icon name="close" /></button></div>
           <div ref={toolHostRef} className="map-tool-host" />
         </aside>
       )}
@@ -624,6 +675,13 @@ export default function App() {
       <DetailsPanel result={identify} onClose={() => setIdentify(null)} />
       <StatusBar telemetry={telemetry} services={services} />
       <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
+
+      {!online && (
+        <div className="offline-banner" role="status" aria-live="polite">
+          <Icon name="warning" size={18} />
+          <div><strong>Bağlantı yok</strong><span>Önbellekteki harita kabuğu kullanılabilir; canlı katmanlar bağlantı geri geldiğinde yenilenir.</span></div>
+        </div>
+      )}
 
       {updateAvailable && (
         <div className="app-update-banner" role="status" aria-live="polite">
@@ -635,14 +693,14 @@ export default function App() {
       )}
 
       {!ready && !bootError && (
-        <div className="boot-screen">
+        <div className="boot-screen" role="status" aria-live="polite" aria-busy="true">
           <div className="boot-logo"><span>3B</span><i /></div>
           <div><strong>Ankara Kent Rehberi hazırlanıyor</strong><span>Harita ve katmanlar yükleniyor…</span></div>
-          <div className="boot-progress"><i /></div>
+          <div className="boot-progress" aria-hidden="true"><i /></div>
         </div>
       )}
       {bootError && (
-        <div className="fatal-screen">
+        <div className="fatal-screen" role="alert">
           <Icon name="warning" size={34} />
           <h1>Kent Rehberi açılamadı</h1>
           <p>{bootError}</p>
@@ -656,7 +714,7 @@ export default function App() {
 function toolTitle(tool: Exclude<ToolId, null>): string {
   const labels: Record<Exclude<ToolId, null>, string> = {
     legend: "Lejant",
-    basemap: "Altlık Galerisi",
+    basemap: "Harita Görünümü",
     distance: "Mesafe Ölç",
     area: "Alan Ölç",
     daylight: "Gün Işığı",
