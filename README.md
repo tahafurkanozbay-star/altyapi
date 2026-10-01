@@ -8,11 +8,30 @@ Ankara odaklı, vatandaş kullanımına göre sadeleştirilmiş; ArcGIS Maps SDK
 - Vite 8
 - ArcGIS Maps SDK 5.1 component-first (`arcgis-scene`)
 - Calcite Components
+- Typed Dedicated Worker + TypeScript Service Worker
 - Vitest
 - GitHub Pages + PWA
 - Node 22/24 CI ve CodeQL
 
-Uygulama, testler ve servis bakım/audit araçları tek dilde **TypeScript** olarak tutulur. `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride` ve `isolatedModules` guardrail'leri aktiftir. ArcGIS'in tarayıcı SDK'sıyla doğal uyumluluğu korumak için farklı bir native dile köprü eklemek yerine bütün first-party mühendislik yüzeyi strict TypeScript üzerinde standardize edilmiştir.
+Uygulama, worker'lar, testler ve servis bakım/audit araçlarının first-party kaynak kodu tek dilde **TypeScript** olarak tutulur. `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `isolatedModules`, `erasableSyntaxOnly` ve `verbatimModuleSyntax` guardrail'leri aktiftir. ArcGIS'in tarayıcı SDK'sıyla doğal uyumluluğu korumak için Rust/C++ gibi native bir dile köprü eklemek yerine bütün mühendislik yüzeyi strict TypeScript üzerinde standardize edilmiştir.
+
+## v43 vatandaş deneyimi
+
+v43, v42'nin gelişmiş servis/runtime çekirdeğini koruyarak sayfanın tamamını daha anlaşılır ve kullanılabilir hale getirir:
+
+- masaüstünde mevcut 3B çalışma düzenini koruyan, mobilde alt araç dock'u + bottom-sheet panel düzenine dönüşen responsive kabuk
+- en az 44 px dokunma hedefleri, görünür klavye focus ring'leri ve skip-link navigasyonu
+- ekran okuyucu için anlamlı landmark, dinamik ARIA etiketleri ve durum bildirimleri
+- `/` ile aramaya gitme, `?` ile yardım açma; mevcut `L`, `D`, `H`, `F`, `M`, `Esc` kısayollarının korunması
+- `prefers-reduced-motion` ve `prefers-contrast: more` kullanıcı tercihlerine uyum
+- ağır Harita Verisi çalışma alanının `React.lazy` + `Suspense` ile ihtiyaç anında yüklenmesi
+- kalıcı fakat engellemeyen çevrimdışı durum bandı ve üst bölümde açık/hazırlanan/sorunlu katman özeti
+- Katmanlar bölümünde teknik operasyon jargonunun yerine vatandaş odaklı Türkçe, tek tıkla filtre sıfırlama ve daha belirgin hata kurtarma akışı
+- eski inline boot JavaScript'inin strict TypeScript `src/boot.ts` modülüne taşınması
+- HTML/PWA metadata, tarayıcı ikonu ve uygulama markasının `Ankara Kent Rehberi` + Ankara logosunda birleştirilmesi
+- PWA shell/data cache neslinin v43'e taşınması
+
+Ayrıntılar: `docs/CITIZEN_EXPERIENCE_V43.md`.
 
 ## Servis kataloğu
 
@@ -27,7 +46,7 @@ Uygulama, testler ve servis bakım/audit araçları tek dilde **TypeScript** ola
 
 TUCBS servisleri kaynak IP sınırlandırmalı olduğu için imzalı/yetkili URL'ler repository veya build çıktısında tutulmaz. Yetkili servis JSON'u kullanıcının tarayıcısına tanımlanır, tarayıcı onaylı dış IP üzerinden `GetCapabilities` doğrulaması yapar ve URL yalnız local/session storage içinde saklanır.
 
-## v17 yüksek görünürlük ve servis dayanıklılığı
+## Katman görünürlüğü ve servis dayanıklılığı
 
 Katman aktivasyonu tür bazlı adaptif çalışma politikasına ek olarak semantik kartografi ve OGC taşıma failover kullanır:
 
@@ -45,9 +64,10 @@ Katman aktivasyonu tür bazlı adaptif çalışma politikasına ek olarak semant
 - her retry'da yeni ArcGIS Layer örneği; timeout sırasında `cancelLoad()`
 - layer başarıyla yüklenmeden canlı haritaya eklenmez
 - WMS endpoint'i birden çok alt katman sunuyorsa katalog adına göre güvenli alt katman eşleştirmesi yapılır
-- mevcut zoom/extent guardrail, cache pruning ve görünürlük yarış korumaları korunur
+- katman açıldığında provider ölçeği, kapsamı ve LayerView durumu tek atomik aktivasyon kararında uzlaştırılır
+- katman kapandığında ona ait zoom/render kısıtları ve recovery durumu temizlenir
 
-Ayrıntılar ve 20 katmanlık çalışma matrisi: `docs/SERVICE_RUNTIME_V17.md`.
+20 katmanlık ilk yüksek-görünürlük matrisi için `docs/SERVICE_RUNTIME_V17.md`; güncel çalışma zinciri için ilgili v18+ runtime dokümanlarına bakın.
 
 ## Geliştirme
 
@@ -62,7 +82,7 @@ Tam kalite kapısı:
 npm run check
 ```
 
-Bu komut servis katalog doğrulaması, health/navigation snapshot doğrulaması, TypeScript typecheck, Vitest ve production build doğrulamasını çalıştırır.
+Bu komut dependency ve servis katalog doğrulaması, health/navigation snapshot doğrulaması, TypeScript typecheck, Vitest ve production build doğrulamasını çalıştırır.
 
 Servis gözlemi:
 
