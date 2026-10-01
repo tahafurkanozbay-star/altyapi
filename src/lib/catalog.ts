@@ -6,17 +6,16 @@ import {
   resolveTucbsRuntimeUrl,
   runtimeEndpointKeyFromUrl,
   saveTucbsScaleProfiles,
-  verifyTucbsEndpoints,
   type TucbsEndpointMap,
   type TucbsScaleProfileMap
 } from "./tucbsAccess";
 import {
-  discoverTucbsCoverageProfiles,
   loadTucbsCoverageProfiles,
   missingTucbsCoverageKeys,
   saveTucbsCoverageProfiles,
   type TucbsCoverageProfileMap
 } from "./tucbsCoverage";
+import { inspectTucbsBrowserServices } from "./tucbsInspection";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 const TUCBS_SCALE_PROBE_KEY = "altyapi:tucbs-scale-probe:v18";
@@ -149,36 +148,35 @@ export async function loadServiceCatalog(url = "./services.json", signal?: Abort
   let tucbsScaleProfiles = loadTucbsScaleProfiles();
   let tucbsCoverageProfiles = loadTucbsCoverageProfiles();
 
-  // Existing approved-IP users should learn provider scale metadata without
-  // re-importing their protected JSON. Only numeric scale values are stored.
-  if (shouldProbeTucbsScales(tucbsEndpoints, tucbsScaleProfiles)) {
+  const needsScaleProbe = shouldProbeTucbsScales(tucbsEndpoints, tucbsScaleProfiles);
+  const needsCoverageProbe = shouldProbeTucbsCoverage(tucbsEndpoints, tucbsCoverageProfiles);
+
+  // v42 migration: access, scale and WGS84 coverage are learned from one
+  // GetCapabilities pass per endpoint. The same WMS response is no longer fetched
+  // once for scales and again for coverage, reducing approved-IP latency and load.
+  if (needsScaleProbe || needsCoverageProbe) {
     try {
-      const report = await verifyTucbsEndpoints(tucbsEndpoints, { timeoutMs: 6_000, concurrency: 5 });
-      if (report.verified > 0) {
+      const report = await inspectTucbsBrowserServices(tucbsEndpoints, {
+        timeoutMs: 6_000,
+        concurrency: 5,
+        signal
+      });
+
+      if (needsScaleProbe && report.verified > 0) {
         tucbsScaleProfiles = { ...tucbsScaleProfiles, ...report.scaleProfiles };
         saveTucbsScaleProfiles(tucbsScaleProfiles, true);
         markTucbsScaleProbe(tucbsEndpoints);
       }
-    } catch {
-      // Scale discovery is an enhancement; catalog loading must remain usable
-      // even if the approved network is temporarily unavailable.
-    }
-  }
 
-  // v26 migration: learn an unambiguous WGS84 geographic envelope from WMS
-  // capabilities and mirror it to the logical WFS peer. This gives TUCBS rows
-  // a real operational extent without persisting the protected service URL.
-  if (shouldProbeTucbsCoverage(tucbsEndpoints, tucbsCoverageProfiles)) {
-    try {
-      const report = await discoverTucbsCoverageProfiles(tucbsEndpoints, { timeoutMs: 6_000, concurrency: 5 });
-      if (report.discovered > 0) {
-        tucbsCoverageProfiles = { ...tucbsCoverageProfiles, ...report.profiles };
+      if (needsCoverageProbe && Object.keys(report.coverageProfiles).length > 0) {
+        tucbsCoverageProfiles = { ...tucbsCoverageProfiles, ...report.coverageProfiles };
         saveTucbsCoverageProfiles(tucbsCoverageProfiles, true);
         markTucbsCoverageProbe(tucbsEndpoints);
       }
-    } catch {
-      // Coverage discovery is deliberately non-blocking for offline or
-      // temporarily unavailable approved-IP sessions.
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // Provider metadata discovery is an enhancement; catalogue loading must
+      // remain usable when the approved network is temporarily unavailable.
     }
   }
 
