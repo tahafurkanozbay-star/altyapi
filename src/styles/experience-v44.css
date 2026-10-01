@@ -1,0 +1,200 @@
+/* v44 · Interaction hardening layer
+   Loaded after v43 so mobile focus, virtual-keyboard and long-list behavior can be improved safely. */
+
+:root {
+  --v44-visual-height: 100dvh;
+  --v44-keyboard-inset: 0px;
+  --v44-mobile-dock: calc(78px + env(safe-area-inset-bottom, 0px));
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+.panel-content,
+.operations-body,
+.layer-list,
+.catalog-list {
+  overscroll-behavior-y: contain;
+}
+
+.main-panel,
+.operations-panel {
+  container-type: inline-size;
+}
+
+.tool-mobile-label {
+  display: none;
+}
+
+/* Hidden mobile sheets must not be perceived or focused before JS has applied inert. */
+@media (max-width: 760px) {
+  .panel-zone[aria-hidden="true"] {
+    visibility: hidden !important;
+  }
+
+  .tool-rail {
+    height: var(--v44-mobile-dock) !important;
+    min-height: var(--v44-mobile-dock) !important;
+    transition: transform 160ms ease, opacity 160ms ease !important;
+  }
+
+  .panel-zone {
+    bottom: var(--v44-mobile-dock) !important;
+    max-height: calc(var(--v44-visual-height) - 150px) !important;
+  }
+
+  .tool-button {
+    flex: 0 0 68px !important;
+    width: 68px !important;
+    min-width: 68px !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    display: inline-flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 3px !important;
+    padding: 5px 4px !important;
+    border-radius: 12px !important;
+  }
+
+  .tool-button svg {
+    flex: 0 0 auto;
+  }
+
+  .tool-mobile-label {
+    display: -webkit-box;
+    width: 60px;
+    max-height: 19px;
+    overflow: hidden;
+    color: #496878;
+    font-size: 8.5px;
+    font-weight: 750;
+    line-height: 1.08;
+    text-align: center;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .tool-button.is-active .tool-mobile-label {
+    color: #075b9e;
+  }
+
+  .status-bar,
+  .offline-banner,
+  .app-update-banner,
+  .map-tool-panel,
+  .details-panel {
+    bottom: calc(var(--v44-mobile-dock) + 8px) !important;
+  }
+
+  html[data-virtual-keyboard="open"] .tool-rail {
+    transform: translateY(115%) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  html[data-virtual-keyboard="open"] .panel-zone.is-mobile-visible {
+    bottom: calc(var(--v44-keyboard-inset) + 6px) !important;
+    height: min(56dvh, calc(var(--v44-visual-height) - 12px)) !important;
+    max-height: calc(var(--v44-visual-height) - 12px) !important;
+  }
+
+  html[data-virtual-keyboard="open"] .status-bar,
+  html[data-virtual-keyboard="open"] .offline-banner,
+  html[data-virtual-keyboard="open"] .app-update-banner {
+    display: none !important;
+  }
+}
+
+@container (max-width: 350px) {
+  .panel-heading {
+    gap: 6px !important;
+  }
+
+  .panel-heading h2,
+  .panel-heading h3 {
+    max-width: 80%;
+  }
+
+  .filter-row,
+  .availability-filter {
+    padding-bottom: 3px;
+  }
+}
+
+/* Large service catalogs should not force layout/paint work for cards far outside the viewport. */
+@supports (content-visibility: auto) {
+  .layer-card,
+  .catalog-card,
+  .data-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 128px;
+  }
+}
+
+/* Respect explicit data-saving intent and constrained mobile networks. */
+html[data-save-data="true"] .topbar,
+html[data-save-data="true"] .tool-rail,
+html[data-save-data="true"] .main-panel,
+html[data-save-data="true"] .operations-panel,
+html[data-network-class="slow-2g"] .topbar,
+html[data-network-class="slow-2g"] .tool-rail,
+html[data-network-class="2g"] .topbar,
+html[data-network-class="2g"] .tool-rail {
+  backdrop-filter: none !important;
+}
+
+html[data-save-data="true"] *,
+html[data-network-class="slow-2g"] *,
+html[data-network-class="2g"] * {
+  scroll-behavior: auto !important;
+}
+
+html[data-page-visibility="hidden"] .panel-loading-spinner {
+  animation-play-state: paused !important;
+}
+
+@media (pointer: coarse) {
+  .tool-button,
+  .topbar button,
+  .catalog-action,
+  .visibility-button,
+  .favorite-button,
+  .mobile-panel-close {
+    min-height: 48px;
+  }
+}
+
+@media (forced-colors: active) {
+  .tool-button.is-active,
+  .layer-card.is-active,
+  .filter-chip.is-active,
+  .availability-chip.is-active {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px !important;
+  }
+
+  .offline-banner,
+  .app-update-banner {
+    border: 2px solid CanvasText !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-rail,
+  .panel-zone {
+    transition: none !important;
+  }
+}
