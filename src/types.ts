@@ -6,6 +6,7 @@ export type ThemeMode = "dark" | "light" | "system";
 export type PerformanceProfile = "high" | "balanced" | "eco";
 export type PanelId = "overview" | "layers" | "data" | "workspace" | "health" | "incidents" | "bookmarks" | "diagnostics" | "help" | null;
 export type ToolId = "legend" | "basemap" | "distance" | "area" | "daylight" | "slice" | "lineOfSight" | "elevation" | null;
+export type LayerOrderDirection = "up" | "down";
 
 export interface RawServiceDefinition {
   ustKurumAdi: string;
@@ -104,6 +105,11 @@ export interface Bookmark {
   camera: CameraState;
   layerIds: string[];
   createdAt: string;
+  /** v45+ optional workspace fields keep v4 bookmarks backward compatible. */
+  basemap?: string;
+  layerOpacity?: Record<string, number>;
+  /** Top-to-bottom draw order for the layers captured in this bookmark. */
+  layerOrder?: string[];
 }
 
 export interface AppPreferences {
@@ -112,6 +118,8 @@ export interface AppPreferences {
   performance: PerformanceProfile | "auto";
   layerVisibility: Record<string, boolean>;
   layerOpacity: Record<string, number>;
+  /** Top-to-bottom application draw order. */
+  layerOrder: string[];
   favorites: string[];
   camera?: CameraState;
   bookmarks: Bookmark[];

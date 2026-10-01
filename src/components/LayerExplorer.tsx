@@ -20,17 +20,19 @@ import {
   navigationSourceLabel,
   operationalScaleLabel
 } from "../lib/serviceNavigation";
-import type { ServiceAvailability, ServiceDefinition, ServiceKind } from "../types";
+import type { LayerOrderDirection, ServiceAvailability, ServiceDefinition, ServiceKind } from "../types";
 import { Icon } from "./Icon";
 
 interface Props {
   services: ServiceDefinition[];
   currentScale?: number;
+  layerOrder: string[];
   onToggle: (service: ServiceDefinition, visible: boolean) => Promise<void>;
   onOpacity: (service: ServiceDefinition, opacity: number) => void;
   onFavorite: (service: ServiceDefinition) => void;
   onZoom: (service: ServiceDefinition) => void;
   onRetry: (service: ServiceDefinition) => Promise<void>;
+  onMoveLayer: (serviceId: string, direction: LayerOrderDirection) => void;
 }
 
 const kinds: Array<{ value: ServiceKind | "all"; label: string }> = [
@@ -42,7 +44,17 @@ const kinds: Array<{ value: ServiceKind | "all"; label: string }> = [
   { value: "WFS", label: "WFS" }
 ];
 
-export const LayerExplorer = memo(function LayerExplorer({ services, currentScale, onToggle, onOpacity, onFavorite, onZoom, onRetry }: Props) {
+export const LayerExplorer = memo(function LayerExplorer({
+  services,
+  currentScale,
+  layerOrder,
+  onToggle,
+  onOpacity,
+  onFavorite,
+  onZoom,
+  onRetry,
+  onMoveLayer
+}: Props) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [kind, setKind] = useState<ServiceKind | "all">("all");
@@ -72,6 +84,12 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
   }), [services, kind, activeOnly, favoriteOnly, availability, deferredQuery]);
 
   const groups = useMemo(() => groupServicesInStableOrder(filtered), [filtered]);
+  const activeStack = useMemo(() => {
+    const rank = new Map(layerOrder.map((id, index) => [id, index]));
+    return services
+      .filter((service) => service.visible)
+      .sort((a, b) => (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+  }, [layerOrder, services]);
 
   const metrics = useMemo(() => ({
     active: services.filter((service) => service.visible).length,
@@ -158,6 +176,50 @@ export const LayerExplorer = memo(function LayerExplorer({ services, currentScal
           <Icon name="refresh" size={14} /> Sorunlu katmanları dene
         </button>
       </div>
+
+      {activeStack.length > 0 && (
+        <section className="layer-stack-editor" aria-labelledby="layer-stack-title">
+          <div className="layer-stack-heading">
+            <div>
+              <span className="eyebrow">ÇİZİM SIRASI</span>
+              <strong id="layer-stack-title">Açık katman yığını</strong>
+            </div>
+            <span>{activeStack.length} katman</span>
+          </div>
+          <p className="layer-stack-note">Listenin üstündeki katman haritada da üstte çizilir.</p>
+          <ol className="layer-stack-list">
+            {activeStack.map((service, index) => (
+              <li key={service.id} className="layer-stack-item">
+                <span className="layer-stack-rank" aria-hidden="true">{index + 1}</span>
+                <span className="layer-stack-name" title={service.displayName}>{service.displayName}</span>
+                <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{serviceKindLabel(service.kind)}</span>
+                <div className="layer-stack-buttons" role="group" aria-label={`${service.displayName} çizim sırası`}>
+                  <button
+                    type="button"
+                    className="icon-ghost"
+                    onClick={() => onMoveLayer(service.id, "up")}
+                    disabled={index === 0}
+                    aria-label={`${service.displayName} katmanını üste taşı`}
+                    title="Üste taşı"
+                  >
+                    <span aria-hidden="true">↑</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-ghost"
+                    onClick={() => onMoveLayer(service.id, "down")}
+                    disabled={index === activeStack.length - 1}
+                    aria-label={`${service.displayName} katmanını alta taşı`}
+                    title="Alta taşı"
+                  >
+                    <span aria-hidden="true">↓</span>
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <label className="search-field">
         <Icon name="search" size={16} />

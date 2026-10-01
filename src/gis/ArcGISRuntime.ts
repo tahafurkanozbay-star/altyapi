@@ -395,6 +395,39 @@ export class ArcGISRuntime {
     if (layer) layer.opacity = clampOpacity(opacity);
   }
 
+  /**
+   * Applies a stable top-to-bottom draw order to all currently loaded operational
+   * layers. Hidden cached layers participate too, so reopening a layer does not
+   * silently change the user's visual stack.
+   */
+  setLayerOrder(serviceIdsTopToBottom: readonly string[]): void {
+    const map = this.map;
+    if (!map || this.destroyed) return;
+
+    const seen = new Set<string>();
+    const ids = [...serviceIdsTopToBottom];
+    for (const id of this.layers.keys()) {
+      if (!ids.includes(id)) ids.push(id);
+    }
+
+    const bottomToTop: Layer[] = [];
+    for (let index = ids.length - 1; index >= 0; index -= 1) {
+      const id = ids[index];
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const layer = this.layers.get(id);
+      if (layer) bottomToTop.push(layer);
+    }
+
+    bottomToTop.forEach((layer, index) => {
+      try {
+        map.reorder(layer, index);
+      } catch {
+        // A layer can disappear from the collection while an async reload finishes.
+      }
+    });
+  }
+
   async reloadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
     if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
 

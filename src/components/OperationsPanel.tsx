@@ -55,26 +55,26 @@ function PanelLoading({ label }: { label: string }) {
 function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookmark }: Props) {
   return (
     <div className="operations-body">
-      <button type="button" className="primary-button full" onClick={onAddBookmark}><Icon name="plus" /> Bu görünümü kaydet</button>
-      <p className="section-note">Konumu ve açık katmanları birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma görünümüne dönün.</p>
+      <button type="button" className="primary-button full" onClick={onAddBookmark}><Icon name="plus" /> Bu çalışma görünümünü kaydet</button>
+      <p className="section-note">Konum, açık katmanlar, saydamlıklar, katman çizim sırası ve harita görünümünü birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma alanına dönün.</p>
       <div className="bookmark-list" aria-live="polite">
         {bookmarks.length === 0 && (
           <div className="empty-state">
             <Icon name="bookmark" size={28} />
-            <strong>Henüz yer imi yok</strong>
-            <span>Haritada istediğiniz yere gidin ve mevcut görünümü kaydedin.</span>
+            <strong>Henüz kayıtlı görünüm yok</strong>
+            <span>Haritada istediğiniz görünümü hazırlayın ve mevcut çalışma alanını kaydedin.</span>
           </div>
         )}
         {bookmarks.map((bookmark) => (
           <article className="bookmark-card" key={bookmark.id}>
-            <button type="button" className="bookmark-main" onClick={() => onGoBookmark(bookmark)} aria-label={`${bookmark.name} yer imine git`}>
+            <button type="button" className="bookmark-main" onClick={() => onGoBookmark(bookmark)} aria-label={`${bookmark.name} çalışma görünümüne git`}>
               <span className="bookmark-icon"><Icon name="bookmark" /></span>
               <span>
                 <strong>{bookmark.name}</strong>
-                <small>{new Date(bookmark.createdAt).toLocaleString("tr-TR")} · {bookmark.layerIds.length} katman</small>
+                <small>{bookmarkMetadata(bookmark)}</small>
               </span>
             </button>
-            <button type="button" className="icon-ghost is-danger" onClick={() => onDeleteBookmark(bookmark)} aria-label={`${bookmark.name} yer imini sil`}>
+            <button type="button" className="icon-ghost is-danger" onClick={() => onDeleteBookmark(bookmark)} aria-label={`${bookmark.name} kayıtlı görünümünü sil`}>
               <Icon name="trash" size={15} />
             </button>
           </article>
@@ -90,15 +90,15 @@ function HelpPanel() {
       <div className="help-hero">
         <div className="help-orbit" aria-hidden="true"><span /><span /><span /></div>
         <h3>Ankara Kent Rehberi</h3>
-        <p>Adres arayın, görmek istediğiniz katmanları açın, 3B haritada inceleyin ve ölçüm araçlarını ihtiyaç duyduğunuzda kullanın.</p>
+        <p>Adres arayın, görmek istediğiniz katmanları açın, çizim sırasını yönetin, 3B haritada inceleyin ve çalışma görünümünüzü kaydedin.</p>
       </div>
 
       <section className="help-section" aria-labelledby="help-first-steps">
         <h4 id="help-first-steps">Hızlı başlangıç</h4>
         <ol className="help-steps">
           <li><strong>Katman seçin.</strong><span>Katmanlar bölümünden görmek istediğiniz veriyi açın; gerekli zoom otomatik ayarlanır.</span></li>
-          <li><strong>Konum arayın.</strong><span>Üstteki arama alanından adres, cadde veya yer adı bulun.</span></li>
-          <li><strong>Haritada inceleyin.</strong><span>Fare, dokunmatik veya klavye ile hareket edin; katman açık kaldığı sürece güvenli ölçek aralığı korunur.</span></li>
+          <li><strong>Görünümü düzenleyin.</strong><span>Açık katmanlarda yukarı/aşağı kontrolleriyle hangi verinin üstte çizileceğini belirleyin ve saydamlığı ayarlayın.</span></li>
+          <li><strong>Çalışmanızı kaydedin.</strong><span>Yer İmleri bölümünde kamera, açık katmanlar, harita görünümü, saydamlıklar ve çizim sırası birlikte saklanır.</span></li>
         </ol>
       </section>
 
@@ -116,11 +116,18 @@ function HelpPanel() {
         </div>
       </section>
 
-      <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Bir katmanı açtığınızda Kent Rehberi servis kapsamını ve uygun zoom aralığını otomatik uygular.</span></div></div>
+      <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Bir katmanı açtığınızda Kent Rehberi servis kapsamını ve uygun zoom aralığını otomatik uygular; açık katmanların çizim sırası sizin kontrolünüzdedir.</span></div></div>
       <div className="health-note"><Icon name="search" /><div><strong>Arama</strong><span>Üst bölümdeki arama alanını kullanarak adres ve yer arayabilirsiniz.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Bağlantı ve performans</strong><span>Harita kalitesi, servis tekrar denemeleri ve bağlantı kurtarma işlemleri cihazınıza göre arka planda yönetilir.</span></div></div>
     </div>
   );
+}
+
+function bookmarkMetadata(bookmark: Bookmark): string {
+  const date = new Date(bookmark.createdAt).toLocaleString("tr-TR");
+  const parts = [`${bookmark.layerIds.length} katman`];
+  if (bookmark.basemap) parts.push("tam görünüm");
+  return `${date} · ${parts.join(" · ")}`;
 }
 
 function Shortcut({ keyName, label }: { keyName: string; label: string }) {

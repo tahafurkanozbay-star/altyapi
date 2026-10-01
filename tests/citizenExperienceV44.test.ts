@@ -43,15 +43,16 @@ describe("v44 citizen experience hardening", () => {
     expect(css).toContain('html[data-page-visibility="hidden"]');
   });
 
-  it("rotates application and PWA generations together", async () => {
+  it("keeps the v44 accessibility generation while allowing newer coherent releases", async () => {
     const packageJson = JSON.parse(await readFile("package.json", "utf8")) as { version: string };
     const swSource = await readFile("src/sw/sw.ts", "utf8");
     const swOutput = await readFile("public/sw.js", "utf8");
+    const major = Number(packageJson.version.split(".")[0]);
 
-    expect(packageJson.version).toBe("44.0.0");
-    expect(swSource).toContain('altyapi-shell-v44');
-    expect(swSource).toContain('altyapi-data-v44');
-    expect(swOutput).toContain('altyapi-shell-v44');
-    expect(swOutput).toContain('altyapi-data-v44');
+    expect(major).toBeGreaterThanOrEqual(44);
+    expect(swSource).toContain(`altyapi-shell-v${major}`);
+    expect(swSource).toContain(`altyapi-data-v${major}`);
+    expect(swOutput).toContain(`altyapi-shell-v${major}`);
+    expect(swOutput).toContain(`altyapi-data-v${major}`);
   });
 });

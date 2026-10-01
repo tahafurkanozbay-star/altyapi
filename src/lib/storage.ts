@@ -1,7 +1,7 @@
 import type { AppPreferences, Bookmark, CameraState, PerformanceProfile, ThemeMode } from "../types";
 
-export const STORAGE_KEY = "altyapi:preferences:v4";
-const LEGACY_STORAGE_KEYS = ["altyapi:preferences:v3", "altyapi:preferences:v2"] as const;
+export const STORAGE_KEY = "altyapi:preferences:v5";
+const LEGACY_STORAGE_KEYS = ["altyapi:preferences:v4", "altyapi:preferences:v3", "altyapi:preferences:v2"] as const;
 const MAX_BOOKMARKS = 40;
 const MAX_LAYER_KEYS = 500;
 
@@ -11,6 +11,7 @@ const defaults: AppPreferences = {
   performance: "auto",
   layerVisibility: {},
   layerOpacity: {},
+  layerOrder: [],
   favorites: [],
   bookmarks: []
 };
@@ -36,12 +37,14 @@ export function sanitizePreferences(value: unknown): AppPreferences {
   const input = value as Record<string, unknown>;
   const result = cloneDefaults();
 
-  if (typeof input.basemap === "string" && /^[a-z0-9][a-z0-9_-]{0,79}$/i.test(input.basemap)) result.basemap = input.basemap;
+  const basemap = sanitizeBasemap(input.basemap);
+  if (basemap) result.basemap = basemap;
   if (input.theme === "dark" || input.theme === "light" || input.theme === "system") result.theme = input.theme;
   if (input.performance === "auto" || input.performance === "high" || input.performance === "balanced" || input.performance === "eco") result.performance = input.performance;
 
   result.layerVisibility = sanitizeBooleanRecord(input.layerVisibility);
   result.layerOpacity = sanitizeOpacityRecord(input.layerOpacity);
+  result.layerOrder = sanitizeIdList(input.layerOrder);
   result.favorites = sanitizeIdList(input.favorites);
   result.bookmarks = sanitizeBookmarks(input.bookmarks);
 
@@ -87,6 +90,7 @@ function cloneDefaults(): AppPreferences {
     ...defaults,
     layerVisibility: {},
     layerOpacity: {},
+    layerOrder: [],
     favorites: [],
     bookmarks: []
   };
@@ -139,13 +143,22 @@ function sanitizeBookmarks(value: unknown): Bookmark[] {
     if (!camera || typeof item.id !== "string" || !isSafeId(item.id) || typeof item.name !== "string" || typeof item.createdAt !== "string") continue;
     const name = item.name.trim().slice(0, 120);
     if (!name || Number.isNaN(Date.parse(item.createdAt))) continue;
-    output.push({
+
+    const bookmark: Bookmark = {
       id: item.id,
       name,
       camera,
       layerIds: sanitizeIdList(item.layerIds).slice(0, 100),
       createdAt: item.createdAt
-    });
+    };
+    const basemap = sanitizeBasemap(item.basemap);
+    if (basemap) bookmark.basemap = basemap;
+    const layerOpacity = sanitizeOpacityRecord(item.layerOpacity);
+    if (Object.keys(layerOpacity).length > 0) bookmark.layerOpacity = layerOpacity;
+    const layerOrder = sanitizeIdList(item.layerOrder).slice(0, 100);
+    if (layerOrder.length > 0) bookmark.layerOrder = layerOrder;
+
+    output.push(bookmark);
     if (output.length >= MAX_BOOKMARKS) break;
   }
   return output;
@@ -162,6 +175,10 @@ function sanitizeCamera(value: unknown): CameraState | undefined {
   if (longitude === undefined || latitude === undefined || z === undefined || heading === undefined || tilt === undefined) return undefined;
   if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90 || z < -1000 || z > 10_000_000 || heading < -360 || heading > 360 || tilt < 0 || tilt > 180) return undefined;
   return { longitude, latitude, z, heading, tilt };
+}
+
+function sanitizeBasemap(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9_-]{0,79}$/i.test(value) ? value : undefined;
 }
 
 function finiteNumber(value: unknown): number | undefined {

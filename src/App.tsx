@@ -18,6 +18,12 @@ import {
   formatScale,
   loadServiceNavigationSnapshot
 } from "./lib/serviceNavigation";
+import {
+  mergeCapturedLayerOrder,
+  moveVisibleLayer,
+  normalizeLayerOrder,
+  visibleLayerOrder
+} from "./lib/workspaceView";
 import type {
   AppPreferences,
   AttributeQueryOptions,
@@ -25,6 +31,7 @@ import type {
   Bookmark,
   CameraState,
   IdentifyResult,
+  LayerOrderDirection,
   PanelId,
   PerformanceProfile,
   RuntimeIncident,
@@ -37,6 +44,7 @@ import { ToolRail } from "./components/ToolRail";
 import { StatusBar } from "./components/StatusBar";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OperationsPanel } from "./components/OperationsPanel";
+import { BookmarkDialog } from "./components/BookmarkDialog";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
@@ -67,6 +75,7 @@ export default function App() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -82,6 +91,11 @@ export default function App() {
     loading: services.filter((service) => service.status === "loading").length,
     error: services.filter((service) => service.status === "error").length
   }), [services]);
+
+  const effectiveLayerOrder = useMemo(
+    () => normalizeLayerOrder(preferences.layerOrder, services.map((service) => service.id)),
+    [preferences.layerOrder, services]
+  );
 
   useEffect(() => { servicesRef.current = services; }, [services]);
 
@@ -106,6 +120,7 @@ export default function App() {
         ...current,
         layerVisibility: Object.fromEntries(nextServices.map((service) => [service.id, service.visible])),
         layerOpacity: Object.fromEntries(nextServices.map((service) => [service.id, service.opacity])),
+        layerOrder: normalizeLayerOrder(current.layerOrder, nextServices.map((service) => service.id)),
         favorites: nextServices.filter((service) => service.favorite).map((service) => service.id)
       };
       savePreferences(next);
@@ -189,15 +204,22 @@ export default function App() {
           for (const service of preferred) service.visible = true;
         }
 
+        const allServiceIds = restored.map((service) => service.id);
+        const restoredOrder = share
+          ? mergeCapturedLayerOrder(initialPreferences.layerOrder, share.layerIds, allServiceIds)
+          : normalizeLayerOrder(initialPreferences.layerOrder, allServiceIds);
+        const restoredBasemap = share?.basemap ?? initialPreferences.basemap;
+
         setServices(restored);
         servicesRef.current = restored;
+        setPreferences((current) => ({ ...current, basemap: restoredBasemap, layerOrder: restoredOrder }));
 
         const runtime = new ArcGISRuntime(effectivePerformance);
         runtimeRef.current = runtime;
         await runtime.initialize(
           mapRef.current,
           share?.camera ?? initialPreferences.camera ?? DEFAULT_CAMERA,
-          share?.basemap ?? initialPreferences.basemap,
+          restoredBasemap,
           {
             onIdentify: setIdentify,
             onTelemetry: setTelemetry,
@@ -260,6 +282,7 @@ export default function App() {
         }, { navigate: !share?.camera });
 
         if (cancelled) return;
+        runtime.setLayerOrder(restoredOrder);
         persistLayerPreferences(servicesRef.current);
         if (suppressedRestores > 0) {
           pushToast(`${suppressedRestores} katman bağlantı durumuna göre başlangıçta açılmadı. İsterseniz Katmanlar bölümünden deneyebilirsiniz.`, "info");
@@ -338,6 +361,7 @@ export default function App() {
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
+    runtime.setLayerOrder(normalizeLayerOrder(preferences.layerOrder, next.map((item) => item.id)));
 
     if (!result.ok) {
       pushToast(`${service.displayName} şu anda açılamıyor. Daha sonra yeniden deneyebilirsiniz.`, "error");
@@ -368,7 +392,7 @@ export default function App() {
         durationMs: result.durationMs
       });
     }
-  }, [layerLoadScheduler, patchService, persistLayerPreferences, pushToast, recordIncident]);
+  }, [layerLoadScheduler, patchService, persistLayerPreferences, preferences.layerOrder, pushToast, recordIncident]);
 
   const setOpacity = useCallback((service: ServiceDefinition, opacity: number) => {
     const safeOpacity = Math.min(1, Math.max(0, opacity));
@@ -385,6 +409,22 @@ export default function App() {
     servicesRef.current = next;
     persistLayerPreferences(next);
   }, [patchService, persistLayerPreferences]);
+
+  const moveLayer = useCallback((serviceId: string, direction: LayerOrderDirection) => {
+    const snapshot = servicesRef.current;
+    const availableIds = snapshot.map((service) => service.id);
+    const visibleIds = snapshot.filter((service) => service.visible).map((service) => service.id);
+    const currentOrder = normalizeLayerOrder(preferences.layerOrder, availableIds);
+    const nextOrder = moveVisibleLayer(currentOrder, visibleIds, serviceId, direction);
+    if (nextOrder.every((id, index) => id === currentOrder[index])) return;
+
+    runtimeRef.current?.setLayerOrder(nextOrder);
+    setPreferences((current) => {
+      const next = { ...current, layerOrder: nextOrder };
+      savePreferences(next);
+      return next;
+    });
+  }, [preferences.layerOrder]);
 
   const zoomLayer = useCallback(async (service: ServiceDefinition) => {
     const ok = await runtimeRef.current?.zoomToLayer(service);
@@ -410,6 +450,7 @@ export default function App() {
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
+    runtime.setLayerOrder(normalizeLayerOrder(preferences.layerOrder, next.map((item) => item.id)));
     pushToast(result.ok ? `${service.displayName} açıldı.` : `${service.displayName} şu anda açılamıyor.`, result.ok ? "success" : "error");
     recordIncident({
       severity: result.ok ? "info" : "error",
@@ -420,7 +461,7 @@ export default function App() {
       durationMs: result.durationMs,
       recovered: result.ok
     });
-  }, [layerLoadScheduler, patchService, persistLayerPreferences, pushToast, recordIncident]);
+  }, [layerLoadScheduler, patchService, persistLayerPreferences, preferences.layerOrder, pushToast, recordIncident]);
 
   const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
@@ -470,20 +511,41 @@ export default function App() {
   const shareView = useCallback(async () => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
+    const visibleIds = servicesRef.current.filter((service) => service.visible).map((service) => service.id);
+    const orderedVisibleIds = visibleLayerOrder(
+      normalizeLayerOrder(preferences.layerOrder, servicesRef.current.map((service) => service.id)),
+      visibleIds
+    );
     const params = encodeShareState({
       camera: runtime.getCamera(),
-      layerIds: servicesRef.current.filter((service) => service.visible).map((service) => service.id),
+      layerIds: orderedVisibleIds,
       basemap: preferences.basemap
     });
     const url = `${location.origin}${location.pathname}?${params.toString()}`;
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "Ankara Kent Rehberi",
+          text: "Ankara Kent Rehberi harita görünümü",
+          url
+        });
+        pushToast("Harita görünümü paylaşıldı.", "success");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API kullanılamıyor.");
       await navigator.clipboard.writeText(url);
       pushToast("Harita bağlantısı panoya kopyalandı.", "success");
     } catch {
       history.replaceState(null, "", `?${params.toString()}`);
       pushToast("Paylaşım bağlantısı adres çubuğuna yazıldı.", "info");
     }
-  }, [preferences.basemap, pushToast]);
+  }, [preferences.basemap, preferences.layerOrder, pushToast]);
 
   const takeScreenshot = useCallback(async () => {
     const dataUrl = await runtimeRef.current?.takeScreenshot();
@@ -499,16 +561,25 @@ export default function App() {
   }, [pushToast]);
 
   const addBookmark = useCallback(() => {
+    if (!runtimeRef.current) return;
+    setBookmarkDialogOpen(true);
+  }, []);
+
+  const saveBookmark = useCallback((name: string) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    const suggested = `Yer ${preferences.bookmarks.length + 1}`;
-    const name = window.prompt("Yer imi adı", suggested)?.trim();
-    if (!name) return;
+    const snapshot = servicesRef.current;
+    const visible = snapshot.filter((service) => service.visible);
+    const order = normalizeLayerOrder(preferences.layerOrder, snapshot.map((service) => service.id));
+    const visibleOrder = visibleLayerOrder(order, visible.map((service) => service.id));
     const bookmark: Bookmark = {
       id: createId(),
       name,
       camera: runtime.getCamera(),
-      layerIds: servicesRef.current.filter((service) => service.visible).map((service) => service.id),
+      layerIds: visibleOrder,
+      layerOrder: visibleOrder,
+      layerOpacity: Object.fromEntries(visible.map((service) => [service.id, service.opacity])),
+      basemap: preferences.basemap,
       createdAt: new Date().toISOString()
     };
     const bookmarks = [bookmark, ...preferences.bookmarks].slice(0, 40);
@@ -517,21 +588,54 @@ export default function App() {
       savePreferences(next);
       return next;
     });
-    pushToast("Yer imi kaydedildi.", "success");
-  }, [preferences.bookmarks, pushToast]);
+    setBookmarkDialogOpen(false);
+    pushToast("Çalışma görünümü kaydedildi.", "success");
+  }, [preferences.basemap, preferences.bookmarks, preferences.layerOrder, pushToast]);
 
   const goBookmark = useCallback(async (bookmark: Bookmark) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    const desired = new Set(bookmark.layerIds);
+
     const snapshot = servicesRef.current;
+    const allIds = snapshot.map((service) => service.id);
+    const desired = new Set(bookmark.layerIds);
+    const capturedOrder = bookmark.layerOrder?.length ? bookmark.layerOrder : bookmark.layerIds;
+    const restoredOrder = mergeCapturedLayerOrder(preferences.layerOrder, capturedOrder, allIds);
+    const restoredBasemap = bookmark.basemap ?? preferences.basemap;
+    const bookmarkOpacity = bookmark.layerOpacity ?? {};
+    const prepared = snapshot.map((service) => {
+      const nextOpacity = bookmarkOpacity[service.id];
+      return Number.isFinite(nextOpacity)
+        ? { ...service, opacity: Math.min(1, Math.max(0, nextOpacity!)) }
+        : service;
+    });
+
+    setServices(prepared);
+    servicesRef.current = prepared;
+    for (const service of prepared) runtime.setOpacity(service.id, service.opacity);
+    runtime.setBasemap(restoredBasemap);
+    setPreferences((current) => {
+      const next = {
+        ...current,
+        basemap: restoredBasemap,
+        layerOrder: restoredOrder,
+        layerOpacity: Object.fromEntries(prepared.map((service) => [service.id, service.opacity]))
+      };
+      savePreferences(next);
+      return next;
+    });
+
     await runtime.withLayerActivationBatch(async () => {
-      await Promise.all(snapshot
+      await Promise.all(prepared
         .filter((service) => service.visible !== desired.has(service.id))
         .map((service) => toggleLayer(service, desired.has(service.id), "restore")));
     }, { navigate: false });
+
+    runtime.setLayerOrder(restoredOrder);
     await runtime.goTo(bookmark.camera);
-  }, [toggleLayer]);
+    persistLayerPreferences(servicesRef.current);
+    pushToast(`${bookmark.name} çalışma görünümü geri yüklendi.`, "success");
+  }, [persistLayerPreferences, preferences.basemap, preferences.layerOrder, pushToast, toggleLayer]);
 
   const deleteBookmark = useCallback((bookmark: Bookmark) => {
     const bookmarks = preferences.bookmarks.filter((item) => item.id !== bookmark.id);
@@ -542,8 +646,26 @@ export default function App() {
     });
   }, [preferences.bookmarks]);
 
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        if (typeof document.exitFullscreen === "function") await document.exitFullscreen();
+        return;
+      }
+      const request = document.documentElement.requestFullscreen;
+      if (typeof request !== "function") {
+        pushToast("Bu tarayıcı tam ekran modunu desteklemiyor.", "info");
+        return;
+      }
+      await request.call(document.documentElement);
+    } catch {
+      pushToast("Tam ekran modu açılamadı.", "info");
+    }
+  }, [pushToast]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (bookmarkDialogOpen) return;
       const target = event.target as HTMLElement | null;
       const typing = target?.matches("input, textarea, select, [contenteditable='true']");
       if (typing) return;
@@ -560,8 +682,8 @@ export default function App() {
         focusGlobalSearch();
       }
       if (event.key.toLowerCase() === "f") {
-        void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
-          .catch(() => pushToast("Tam ekran modu açılamadı.", "info"));
+        event.preventDefault();
+        void toggleFullscreen();
       }
       if (event.key === "Escape") {
         if (activeTool) setActiveTool(null);
@@ -570,7 +692,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeTool, focusGlobalSearch, panel, pushToast, selectPanel]);
+  }, [activeTool, bookmarkDialogOpen, focusGlobalSearch, panel, selectPanel, toggleFullscreen]);
 
   return (
     <main className={`app-shell ${focusMode ? "is-focus-mode" : ""}`} data-connection={online ? "online" : "offline"}>
@@ -642,11 +764,13 @@ export default function App() {
               <LayerExplorer
                 services={services}
                 currentScale={telemetry.scale}
+                layerOrder={effectiveLayerOrder}
                 onToggle={toggleLayer}
                 onOpacity={setOpacity}
                 onFavorite={toggleFavorite}
                 onZoom={(service) => void zoomLayer(service)}
                 onRetry={retryLayer}
+                onMoveLayer={moveLayer}
               />
             </aside>
           ) : panel ? (
@@ -675,6 +799,12 @@ export default function App() {
       <DetailsPanel result={identify} onClose={() => setIdentify(null)} />
       <StatusBar telemetry={telemetry} services={services} />
       <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
+      <BookmarkDialog
+        open={bookmarkDialogOpen}
+        suggestedName={`Görünüm ${preferences.bookmarks.length + 1}`}
+        onCancel={() => setBookmarkDialogOpen(false)}
+        onSave={saveBookmark}
+      />
 
       {!online && (
         <div className="offline-banner" role="status" aria-live="polite">
