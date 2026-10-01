@@ -39,6 +39,7 @@ export function installCitizenExperienceSupervisor(): () => void {
 
   let panel: HTMLElement | null = null;
   let panelObserver: MutationObserver | null = null;
+  let shellObserver: MutationObserver | null = null;
   let lastPanelTrigger: HTMLButtonElement | null = null;
   let panelWasVisible = false;
   let focusPanelAfterOpen = false;
@@ -70,7 +71,7 @@ export function installCitizenExperienceSupervisor(): () => void {
   };
 
   const syncPanelAccessibility = (): void => {
-    panel ??= document.querySelector<HTMLElement>(PANEL_SELECTOR);
+    if (!panel?.isConnected) panel = document.querySelector<HTMLElement>(PANEL_SELECTOR);
     if (!panel) return;
 
     const isMobile = mobileQuery.matches;
@@ -102,13 +103,19 @@ export function installCitizenExperienceSupervisor(): () => void {
     panelWasVisible = isVisible;
   };
 
-  const bindPanelObserver = (): void => {
-    panel = document.querySelector<HTMLElement>(PANEL_SELECTOR);
-    if (!panel) return;
+  const bindPanelObserver = (): boolean => {
+    const nextPanel = document.querySelector<HTMLElement>(PANEL_SELECTOR);
+    if (!nextPanel) return false;
+
+    panel = nextPanel;
     panelWasVisible = !mobileQuery.matches || panel.classList.contains("is-mobile-visible");
+    panelObserver?.disconnect();
     panelObserver = new MutationObserver(syncPanelAccessibility);
     panelObserver.observe(panel, { attributes: true, attributeFilter: ["class"] });
+    shellObserver?.disconnect();
+    shellObserver = null;
     syncPanelAccessibility();
+    return true;
   };
 
   const onDocumentClick = (event: MouseEvent): void => {
@@ -131,7 +138,13 @@ export function installCitizenExperienceSupervisor(): () => void {
   syncViewport();
   syncNetworkPreferences();
   syncVisibility();
-  bindPanelObserver();
+
+  if (!bindPanelObserver()) {
+    shellObserver = new MutationObserver(() => {
+      bindPanelObserver();
+    });
+    shellObserver.observe(document.body ?? root, { childList: true, subtree: true });
+  }
 
   window.addEventListener("resize", syncViewport, { passive: true });
   visualViewport?.addEventListener("resize", syncViewport, { passive: true });
@@ -143,6 +156,7 @@ export function installCitizenExperienceSupervisor(): () => void {
   document.addEventListener("click", onDocumentClick, true);
 
   return () => {
+    shellObserver?.disconnect();
     panelObserver?.disconnect();
     window.removeEventListener("resize", syncViewport);
     visualViewport?.removeEventListener("resize", syncViewport);
