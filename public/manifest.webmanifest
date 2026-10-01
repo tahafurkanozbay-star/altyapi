@@ -1,20 +1,22 @@
 {
-  "name": "Başkent 3B CBS Operasyon Platformu",
-  "short_name": "Başkent 3B CBS",
-  "description": "Comfort White arayüzlü 3B CBS; ArcGIS 5.1 component-first Scene mimarisi, operasyon zekâsı, servis dayanıklılığı, güvenli Query Studio ve offline-safe veri önbelleği.",
+  "name": "Ankara Kent Rehberi",
+  "short_name": "Kent Rehberi",
+  "description": "Ankara Büyükşehir Belediyesi 3B kent haritası; kent ve altyapı katmanları, adres arama, ölçüm, yer imleri ve veri inceleme araçları.",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#f4f7f9",
   "theme_color": "#ffffff",
+  "categories": ["navigation", "utilities", "productivity"],
   "icons": [
     {
-      "src": "./favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "./ankara-logo.png",
+      "sizes": "175x293",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
