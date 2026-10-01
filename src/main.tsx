@@ -5,6 +5,7 @@ import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import { installPublicServiceWarmup } from "./lib/serviceWarmup";
+import { installCitizenExperienceSupervisor } from "./platform/citizenExperienceSupervisor";
 import { installRuntimeEventDomBridge } from "./platform/runtimeEventDomBridge";
 import { installRuntimePressureMonitor } from "./platform/runtimePressure";
 import "@arcgis/core/assets/esri/themes/light/main.css";
@@ -14,6 +15,7 @@ import "./styles/comfort-white.css";
 import "./styles/ankara-brand.css";
 import "./styles/tucbs-access.css";
 import "./styles/experience-v43.css";
+import "./styles/experience-v44.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");
@@ -27,9 +29,11 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 // Application-owned events stay typed, main-thread pressure is measured at runtime,
-// and background GIS work yields before it can compete with interactive rendering.
+// background GIS work yields before it can compete with interactive rendering, and
+// the citizen shell keeps mobile focus/viewport behavior coherent across browsers.
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
+installCitizenExperienceSupervisor();
 installLayerRenderHealthStore();
 installSceneLayerWatchdog();
 installPublicServiceWarmup();
