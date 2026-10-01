@@ -38,6 +38,7 @@ type QueuedJob<T> = {
   healthRank: number;
   priority: number;
   sequence: number;
+  enqueuedAt: number;
   run: () => Promise<T>;
   cancelledValue: T;
   resolve: (value: T) => void;
@@ -56,6 +57,9 @@ const PRIORITY: Record<LayerLoadPriority, number> = {
   restore: 2
 };
 
+const RETRY_PROMOTION_MS = 15_000;
+const RESTORE_RETRY_PROMOTION_MS = 12_000;
+const RESTORE_INTERACTIVE_PROMOTION_MS = 30_000;
 const PROVIDER_FAILURE_THRESHOLD = 2;
 const PROVIDER_SLOW_SAMPLE_LIMIT = 6;
 const PROVIDER_SLOW_MEDIAN_MS = 6_000;
@@ -64,16 +68,15 @@ const TRANSIENT_PROVIDER_FAILURES = new Set<ServiceFailureClass>(["network", "ti
 
 /**
  * Bounds expensive remote Layer.load() work without changing ArcGIS retry or
- * failover semantics. Admission is weighted by the freshest sanitized/browser
- * health signals and coarse local connection hints so slow providers or weak
- * networks cannot receive the same request pressure as healthy conditions.
+ * failover semantics. Admission is weighted by sanitized/browser health signals,
+ * live network capacity and provider-local runtime feedback.
  *
- * v38 also feeds real in-session outcomes back into provider-local lanes. Two
- * consecutive network/timeout/5xx failures temporarily open only that origin's
- * circuit while unrelated providers keep flowing. A single half-open probe is
- * admitted after the cooldown. Authorization/configuration/format failures are
- * intentionally not generalized to the whole provider. No endpoint path,
- * query string, credential or circuit state is persisted.
+ * v39 keeps v38 provider circuits while making queue admission starvation-safe:
+ * long-waiting retry/restore jobs age upward, the oldest eligible request owns a
+ * half-open provider probe, and a risky two-unit job is normalized to the current
+ * one-unit network budget instead of becoming permanently unrunnable. All queue
+ * and provider state remains memory-only and contains no endpoint paths, query
+ * strings, TUCBS tokens or credentials.
  */
 export class LayerLoadScheduler {
   private readonly profileLimit: number;
@@ -138,6 +141,7 @@ export class LayerLoadScheduler {
         healthRank,
         priority: PRIORITY[priority],
         sequence: this.sequence++,
+        enqueuedAt: this.now(),
         run,
         cancelledValue,
         resolve,
@@ -189,6 +193,10 @@ export class LayerLoadScheduler {
     effectiveLimit: number;
     providerCircuitsOpen: number;
     providerHalfOpenProbes: number;
+    providerHalfOpenReady: number;
+    oldestQueuedMs: number;
+    agedQueued: number;
+    pausedByNetwork: boolean;
   } {
     const now = this.now();
     let providerCircuitsOpen = 0;
@@ -197,14 +205,25 @@ export class LayerLoadScheduler {
       if (health.openUntil > now) providerCircuitsOpen += 1;
       if (health.halfOpenProbeActive) providerHalfOpenProbes += 1;
     }
+    const effectiveLimit = this.effectiveGlobalLimit();
+    const oldestQueuedAt = this.queue.reduce<number | undefined>(
+      (oldest, job) => oldest === undefined ? job.enqueuedAt : Math.min(oldest, job.enqueuedAt),
+      undefined
+    );
+    const agedQueued = this.queue.filter((job) => agedPriority(job, now) < job.priority).length;
+    const providerHalfOpenReady = this.queue.filter((job) => this.isHalfOpenProbeCandidate(job, now)).length;
     return {
       active: this.active,
       activeCost: this.activeCost,
       queued: this.queue.length,
       globalLimit: this.profileLimit,
-      effectiveLimit: this.effectiveGlobalLimit(),
+      effectiveLimit,
       providerCircuitsOpen,
-      providerHalfOpenProbes
+      providerHalfOpenProbes,
+      providerHalfOpenReady,
+      oldestQueuedMs: oldestQueuedAt === undefined ? 0 : Math.max(0, Math.round(now - oldestQueuedAt)),
+      agedQueued,
+      pausedByNetwork: effectiveLimit <= 0
     };
   }
 
@@ -244,8 +263,9 @@ export class LayerLoadScheduler {
       if (!job) return;
 
       this.markHalfOpenProbe(job.lane);
+      const admittedCost = this.admissionCost(job, effectiveLimit);
       this.active += 1;
-      this.activeCost += job.cost;
+      this.activeCost += admittedCost;
       this.activeByLane.set(job.lane, (this.activeByLane.get(job.lane) ?? 0) + 1);
       this.activeJobsByKey.set(job.key, job);
       const startedAt = this.now();
@@ -263,7 +283,7 @@ export class LayerLoadScheduler {
         )
         .finally(() => {
           this.active = Math.max(0, this.active - 1);
-          this.activeCost = Math.max(0, this.activeCost - job.cost);
+          this.activeCost = Math.max(0, this.activeCost - admittedCost);
           const laneActive = Math.max(0, (this.activeByLane.get(job.lane) ?? 1) - 1);
           if (laneActive === 0) this.activeByLane.delete(job.lane);
           else this.activeByLane.set(job.lane, laneActive);
@@ -276,25 +296,56 @@ export class LayerLoadScheduler {
   private nextRunnableIndex(effectiveLimit: number): number {
     const now = this.now();
     const candidates = this.queue
-      .map((job, index) => ({ job, index }))
+      .map((job, index) => ({
+        job,
+        index,
+        effectivePriority: this.effectiveQueuePriority(job, now),
+        halfOpenRecovery: this.isHalfOpenProbeCandidate(job, now)
+      }))
       .filter(({ job }) =>
-        this.providerCanRun(job.lane, now)
+        this.providerCanRun(job, now)
         && (this.activeByLane.get(job.lane) ?? 0) < this.effectiveLaneLimit(job)
-        && this.activeCost + job.cost <= effectiveLimit
+        && this.activeCost + this.admissionCost(job, effectiveLimit) <= effectiveLimit
       )
       .sort((left, right) => {
-        const priorityDelta = left.job.priority - right.job.priority;
+        const priorityDelta = left.effectivePriority - right.effectivePriority;
         if (priorityDelta !== 0) return priorityDelta;
 
-        // Preserve exact click/retry order. Only background restore work is
-        // health-ranked so a risky provider cannot delay known-fast layers.
-        if (left.job.priority === PRIORITY.restore) {
+        // When equally urgent, let a provider recovery probe go first so the
+        // entire sibling lane can resume. It never outranks a fresh interactive
+        // request because half-open probes are capped at retry priority.
+        if (left.halfOpenRecovery !== right.halfOpenRecovery) {
+          return left.halfOpenRecovery ? -1 : 1;
+        }
+
+        // Health ranking remains useful only for genuinely background restores.
+        // Once aging promotes a job, FIFO wins so a degraded provider cannot be
+        // postponed forever by a stream of newly discovered healthy restores.
+        if (
+          left.effectivePriority === PRIORITY.restore
+          && left.job.priority === PRIORITY.restore
+          && right.job.priority === PRIORITY.restore
+        ) {
           const healthDelta = this.effectiveHealthRank(left.job) - this.effectiveHealthRank(right.job);
           if (healthDelta !== 0) return healthDelta;
         }
         return left.job.sequence - right.job.sequence;
       });
     return candidates[0]?.index ?? -1;
+  }
+
+  private admissionCost(job: InternalJob, effectiveLimit: number): number {
+    // Health weighting should reduce concurrency, never make a service impossible
+    // to start. If browser/network pressure lowers the live budget to one unit,
+    // a two-unit risky job runs alone instead of remaining queued indefinitely.
+    return Math.max(1, Math.min(job.cost, Math.max(1, Math.floor(effectiveLimit))));
+  }
+
+  private effectiveQueuePriority(job: InternalJob, now: number): number {
+    const aged = agedPriority(job, now);
+    return this.isHalfOpenProbeCandidate(job, now)
+      ? Math.min(aged, PRIORITY.retry)
+      : aged;
   }
 
   private effectiveLaneLimit(job: InternalJob): number {
@@ -313,12 +364,27 @@ export class LayerLoadScheduler {
     return job.healthRank + transientPenalty + slowPenalty;
   }
 
-  private providerCanRun(lane: string, now: number): boolean {
-    const health = this.laneHealth.get(lane);
+  private providerCanRun(job: InternalJob, now: number): boolean {
+    const health = this.laneHealth.get(job.lane);
     if (!health) return true;
     if (health.openUntil > now) return false;
     if (health.transientFailures >= PROVIDER_FAILURE_THRESHOLD) {
-      return !health.halfOpenProbeActive && (this.activeByLane.get(lane) ?? 0) === 0;
+      return this.isHalfOpenProbeCandidate(job, now);
+    }
+    return true;
+  }
+
+  private isHalfOpenProbeCandidate(job: InternalJob, now: number): boolean {
+    const health = this.laneHealth.get(job.lane);
+    if (!health) return false;
+    if (health.transientFailures < PROVIDER_FAILURE_THRESHOLD) return false;
+    if (health.openUntil > now || health.halfOpenProbeActive) return false;
+    if ((this.activeByLane.get(job.lane) ?? 0) > 0) return false;
+
+    // The oldest queued sibling owns the half-open probe. A newer click on the
+    // same provider must not leapfrog older recovery work after cooldown.
+    for (const queued of this.queue) {
+      if (queued.lane === job.lane && queued.sequence < job.sequence) return false;
     }
     return true;
   }
@@ -442,7 +508,8 @@ export function laneLimitFor(profile: PerformanceProfile, service: LoadHealthSig
 /**
  * Weighted global admission cost. A risky/slow job consumes two budget units
  * on balanced/high profiles, automatically reducing concurrent upstream load.
- * Eco mode always has a single unit so every job remains runnable when online.
+ * When live network pressure exposes only one unit, v39 normalizes that job to
+ * one unit so it is serialized rather than permanently blocked.
  */
 export function loadCostFor(profile: PerformanceProfile, service: LoadHealthSignal): number {
   const limit = globalLimitFor(profile);
@@ -477,6 +544,26 @@ export function loadHealthRank(service: LoadHealthSignal): number {
   else if (failures === 1) rank += 1;
 
   return Math.min(6, rank);
+}
+
+/**
+ * Priority aging prevents bounded background/recovery work from starving under
+ * sustained interaction. Fresh interactive requests remain priority 0; retries
+ * promote after 15 s; restores promote to retry at 12 s and to interactive at
+ * 30 s. Once promoted, FIFO order takes precedence over health ranking.
+ */
+export function agedPriority(
+  job: { priority: number; enqueuedAt: number },
+  now: number
+): number {
+  const waitedMs = Math.max(0, now - job.enqueuedAt);
+  if (job.priority <= PRIORITY.interactive) return PRIORITY.interactive;
+  if (job.priority === PRIORITY.retry) {
+    return waitedMs >= RETRY_PROMOTION_MS ? PRIORITY.interactive : PRIORITY.retry;
+  }
+  if (waitedMs >= RESTORE_INTERACTIVE_PROMOTION_MS) return PRIORITY.interactive;
+  if (waitedMs >= RESTORE_RETRY_PROMOTION_MS) return PRIORITY.retry;
+  return PRIORITY.restore;
 }
 
 /** Provider-local transient failure cooldown with bounded exponential backoff. */
