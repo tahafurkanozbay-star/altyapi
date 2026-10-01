@@ -2,6 +2,7 @@ import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
 import { serviceAttemptCandidates } from "../lib/serviceFailover";
+import { publishRuntimeEvent } from "../platform/runtimeEvents";
 import { applyLoadedLayerVisuals } from "./layerVisuals";
 import { releaseTrackedLayerLoad, trackLayerLoad } from "./layerLoadRegistry";
 
@@ -80,9 +81,11 @@ export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): v
 export async function createLayer(service: ServiceDefinition): Promise<Layer> {
   const effectiveService = nextCreationService(service);
   if (isUnconfiguredTucbsUrl(effectiveService.url)) {
-    window.dispatchEvent(new CustomEvent("altyapi:tucbs-access-required", {
-      detail: { serviceId: service.id, serviceName: service.displayName, kind: effectiveService.kind }
-    }));
+    publishRuntimeEvent("tucbs-access-required", {
+      serviceId: service.id,
+      serviceName: service.displayName,
+      kind: effectiveService.kind
+    });
     throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
   }
 
