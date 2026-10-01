@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.sw.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src/sw",
+    "outDir": "public",
+    "sourceMap": false,
+    "removeComments": false
+  }
+}
