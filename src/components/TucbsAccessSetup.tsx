@@ -13,7 +13,7 @@ import {
   saveTucbsClientHealthProfiles
 } from "../lib/tucbsClientHealth";
 import { saveTucbsCoverageProfiles } from "../lib/tucbsCoverage";
-import { inspectTucbsBrowserServices } from "../lib/tucbsInspection";
+import { inspectTucbsBrowserServices as verifyTucbsEndpoints } from "../lib/tucbsInspection";
 import { subscribeRuntimeEvent } from "../platform/runtimeEvents";
 import { Icon } from "./Icon";
 
@@ -53,7 +53,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
     setStatus("Yetkili servisler, katman ölçekleri ve veri kapsamları bu bağlantı üzerinden tek geçişte doğrulanıyor…");
     try {
       const endpoints = parseTucbsEndpointImport(value);
-      const report = await inspectTucbsBrowserServices(endpoints);
+      const report = await verifyTucbsEndpoints(endpoints);
       if (report.verified === 0) {
         throw new Error(describeTucbsVerificationFailure(report));
       }
