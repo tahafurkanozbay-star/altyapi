@@ -2,6 +2,9 @@ import { publishRuntimeEvent } from "../platform/runtimeEvents";
 
 const pendingActivations = new Map<string, number>();
 
+/** @deprecated ArcGIS watchdog DOM bridge compatibility only. */
+export const ATOMIC_LAYER_ACTIVATION_EVENT = "altyapi:atomic-layer-activation-complete";
+
 /**
  * Marks a managed ArcGIS layer as being inside the runtime-owned activation
  * transaction. Global LayerView recovery logic uses this signal to avoid
