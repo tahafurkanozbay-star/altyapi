@@ -5,7 +5,6 @@ const SHELL_CACHE = "altyapi-shell-v41";
 const DATA_CACHE = "altyapi-data-v41";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"];
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"];
-const DATA_FILE_NAMES = new Set(["services.json", "service-health.json", "service-navigation.json"]);
 function isWorkerMessage(value) {
     if (!value || typeof value !== "object" || !("type" in value))
         return false;
@@ -52,8 +51,9 @@ sw.addEventListener("fetch", (event) => {
     const url = new URL(request.url);
     if (url.origin !== sw.location.origin || url.pathname.endsWith(".map"))
         return;
-    const fileName = url.pathname.split("/").at(-1) ?? "";
-    if (DATA_FILE_NAMES.has(fileName)) {
+    if (url.pathname.endsWith("services.json")
+        || url.pathname.endsWith("service-health.json")
+        || url.pathname.endsWith("service-navigation.json")) {
         event.respondWith(networkFirstData(request));
         return;
     }
