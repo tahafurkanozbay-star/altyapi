@@ -94,7 +94,7 @@ export function installCitizenExperienceSupervisor(): () => void {
     if (!panelWasVisible && isVisible && focusPanelAfterOpen) {
       focusPanelAfterOpen = false;
       window.requestAnimationFrame(() => {
-        const closeButton = panel?.querySelector<HTMLElement>(".mobile-panel-close");
+        const closeButton = panel?.querySelector<HTMLElement>(".mobile-panel-close") ?? null;
         focusWithoutScroll(closeButton);
       });
     }
