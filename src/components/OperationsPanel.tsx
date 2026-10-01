@@ -1,6 +1,11 @@
-import { DataWorkbench } from "./DataWorkbench";
+import { lazy, Suspense } from "react";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
+
+const LazyDataWorkbench = lazy(async () => {
+  const module = await import("./DataWorkbench");
+  return { default: module.DataWorkbench };
+});
 
 interface Props {
   panel: Exclude<PanelId, null | "layers">;
@@ -15,20 +20,35 @@ interface Props {
 
 export function OperationsPanel(props: Props) {
   if (props.panel !== "data" && props.panel !== "bookmarks" && props.panel !== "help") return null;
+  const headingId = `operations-panel-title-${props.panel}`;
 
   return (
-    <aside className="operations-panel">
+    <aside className="operations-panel" aria-labelledby={headingId}>
       <div className="operations-heading">
         <div>
-          <span className="eyebrow">KENT REHBERİ</span>
-          <h2>{panelTitle(props.panel)}</h2>
+          <span className="eyebrow">ANKARA KENT REHBERİ</span>
+          <h2 id={headingId}>{panelTitle(props.panel)}</h2>
         </div>
-        <button type="button" className="icon-ghost" onClick={props.onClose} aria-label="Paneli kapat"><Icon name="close" /></button>
+        <button type="button" className="icon-ghost" onClick={props.onClose} aria-label={`${panelTitle(props.panel)} panelini kapat`}><Icon name="close" /></button>
       </div>
-      {props.panel === "data" && <DataWorkbench services={props.services} onQuery={props.onQueryAttributes} />}
+      {props.panel === "data" && (
+        <Suspense fallback={<PanelLoading label="Harita verisi hazırlanıyor…" />}>
+          <LazyDataWorkbench services={props.services} onQuery={props.onQueryAttributes} />
+        </Suspense>
+      )}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
       {props.panel === "help" && <HelpPanel />}
     </aside>
+  );
+}
+
+function PanelLoading({ label }: { label: string }) {
+  return (
+    <div className="panel-loading" role="status" aria-live="polite">
+      <span className="panel-loading-spinner" aria-hidden="true" />
+      <strong>{label}</strong>
+      <span>Bu bölüm yalnız gerektiğinde yüklenir.</span>
+    </div>
   );
 }
 
@@ -36,8 +56,8 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
   return (
     <div className="operations-body">
       <button type="button" className="primary-button full" onClick={onAddBookmark}><Icon name="plus" /> Bu görünümü kaydet</button>
-      <p className="section-note">Sık baktığınız konumları ve açık katmanları kaydedip daha sonra tek tıkla geri dönebilirsiniz.</p>
-      <div className="bookmark-list">
+      <p className="section-note">Konumu ve açık katmanları birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma görünümüne dönün.</p>
+      <div className="bookmark-list" aria-live="polite">
         {bookmarks.length === 0 && (
           <div className="empty-state">
             <Icon name="bookmark" size={28} />
@@ -47,14 +67,14 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
         )}
         {bookmarks.map((bookmark) => (
           <article className="bookmark-card" key={bookmark.id}>
-            <button type="button" className="bookmark-main" onClick={() => onGoBookmark(bookmark)}>
+            <button type="button" className="bookmark-main" onClick={() => onGoBookmark(bookmark)} aria-label={`${bookmark.name} yer imine git`}>
               <span className="bookmark-icon"><Icon name="bookmark" /></span>
               <span>
                 <strong>{bookmark.name}</strong>
                 <small>{new Date(bookmark.createdAt).toLocaleString("tr-TR")} · {bookmark.layerIds.length} katman</small>
               </span>
             </button>
-            <button type="button" className="icon-ghost is-danger" onClick={() => onDeleteBookmark(bookmark)} aria-label="Yer imini sil">
+            <button type="button" className="icon-ghost is-danger" onClick={() => onDeleteBookmark(bookmark)} aria-label={`${bookmark.name} yer imini sil`}>
               <Icon name="trash" size={15} />
             </button>
           </article>
@@ -68,21 +88,37 @@ function HelpPanel() {
   return (
     <div className="operations-body help-body">
       <div className="help-hero">
-        <div className="help-orbit"><span /><span /><span /></div>
+        <div className="help-orbit" aria-hidden="true"><span /><span /><span /></div>
         <h3>Ankara Kent Rehberi</h3>
-        <p>Adres arayın, istediğiniz katmanları açın, haritayı 3B inceleyin ve mesafe veya alan ölçümü gibi harita araçlarını kullanın.</p>
+        <p>Adres arayın, görmek istediğiniz katmanları açın, 3B haritada inceleyin ve ölçüm araçlarını ihtiyaç duyduğunuzda kullanın.</p>
       </div>
-      <div className="shortcut-list">
-        <Shortcut keyName="L" label="Katmanlar" />
-        <Shortcut keyName="D" label="Harita verisi" />
-        <Shortcut keyName="H" label="Başlangıç görünümü" />
-        <Shortcut keyName="F" label="Tam ekran" />
-        <Shortcut keyName="M" label="Haritaya odaklan" />
-        <Shortcut keyName="Esc" label="Açık aracı veya paneli kapat" />
-      </div>
-      <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Sol menüden ulaşım, altyapı, sınır ve diğer harita katmanlarını açıp kapatabilirsiniz.</span></div></div>
+
+      <section className="help-section" aria-labelledby="help-first-steps">
+        <h4 id="help-first-steps">Hızlı başlangıç</h4>
+        <ol className="help-steps">
+          <li><strong>Katman seçin.</strong><span>Katmanlar bölümünden görmek istediğiniz veriyi açın; gerekli zoom otomatik ayarlanır.</span></li>
+          <li><strong>Konum arayın.</strong><span>Üstteki arama alanından adres, cadde veya yer adı bulun.</span></li>
+          <li><strong>Haritada inceleyin.</strong><span>Fare, dokunmatik veya klavye ile hareket edin; katman açık kaldığı sürece güvenli ölçek aralığı korunur.</span></li>
+        </ol>
+      </section>
+
+      <section className="help-section" aria-labelledby="help-shortcuts">
+        <h4 id="help-shortcuts">Klavye kısayolları</h4>
+        <div className="shortcut-list">
+          <Shortcut keyName="L" label="Katmanlar" />
+          <Shortcut keyName="D" label="Harita verisi" />
+          <Shortcut keyName="H" label="Başlangıç görünümü" />
+          <Shortcut keyName="/" label="Arama alanına git" />
+          <Shortcut keyName="?" label="Yardımı aç" />
+          <Shortcut keyName="F" label="Tam ekran" />
+          <Shortcut keyName="M" label="Haritaya odaklan" />
+          <Shortcut keyName="Esc" label="Açık aracı veya paneli kapat" />
+        </div>
+      </section>
+
+      <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Bir katmanı açtığınızda Kent Rehberi servis kapsamını ve uygun zoom aralığını otomatik uygular.</span></div></div>
       <div className="health-note"><Icon name="search" /><div><strong>Arama</strong><span>Üst bölümdeki arama alanını kullanarak adres ve yer arayabilirsiniz.</span></div></div>
-      <div className="health-note"><Icon name="info" /><div><strong>Akıcı kullanım</strong><span>Harita kalitesi ve servis bağlantıları cihazınıza göre otomatik yönetilir; teknik ayar yapmanız gerekmez.</span></div></div>
+      <div className="health-note"><Icon name="info" /><div><strong>Bağlantı ve performans</strong><span>Harita kalitesi, servis tekrar denemeleri ve bağlantı kurtarma işlemleri cihazınıza göre arka planda yönetilir.</span></div></div>
     </div>
   );
 }
@@ -94,5 +130,5 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "data") return "Harita Verisi";
   if (panel === "bookmarks") return "Yer İmleri";
-  return "Yardım";
+  return "Yardım ve Kısayollar";
 }
