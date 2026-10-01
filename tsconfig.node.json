@@ -14,6 +14,10 @@
     "noUncheckedIndexedAccess": true,
     "noUncheckedSideEffectImports": true,
     "erasableSyntaxOnly": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
     "skipLibCheck": true
   },
   "include": ["vite.config.ts"]
