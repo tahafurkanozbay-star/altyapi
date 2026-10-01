@@ -5,6 +5,7 @@ import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import { installPublicServiceWarmup } from "./lib/serviceWarmup";
+import { installRuntimeEventDomBridge } from "./platform/runtimeEventDomBridge";
 import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
@@ -29,9 +30,10 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error("[Başkent 3B CBS] Unhandled rejection", event.reason);
 });
 
-// Install the render-health store before the LayerView watchdog and React. The
-// runtime owns activation navigation; the watchdog observes render truth and
-// only performs post-activation recovery when the transaction has completed.
+// v40 keeps ArcGIS SDK DOM events at the browser boundary but routes
+// application-owned runtime messages through a typed in-process bus. Install
+// the compatibility bridge before stores/watchdogs so no early signal is lost.
+installRuntimeEventDomBridge();
 installLayerRenderHealthStore();
 installSceneLayerWatchdog();
 installPublicServiceWarmup();
