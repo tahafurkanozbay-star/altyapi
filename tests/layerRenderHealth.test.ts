@@ -121,12 +121,17 @@ describe("LayerView render health UI state", () => {
   it("persists watchdog health outside the panel lifecycle and exposes render recovery", async () => {
     const main = await readFile("src/main.tsx", "utf8");
     const store = await readFile("src/lib/layerRenderHealth.ts", "utf8");
+    const bridge = await readFile("src/platform/runtimeEventDomBridge.ts", "utf8");
     const watchdog = await readFile("src/gis/layerViewWatchdog.ts", "utf8");
     const explorer = await readFile("src/components/LayerExplorer.tsx", "utf8");
 
+    expect(main).toContain("installRuntimeEventDomBridge();");
     expect(main).toContain("installLayerRenderHealthStore();");
+    expect(main.indexOf("installRuntimeEventDomBridge();")).toBeLessThan(main.indexOf("installLayerRenderHealthStore();"));
     expect(main.indexOf("installLayerRenderHealthStore();")).toBeLessThan(main.indexOf("installSceneLayerWatchdog();"));
-    expect(store).toContain('window.addEventListener("altyapi:layerview-health"');
+    expect(store).toContain('subscribeRuntimeEvent("layer-render-health"');
+    expect(store).not.toContain('window.addEventListener("altyapi:layerview-health"');
+    expect(bridge).toContain('window.addEventListener(LEGACY_LAYER_RENDER_HEALTH_EVENT');
     expect(store).toContain("subscribeLayerRenderHealth");
     expect(watchdog).toContain('emitHealth(layerId, "render-stalled"');
     expect(watchdog).toContain("recyclePending");
