@@ -2,9 +2,9 @@
 // Do not hand-edit public/sw.js; this strict TypeScript file is the source of truth.
 const sw = globalThis as unknown as ServiceWorkerGlobalScope;
 
-const SHELL_CACHE = "altyapi-shell-v42";
-const DATA_CACHE = "altyapi-data-v42";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./favicon.svg"] as const;
+const SHELL_CACHE = "altyapi-shell-v43";
+const DATA_CACHE = "altyapi-data-v43";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./ankara-logo.png"] as const;
 const DATA_FILES = ["./services.json", "./service-health.json", "./service-navigation.json"] as const;
 
 type WorkerMessage =
