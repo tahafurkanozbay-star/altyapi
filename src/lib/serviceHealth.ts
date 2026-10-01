@@ -3,8 +3,18 @@ import type {
   ServiceAvailability,
   ServiceDefinition,
   ServiceHealthSnapshot,
+  ServiceKind,
   ServiceVerificationEntry
 } from "../types";
+import {
+  asRecord,
+  readArray,
+  readEnum,
+  readFiniteNumber,
+  readIsoDate,
+  readNullableBoolean,
+  readString
+} from "../platform/runtimeContracts";
 import { isDirectTucbsUrl, isUnconfiguredTucbsUrl } from "./tucbsAccess";
 import {
   applyTucbsClientHealth,
@@ -13,6 +23,7 @@ import {
 
 const AVAILABILITY = new Set<ServiceAvailability>(["verified", "degraded", "unavailable", "unknown"]);
 const ACCESS = new Set<ServiceAccess>(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
+const SERVICE_KINDS = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 export const SERVICE_HEALTH_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 
 export async function loadServiceHealthSnapshot(url = "./service-health.json", signal?: AbortSignal): Promise<ServiceHealthSnapshot | null> {
@@ -28,44 +39,45 @@ export async function loadServiceHealthSnapshot(url = "./service-health.json", s
 }
 
 export function parseServiceHealthSnapshot(value: unknown): ServiceHealthSnapshot {
-  if (!value || typeof value !== "object") throw new Error("Servis sağlık özeti geçersiz.");
-  const input = value as Record<string, unknown>;
-  if (input.schemaVersion !== 1 || !Array.isArray(input.services)) {
+  const input = asRecord(value);
+  if (!input) throw new Error("Servis sağlık özeti geçersiz.");
+  const servicesInput = readArray(input, "services");
+  if (input.schemaVersion !== 1 || !servicesInput) {
     throw new Error("Desteklenmeyen servis sağlık özeti biçimi.");
   }
 
-  const generatedAt = typeof input.generatedAt === "string" && !Number.isNaN(Date.parse(input.generatedAt))
-    ? input.generatedAt
-    : new Date(0).toISOString();
+  const generatedAt = readIsoDate(input, "generatedAt") ?? new Date(0).toISOString();
+  const services: ServiceVerificationEntry[] = servicesInput.flatMap((entry) => {
+    const record = asRecord(entry);
+    if (!record) return [];
 
-  const services: ServiceVerificationEntry[] = input.services.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const record = entry as Record<string, unknown>;
-    if (typeof record.index !== "number" || !Number.isInteger(record.index) || typeof record.name !== "string" || typeof record.kind !== "string") return [];
-    if (!AVAILABILITY.has(record.availability as ServiceAvailability)) return [];
-    if (!ACCESS.has(record.access as ServiceAccess)) return [];
-    const browserCompatible =
-      typeof record.browserCompatible === "boolean" ? record.browserCompatible :
-      record.browserCompatible === null ? null :
-      undefined;
+    const index = readFiniteNumber(record, "index", { min: 0, integer: true });
+    const name = readString(record, "name", { trim: true, nonEmpty: true, maxLength: 240 });
+    const kind = readEnum(record, "kind", SERVICE_KINDS);
+    const availability = readEnum(record, "availability", AVAILABILITY);
+    const access = readEnum(record, "access", ACCESS);
+    if (index === undefined || !name || !kind || !availability || !access) return [];
+
+    const browserCompatible = readNullableBoolean(record, "browserCompatible");
+    const latency = readFiniteNumber(record, "latencyMs", { min: 0 });
+    const reason = readString(record, "reason", { maxLength: 240 });
+
     return [{
-      index: Number(record.index),
-      name: record.name,
-      kind: record.kind as ServiceVerificationEntry["kind"],
-      availability: record.availability as ServiceAvailability,
-      access: record.access as ServiceAccess,
+      index,
+      name,
+      kind,
+      availability,
+      access,
       browserCompatible,
-      latencyMs: typeof record.latencyMs === "number" && Number.isFinite(record.latencyMs) && record.latencyMs >= 0
-        ? Math.round(record.latencyMs)
-        : undefined,
-      reason: typeof record.reason === "string" ? record.reason.slice(0, 240) : undefined
+      latencyMs: latency === undefined ? undefined : Math.round(latency),
+      reason
     }];
   });
 
   return {
     schemaVersion: 1,
     generatedAt,
-    source: typeof input.source === "string" ? input.source.slice(0, 120) : "unknown",
+    source: readString(input, "source", { maxLength: 120 }) ?? "unknown",
     services
   };
 }
