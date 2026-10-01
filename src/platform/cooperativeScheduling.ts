@@ -55,7 +55,8 @@ export async function runCooperativeTask<T>(
   const scheduler = schedulerFrom(target);
   if (typeof scheduler?.postTask === "function") {
     try {
-      return await scheduler.postTask.call(scheduler, task, { priority });
+      const result = await scheduler.postTask.call(scheduler, task, { priority });
+      return result as T;
     } catch {
       // Fall through to the universally supported event-loop yield.
     }
