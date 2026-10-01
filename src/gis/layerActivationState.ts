@@ -1,6 +1,6 @@
-const pendingActivations = new Map<string, number>();
+import { publishRuntimeEvent } from "../platform/runtimeEvents";
 
-export const ATOMIC_LAYER_ACTIVATION_EVENT = "altyapi:atomic-layer-activation-complete";
+const pendingActivations = new Map<string, number>();
 
 /**
  * Marks a managed ArcGIS layer as being inside the runtime-owned activation
@@ -18,9 +18,7 @@ export function endAtomicLayerActivation(layerId: string): void {
   const count = pendingActivations.get(layerId) ?? 0;
   if (count <= 1) {
     pendingActivations.delete(layerId);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(ATOMIC_LAYER_ACTIVATION_EVENT, { detail: { layerId } }));
-    }
+    publishRuntimeEvent("atomic-layer-activation-complete", { layerId });
     return;
   }
   pendingActivations.set(layerId, count - 1);
