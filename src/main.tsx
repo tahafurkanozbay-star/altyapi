@@ -6,6 +6,7 @@ import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import { installPublicServiceWarmup } from "./lib/serviceWarmup";
 import { installRuntimeEventDomBridge } from "./platform/runtimeEventDomBridge";
+import { installRuntimePressureMonitor } from "./platform/runtimePressure";
 import "@arcgis/core/assets/esri/themes/light/main.css";
 import "./styles/app.css";
 import "./styles/runtime.css";
@@ -30,10 +31,10 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error("[Başkent 3B CBS] Unhandled rejection", event.reason);
 });
 
-// v40 keeps ArcGIS SDK DOM events at the browser boundary but routes
-// application-owned runtime messages through a typed in-process bus. Install
-// the compatibility bridge before stores/watchdogs so no early signal is lost.
+// v41 keeps application-owned events typed, measures real main-thread pressure,
+// and lets background work yield before it can compete with interactive GIS work.
 installRuntimeEventDomBridge();
+installRuntimePressureMonitor();
 installLayerRenderHealthStore();
 installSceneLayerWatchdog();
 installPublicServiceWarmup();
