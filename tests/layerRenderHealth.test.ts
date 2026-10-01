@@ -136,9 +136,9 @@ describe("LayerView render health UI state", () => {
     expect(watchdog).toContain('emitHealth(layerId, "render-stalled"');
     expect(watchdog).toContain("recyclePending");
     expect(explorer).toContain("useSyncExternalStore");
-    expect(explorer).toContain("Render bekleniyor");
-    expect(explorer).toContain("Render katmanını yeniden oluştur");
+    expect(explorer).toContain("Haritada hazırlanıyor");
+    expect(explorer).toContain("Harita görünümünü yeniden hazırla");
     expect(explorer).toContain("data-render-state");
-    expect(explorer).toContain("render hazır");
+    expect(explorer).toContain("haritada hazır");
   });
 });

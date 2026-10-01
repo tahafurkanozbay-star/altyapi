@@ -4,29 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
-    <meta name="description" content="Başkent 3B CBS v13 · component-first ArcGIS Scene mimarisi, runtime recovery, ölçek-duyarlı altyapı navigasyonu ve güvenli operasyon araçları" />
+    <meta name="description" content="Ankara Kent Rehberi · Ankara Büyükşehir Belediyesi 3B kent haritası, altyapı ve kent katmanları, adres arama, ölçüm ve veri inceleme araçları." />
     <meta name="color-scheme" content="light" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <meta name="application-name" content="Başkent 3B CBS" />
+    <meta name="application-name" content="Ankara Kent Rehberi" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Ankara Kent Rehberi" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <title>Başkent 3B CBS v13 · Component-First Scene</title>
+    <link rel="icon" href="./ankara-logo.png" type="image/png" />
+    <link rel="apple-touch-icon" href="./ankara-logo.png" />
+    <title>Ankara Kent Rehberi · 3B Kent Haritası</title>
   </head>
   <body>
     <div id="root">
-      <div id="static-boot-fallback" style="min-height:100vh;display:grid;place-items:center;background:#f4f7f9;color:#183243;font:14px/1.6 Inter,system-ui,sans-serif;padding:24px;text-align:center">
-        <div><strong style="font-size:18px">Başkent 3B CBS hazırlanıyor…</strong><div style="margin-top:6px;color:#6b8291">Component-First Scene çalışma alanı, ArcGIS Web Components ve 3B harita motoru yükleniyor.</div></div>
+      <div id="static-boot-fallback" role="status" aria-live="polite" style="min-height:100vh;display:grid;place-items:center;background:#f4f7f9;color:#183243;font:14px/1.6 Inter,system-ui,sans-serif;padding:24px;text-align:center">
+        <div style="max-width:520px">
+          <img src="./ankara-logo.png" alt="" width="48" height="80" style="object-fit:contain;margin-bottom:14px" />
+          <strong style="display:block;font-size:18px">Ankara Kent Rehberi hazırlanıyor…</strong>
+          <div style="margin-top:6px;color:#6b8291">3B harita ve kent katmanları yükleniyor. Ekran uzun süre değişmezse uygulamayı Vite geliştirme sunucusu veya üretim çıktısı üzerinden açın.</div>
+        </div>
       </div>
     </div>
-    <noscript>Bu uygulamanın çalışması için JavaScript etkin olmalıdır.</noscript>
-    <script>
-      window.__ALTYAPI_BOOT_TIMER__ = window.setTimeout(function () {
-        if (document.documentElement.dataset.appReady === "true") return;
-        var root = document.getElementById("root");
-        if (!root) return;
-        root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;background:#f4f7f9;color:#183243;font:14px/1.65 Inter,system-ui,sans-serif;padding:24px"><div style="max-width:680px;border:1px solid #dbe5eb;border-radius:20px;background:#ffffff;box-shadow:0 18px 52px rgba(43,72,91,.12);padding:26px"><strong style="font-size:20px">Uygulama derlenmeden açılamadı</strong><p style="color:#6b8291">Bu proje React + TypeScript + Vite kullanır. VS Code Live Server kaynak <code>.tsx</code> dosyalarını derleyemez.</p><p><code>npm install</code><br><code>npm run dev</code></p><p style="color:#6b8291">Live Server kullanmak zorundaysanız önce <code>npm run build</code> çalıştırın ve <code>dist/</code> çıktısını servis edin.</p></div></div>';
-      }, 4500);
-    </script>
+    <noscript>Ankara Kent Rehberi'nin çalışması için JavaScript etkin olmalıdır.</noscript>
+    <script type="module" src="/src/boot.ts"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,589 @@
+/* v43 · Citizen-first experience layer
+   Loaded last so it can improve ergonomics without weakening GIS runtime styles. */
+
+:root {
+  --v43-touch-target: 44px;
+  --v43-focus-ring: 0 0 0 3px rgba(0, 92, 171, .24);
+  --v43-panel-radius: 18px;
+  --v43-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --v43-safe-top: env(safe-area-inset-top, 0px);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.skip-links {
+  position: fixed;
+  top: calc(8px + var(--v43-safe-top));
+  left: 12px;
+  z-index: 10000;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.skip-links a {
+  transform: translateY(-160%);
+  min-height: var(--v43-touch-target);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 2px solid #075b9e;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #063c68;
+  box-shadow: 0 10px 30px rgba(16, 45, 65, .18);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  pointer-events: auto;
+  transition: transform 140ms ease;
+}
+
+.skip-links a:focus {
+  transform: translateY(0);
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #0b6fbd !important;
+  outline-offset: 2px !important;
+  box-shadow: var(--v43-focus-ring) !important;
+}
+
+.topbar button,
+.topbar select,
+.mobile-menu,
+.tool-button,
+.icon-ghost,
+.favorite-button,
+.visibility-button,
+.catalog-action {
+  min-height: var(--v43-touch-target);
+}
+
+.top-icon-button,
+.mobile-menu,
+.tool-button,
+.icon-ghost,
+.favorite-button,
+.visibility-button {
+  min-width: var(--v43-touch-target);
+}
+
+.workspace-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid #d7e3ea;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  color: #506b7a;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(33, 65, 84, .06);
+}
+
+.workspace-summary span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.workspace-summary strong {
+  color: #183f56;
+  font-size: 11px;
+}
+
+.workspace-summary .is-loading strong {
+  color: #a76a00;
+}
+
+.workspace-summary .is-error strong {
+  color: #b33148;
+}
+
+.offline-banner {
+  position: fixed;
+  z-index: 2900;
+  left: 50%;
+  bottom: calc(46px + var(--v43-safe-bottom));
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  border: 1px solid #efc46a;
+  border-radius: 14px;
+  background: rgba(255, 249, 231, .97);
+  color: #765115;
+  box-shadow: 0 12px 34px rgba(74, 54, 18, .16);
+  backdrop-filter: blur(12px);
+}
+
+.offline-banner strong,
+.offline-banner span {
+  display: block;
+}
+
+.offline-banner strong {
+  font-size: 12px;
+}
+
+.offline-banner span {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.layer-explorer .panel-heading p {
+  max-width: 32rem;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.layer-card-title > strong {
+  font-size: 13px !important;
+  line-height: 1.3;
+}
+
+.layer-meta-row,
+.layer-owner-line,
+.layer-info-box,
+.opacity-control,
+.filter-result-count,
+.filter-circuit-count {
+  font-size: 10px !important;
+}
+
+.layer-card {
+  border-radius: 14px !important;
+}
+
+.layer-card.is-active {
+  box-shadow: 0 8px 22px rgba(10, 89, 148, .08);
+}
+
+.search-field {
+  min-height: 44px;
+}
+
+.search-field input {
+  min-width: 0;
+  font-size: 13px !important;
+}
+
+.filter-row,
+.availability-filter {
+  scroll-snap-type: x proximity;
+}
+
+.filter-chip,
+.availability-chip {
+  min-height: 34px !important;
+  scroll-snap-align: start;
+  font-size: 10.5px !important;
+}
+
+.filter-reset {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 9px;
+  background: #edf5fa;
+  color: #235b7d;
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.filter-reset:hover {
+  background: #dfeef7;
+}
+
+.group-heading {
+  min-height: 38px;
+}
+
+.layer-actions .icon-ghost,
+.layer-card .favorite-button,
+.layer-card .visibility-button {
+  min-width: 38px;
+  min-height: 38px;
+}
+
+.panel-loading {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 28px;
+  color: #617987;
+  text-align: center;
+}
+
+.panel-loading strong {
+  color: #173d54;
+  font-size: 13px;
+}
+
+.panel-loading > span:last-child {
+  font-size: 10.5px;
+}
+
+.panel-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #dbe8f0;
+  border-top-color: #0d71bf;
+  border-radius: 50%;
+  animation: v43-spin 800ms linear infinite;
+}
+
+@keyframes v43-spin {
+  to { transform: rotate(360deg); }
+}
+
+.help-section {
+  display: grid;
+  gap: 9px;
+}
+
+.help-section h4 {
+  margin: 0;
+  color: #173d54;
+  font-size: 11px;
+  letter-spacing: .02em;
+}
+
+.help-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: help-step;
+}
+
+.help-steps li {
+  counter-increment: help-step;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 2px 9px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e1e9ee;
+  border-radius: 12px;
+  background: #fbfdfe;
+}
+
+.help-steps li::before {
+  content: counter(help-step);
+  grid-row: 1 / span 2;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8f3fb;
+  color: #0b66a7;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.help-steps strong {
+  color: #27495c;
+  font-size: 10.5px;
+}
+
+.help-steps span {
+  color: #6a7f8c;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.app-update-banner,
+.offline-banner {
+  max-width: calc(100vw - 24px);
+}
+
+/* Keep content readable on high-density desktop displays. */
+@media (min-width: 1100px) {
+  .panel-content,
+  .operations-body {
+    scrollbar-gutter: stable;
+  }
+
+  .main-panel,
+  .operations-panel {
+    border-radius: var(--v43-panel-radius) !important;
+  }
+}
+
+/* Touch-first layout: left rail becomes a bottom dock, panels become bottom sheets. */
+@media (max-width: 760px) {
+  :root {
+    --v43-mobile-dock: calc(66px + var(--v43-safe-bottom));
+  }
+
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .topbar {
+    top: var(--v43-safe-top) !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    min-height: 58px !important;
+    padding: 7px 8px !important;
+    border-radius: 16px !important;
+    gap: 7px !important;
+  }
+
+  .brand > div:last-child > span,
+  .workspace-summary,
+  .live-chip {
+    display: none !important;
+  }
+
+  .brand > div:last-child > strong {
+    max-width: 138px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px !important;
+  }
+
+  .global-search {
+    position: fixed !important;
+    top: calc(72px + var(--v43-safe-top)) !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    z-index: 2200 !important;
+  }
+
+  .top-actions .compact-select {
+    max-width: 104px;
+  }
+
+  .share-button {
+    width: var(--v43-touch-target);
+    min-width: var(--v43-touch-target);
+    padding-inline: 0 !important;
+    font-size: 0 !important;
+  }
+
+  .share-button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tool-rail {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    z-index: 2600 !important;
+    width: 100% !important;
+    height: var(--v43-mobile-dock) !important;
+    min-height: var(--v43-mobile-dock) !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 2px !important;
+    padding: 7px 8px calc(7px + var(--v43-safe-bottom)) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    border: 0 !important;
+    border-top: 1px solid #dce6ec !important;
+    border-radius: 18px 18px 0 0 !important;
+    background: rgba(255, 255, 255, .97) !important;
+    box-shadow: 0 -8px 28px rgba(24, 58, 78, .12) !important;
+    backdrop-filter: blur(16px) !important;
+    scrollbar-width: none;
+  }
+
+  .tool-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tool-rail-mark,
+  .tool-group-label {
+    display: none !important;
+  }
+
+  .tool-group,
+  .tool-group-analysis,
+  .tool-group-bottom {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 2px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  .tool-group + .tool-group {
+    margin-left: 4px !important;
+    padding-left: 4px !important;
+    border-left: 1px solid #e4ebef !important;
+  }
+
+  .tool-button {
+    flex: 0 0 var(--v43-touch-target) !important;
+    width: var(--v43-touch-target) !important;
+    height: var(--v43-touch-target) !important;
+  }
+
+  .tool-tooltip {
+    display: none !important;
+  }
+
+  .panel-zone {
+    position: fixed !important;
+    z-index: 2500 !important;
+    inset: auto 8px var(--v43-mobile-dock) 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    height: min(70dvh, 680px) !important;
+    max-height: calc(100dvh - 150px - var(--v43-safe-top)) !important;
+    transform: translateY(calc(100% + var(--v43-mobile-dock) + 24px)) !important;
+    transition: transform 180ms cubic-bezier(.2, .75, .2, 1) !important;
+    pointer-events: none !important;
+  }
+
+  .panel-zone.is-mobile-visible {
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+  }
+
+  .main-panel,
+  .operations-panel {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 18px 18px 12px 12px !important;
+    box-shadow: 0 -12px 42px rgba(19, 53, 72, .18) !important;
+  }
+
+  .map-tool-panel,
+  .details-panel {
+    bottom: calc(var(--v43-mobile-dock) + 8px) !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .status-bar {
+    bottom: calc(var(--v43-mobile-dock) + 6px) !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .app-shell:has(.panel-zone.is-mobile-visible) .status-bar {
+    display: none !important;
+  }
+
+  .offline-banner {
+    bottom: calc(var(--v43-mobile-dock) + 10px);
+  }
+
+  .app-update-banner {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(var(--v43-mobile-dock) + 10px) !important;
+    width: auto !important;
+    transform: none !important;
+  }
+
+  .catalog-overview-v9 {
+    grid-template-columns: repeat(5, minmax(62px, 1fr)) !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .catalog-overview-v9::-webkit-scrollbar {
+    display: none;
+  }
+
+  .layer-card-title > strong {
+    font-size: 13.5px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-actions .compact-select {
+    display: none;
+  }
+
+  .brand > div:last-child > strong {
+    max-width: 112px;
+  }
+
+  .panel-zone {
+    inset-inline: 4px !important;
+  }
+
+  .catalog-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .layer-card-main {
+    align-items: flex-start !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .layer-card,
+  .main-panel,
+  .operations-panel,
+  .topbar,
+  .tool-rail {
+    border-color: #8297a4 !important;
+  }
+
+  .layer-meta-row,
+  .layer-owner-line,
+  .section-note {
+    color: #425b6a !important;
+  }
+}

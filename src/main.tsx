@@ -13,26 +13,21 @@ import "./styles/runtime.css";
 import "./styles/comfort-white.css";
 import "./styles/ankara-brand.css";
 import "./styles/tucbs-access.css";
-
-declare global {
-  interface Window {
-    __ALTYAPI_BOOT_TIMER__?: number;
-  }
-}
+import "./styles/experience-v43.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");
 
 window.addEventListener("error", (event) => {
-  console.error("[Başkent 3B CBS] Global error", event.error ?? event.message);
+  console.error("[Ankara Kent Rehberi] Global error", event.error ?? event.message);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
-  console.error("[Başkent 3B CBS] Unhandled rejection", event.reason);
+  console.error("[Ankara Kent Rehberi] Unhandled rejection", event.reason);
 });
 
-// v41 keeps application-owned events typed, measures real main-thread pressure,
-// and lets background work yield before it can compete with interactive GIS work.
+// Application-owned events stay typed, main-thread pressure is measured at runtime,
+// and background GIS work yields before it can compete with interactive rendering.
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installLayerRenderHealthStore();
@@ -89,7 +84,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 
       void nextRegistration.update();
     }).catch((error) => {
-      console.warn("[Başkent 3B CBS] Service worker kaydedilemedi", error);
+      console.warn("[Ankara Kent Rehberi] Service worker kaydedilemedi", error);
     });
   });
 }
