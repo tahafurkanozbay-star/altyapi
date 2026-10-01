@@ -81,6 +81,8 @@ export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): v
 export async function createLayer(service: ServiceDefinition): Promise<Layer> {
   const effectiveService = nextCreationService(service);
   if (isUnconfiguredTucbsUrl(effectiveService.url)) {
+    // v40 migration marker: legacy "altyapi:tucbs-access-required" CustomEvent
+    // is now a compile-time typed runtime-bus message.
     publishRuntimeEvent("tucbs-access-required", {
       serviceId: service.id,
       serviceName: service.displayName,
