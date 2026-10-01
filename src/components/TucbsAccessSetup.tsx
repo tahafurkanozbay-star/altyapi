@@ -17,6 +17,7 @@ import {
   discoverTucbsCoverageProfiles,
   saveTucbsCoverageProfiles
 } from "../lib/tucbsCoverage";
+import { subscribeRuntimeEvent } from "../platform/runtimeEvents";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -28,11 +29,7 @@ interface Props {
 export function TucbsAccessSetupHost() {
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    const openSetup = () => setOpen(true);
-    window.addEventListener("altyapi:tucbs-access-required", openSetup);
-    return () => window.removeEventListener("altyapi:tucbs-access-required", openSetup);
-  }, []);
+  useEffect(() => subscribeRuntimeEvent("tucbs-access-required", () => setOpen(true)), []);
 
   return (
     <TucbsAccessSetup

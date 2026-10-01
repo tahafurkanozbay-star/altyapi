@@ -1,12 +1,23 @@
 import type {
   OperationalExtent,
   ServiceDefinition,
+  ServiceKind,
   ServiceNavigationProfile,
   ServiceNavigationSnapshot,
   ServiceNavigationSource
 } from "../types";
+import {
+  asRecord,
+  readArray,
+  readBoolean,
+  readEnum,
+  readFiniteNumber,
+  readIsoDate,
+  readString
+} from "../platform/runtimeContracts";
 
 const SOURCES = new Set<ServiceNavigationSource>(["verified-query", "declared-service", "verified-render"]);
+const SERVICE_KINDS = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
 const SCALE_BOUNDARY_INSET = 0.015;
 
 export interface ActiveOperationalScaleRange {
@@ -36,47 +47,43 @@ export async function loadServiceNavigationSnapshot(
 }
 
 export function parseServiceNavigationSnapshot(value: unknown): ServiceNavigationSnapshot {
-  if (!value || typeof value !== "object") throw new Error("Servis navigasyon özeti geçersiz.");
-  const input = value as Record<string, unknown>;
-  if (input.schemaVersion !== 1 || !Array.isArray(input.profiles)) {
+  const input = asRecord(value);
+  if (!input) throw new Error("Servis navigasyon özeti geçersiz.");
+  const profilesInput = readArray(input, "profiles");
+  if (input.schemaVersion !== 1 || !profilesInput) {
     throw new Error("Desteklenmeyen servis navigasyon özeti biçimi.");
   }
 
-  const verifiedAt =
-    typeof input.verifiedAt === "string" && !Number.isNaN(Date.parse(input.verifiedAt))
-      ? input.verifiedAt
-      : new Date(0).toISOString();
+  const verifiedAt = readIsoDate(input, "verifiedAt") ?? new Date(0).toISOString();
+  const profiles: ServiceNavigationProfile[] = profilesInput.flatMap((entry) => {
+    const record = asRecord(entry);
+    if (!record) return [];
 
-  const profiles: ServiceNavigationProfile[] = input.profiles.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const record = entry as Record<string, unknown>;
-    if (!Number.isInteger(record.index) || typeof record.name !== "string" || typeof record.kind !== "string") return [];
-    if (!SOURCES.has(record.source as ServiceNavigationSource)) return [];
+    const index = readFiniteNumber(record, "index", { min: 0, integer: true });
+    const name = readString(record, "name", { trim: true, nonEmpty: true, maxLength: 240 });
+    const kind = readEnum(record, "kind", SERVICE_KINDS);
+    const source = readEnum(record, "source", SOURCES);
     const extent = parseExtent(record.extent);
-    if (!extent) return [];
-
-    const minScale = parseScale(record.minScale);
-    const maxScale = parseScale(record.maxScale);
-    const recommendedScale = parseScale(record.recommendedScale);
+    if (index === undefined || !name || !kind || !source || !extent) return [];
 
     return [{
-      index: Number(record.index),
-      name: record.name,
-      kind: record.kind as ServiceNavigationProfile["kind"],
+      index,
+      name,
+      kind,
       extent,
-      minScale,
-      maxScale,
-      recommendedScale,
-      renderScaleSensitive: record.renderScaleSensitive === true,
-      source: record.source as ServiceNavigationSource,
-      note: typeof record.note === "string" ? record.note.slice(0, 260) : undefined
+      minScale: parseScale(record.minScale),
+      maxScale: parseScale(record.maxScale),
+      recommendedScale: parseScale(record.recommendedScale),
+      renderScaleSensitive: readBoolean(record, "renderScaleSensitive") === true,
+      source,
+      note: readString(record, "note", { maxLength: 260 })
     }];
   });
 
   return {
     schemaVersion: 1,
     verifiedAt,
-    source: typeof input.source === "string" ? input.source.slice(0, 160) : "unknown",
+    source: readString(input, "source", { maxLength: 160 }) ?? "unknown",
     profiles
   };
 }
@@ -243,13 +250,13 @@ function clampRecommended(value: number, minScale?: number, maxScale?: number): 
 }
 
 function parseExtent(value: unknown): OperationalExtent | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const record = value as Record<string, unknown>;
-  const xmin = Number(record.xmin);
-  const ymin = Number(record.ymin);
-  const xmax = Number(record.xmax);
-  const ymax = Number(record.ymax);
-  if (![xmin, ymin, xmax, ymax].every(Number.isFinite)) return undefined;
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const xmin = readFiniteNumber(record, "xmin");
+  const ymin = readFiniteNumber(record, "ymin");
+  const xmax = readFiniteNumber(record, "xmax");
+  const ymax = readFiniteNumber(record, "ymax");
+  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) return undefined;
   if (record.wkid !== 4326 || xmin >= xmax || ymin >= ymax) return undefined;
   if (xmin < -180 || xmax > 180 || ymin < -90 || ymax > 90) return undefined;
   return { xmin, ymin, xmax, ymax, wkid: 4326 };
@@ -257,7 +264,7 @@ function parseExtent(value: unknown): OperationalExtent | undefined {
 
 function parseScale(value: unknown): number | undefined {
   if (value === undefined || value === null || value === 0) return undefined;
-  const scale = Number(value);
+  const scale = typeof value === "number" ? value : Number.NaN;
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1_000_000_000) return undefined;
   return Math.round(scale);
 }

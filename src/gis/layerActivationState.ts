@@ -1,5 +1,8 @@
+import { publishRuntimeEvent } from "../platform/runtimeEvents";
+
 const pendingActivations = new Map<string, number>();
 
+/** @deprecated ArcGIS watchdog DOM bridge compatibility only. */
 export const ATOMIC_LAYER_ACTIVATION_EVENT = "altyapi:atomic-layer-activation-complete";
 
 /**
@@ -18,9 +21,7 @@ export function endAtomicLayerActivation(layerId: string): void {
   const count = pendingActivations.get(layerId) ?? 0;
   if (count <= 1) {
     pendingActivations.delete(layerId);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(ATOMIC_LAYER_ACTIVATION_EVENT, { detail: { layerId } }));
-    }
+    publishRuntimeEvent("atomic-layer-activation-complete", { layerId });
     return;
   }
   pendingActivations.set(layerId, count - 1);

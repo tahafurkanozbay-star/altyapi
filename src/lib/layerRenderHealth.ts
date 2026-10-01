@@ -1,12 +1,13 @@
-export type LayerRenderHealthPhase =
-  | "created"
-  | "stable"
-  | "scale-repair"
-  | "render-stalled"
-  | "recycle-attempt"
-  | "render-failed"
-  | "recovery-exhausted"
-  | "destroyed";
+import {
+  publishRuntimeEvent,
+  subscribeRuntimeEvent,
+  type LayerRenderHealthEventDetail,
+  type LayerRenderHealthPhase
+} from "../platform/runtimeEvents";
+import { asRecord, readEnum, readFiniteNumber, readString } from "../platform/runtimeContracts";
+
+export type { LayerRenderHealthPhase } from "../platform/runtimeEvents";
+export type LayerRenderHealthDetail = LayerRenderHealthEventDetail;
 
 export type LayerRenderState =
   | "preparing"
@@ -15,15 +16,6 @@ export type LayerRenderState =
   | "stalled"
   | "recovering"
   | "failed";
-
-export interface LayerRenderHealthDetail {
-  phase: LayerRenderHealthPhase;
-  layerId: string;
-  serviceId: string;
-  attempt?: number;
-  targetScale?: number;
-  elapsedMs?: number;
-}
 
 export interface LayerRenderHealthState {
   state: LayerRenderState;
@@ -52,19 +44,15 @@ let detachObserver: (() => void) | null = null;
 const subscribers = new Set<() => void>();
 
 export function installLayerRenderHealthStore(): () => void {
-  if (typeof window === "undefined") return () => undefined;
   if (detachObserver) return detachObserver;
 
-  const onRenderHealth = (event: Event) => {
-    if (!(event instanceof CustomEvent)) return;
-    const detail = parseLayerRenderHealthDetail(event.detail);
-    if (!detail) return;
+  detachObserver = subscribeRuntimeEvent("layer-render-health", (detail) => {
     applyLayerRenderHealth(detail);
-  };
+  });
 
-  window.addEventListener("altyapi:layerview-health", onRenderHealth);
+  const detach = detachObserver;
   detachObserver = () => {
-    window.removeEventListener("altyapi:layerview-health", onRenderHealth);
+    detach();
     detachObserver = null;
     if (snapshot !== EMPTY_SNAPSHOT) {
       snapshot = EMPTY_SNAPSHOT;
@@ -100,22 +88,29 @@ export function pruneLayerRenderHealth(visibleServiceIds: ReadonlySet<string>): 
   }
 }
 
+/**
+ * Defensive parser retained for external/diagnostic boundaries. Internal
+ * producers use the typed runtime bus and therefore never need to cast a
+ * window CustomEvent payload back into domain state.
+ */
 export function parseLayerRenderHealthDetail(value: unknown): LayerRenderHealthDetail | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  if (typeof record.phase !== "string" || !PHASES.has(record.phase as LayerRenderHealthPhase)) return null;
-  if (typeof record.layerId !== "string" || !record.layerId.startsWith("svc-") || record.layerId.length <= 4) return null;
-  if (typeof record.serviceId !== "string" || !record.serviceId.trim()) return null;
-  if (record.layerId !== `svc-${record.serviceId}`) return null;
+  const record = asRecord(value);
+  if (!record) return null;
 
-  const attempt = positiveInteger(record.attempt);
-  const targetScale = positiveFinite(record.targetScale);
-  const elapsedMs = positiveFinite(record.elapsedMs);
+  const phase = readEnum(record, "phase", PHASES);
+  const layerId = readString(record, "layerId", { nonEmpty: true });
+  const serviceId = readString(record, "serviceId", { trim: true, nonEmpty: true });
+  if (!phase || !layerId?.startsWith("svc-") || layerId.length <= 4 || !serviceId) return null;
+  if (layerId !== `svc-${serviceId}`) return null;
+
+  const attempt = positiveInteger(readFiniteNumber(record, "attempt"));
+  const targetScale = positiveFinite(readFiniteNumber(record, "targetScale"));
+  const elapsedMs = positiveFinite(readFiniteNumber(record, "elapsedMs"));
 
   return {
-    phase: record.phase as LayerRenderHealthPhase,
-    layerId: record.layerId,
-    serviceId: record.serviceId,
+    phase,
+    layerId,
+    serviceId,
     ...(attempt !== undefined ? { attempt } : {}),
     ...(targetScale !== undefined ? { targetScale } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {})
@@ -200,6 +195,11 @@ export function retainVisibleRenderHealth(
   return changed ? next : current;
 }
 
+/** Public typed producer for tests and non-ArcGIS runtime adapters. */
+export function publishLayerRenderHealth(detail: LayerRenderHealthDetail): void {
+  publishRuntimeEvent("layer-render-health", detail);
+}
+
 function applyLayerRenderHealth(detail: LayerRenderHealthDetail): void {
   const nextState = reduceLayerRenderHealth(snapshot[detail.serviceId], detail);
   if (!nextState) {
@@ -229,12 +229,12 @@ function notifySubscribers(): void {
   for (const listener of subscribers) listener();
 }
 
-function positiveInteger(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+function positiveInteger(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
-function positiveFinite(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+function positiveFinite(value: number | undefined): number | undefined {
+  return value !== undefined && value > 0 ? value : undefined;
 }
 
 function formatScale(value: number): string {
