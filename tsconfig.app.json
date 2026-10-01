@@ -27,5 +27,5 @@
     "allowUnusedLabels": false
   },
   "include": ["src"],
-  "exclude": ["src/sw"]
+  "exclude": ["src/sw", "src/workers"]
 }
