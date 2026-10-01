@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -28,5 +28,16 @@ describe("first-party language policy", () => {
     expect(files.some((file) => file.endsWith(".mjs"))).toBe(false);
     expect(files.some((file) => file.endsWith(".cjs"))).toBe(false);
     expect(files.some((file) => file.endsWith(".js"))).toBe(false);
+  });
+
+  it("allows JavaScript only as the generated browser service-worker artifact", async () => {
+    const publicFiles = await walk("public");
+    const publicJavaScript = publicFiles.filter((file) => extname(file) === ".js").sort();
+    const generatedWorker = await readFile("public/sw.js", "utf8");
+    const workerSource = await readFile("src/sw/sw.ts", "utf8");
+
+    expect(publicJavaScript).toEqual([join("public", "sw.js")]);
+    expect(generatedWorker).toContain("GENERATED OUTPUT");
+    expect(workerSource).toContain("strict TypeScript file is the source of truth");
   });
 });
