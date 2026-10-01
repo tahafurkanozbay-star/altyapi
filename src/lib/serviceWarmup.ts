@@ -1,9 +1,11 @@
 import type { PerformanceProfile, ServiceKind } from "../types";
+import { cooperativeYield } from "../platform/cooperativeScheduling";
+import { getRuntimePressureSnapshot, type RuntimePressureSnapshot } from "../platform/runtimePressure";
 import { detectPerformanceProfile } from "./performance";
 
 const WARMUP_LATENCY_THRESHOLD_MS = 1_500;
 const WARMUP_TIMEOUT_MS = 9_000;
-const WARMUP_SESSION_KEY = "altyapi:public-service-warmup-v1";
+const WARMUP_SESSION_KEY = "altyapi:public-service-warmup-v2";
 const TUCBS_HOST = "ucbp-api.tucbs.gov.tr";
 const ARCGIS_KINDS = new Set<ServiceKind>(["MapServer", "FeatureServer", "SceneServer"]);
 const SENSITIVE_QUERY_KEYS = /^(?:token|access_token|api_?key|apikey|secret|password|pass|signature|sig|auth|authorization)$/i;
@@ -102,8 +104,12 @@ export function selectPublicServiceWarmupCandidates(
     .slice(0, maxCandidates);
 }
 
-export function shouldRunPublicServiceWarmup(navigatorLike: NavigatorWithConnection = navigator): boolean {
+export function shouldRunPublicServiceWarmup(
+  navigatorLike: NavigatorWithConnection = navigator,
+  pressure: RuntimePressureSnapshot = getRuntimePressureSnapshot()
+): boolean {
   if (navigatorLike.onLine === false) return false;
+  if (pressure.level === "critical") return false;
   const connection = navigatorLike.connection ?? navigatorLike.mozConnection ?? navigatorLike.webkitConnection;
   if (connection?.saveData) return false;
   const effectiveType = connection?.effectiveType?.toLowerCase();
@@ -129,6 +135,8 @@ export function installPublicServiceWarmup(): void {
 }
 
 async function warmSlowPublicServices(): Promise<void> {
+  if (!shouldRunPublicServiceWarmup()) return;
+  await cooperativeYield();
   if (!shouldRunPublicServiceWarmup()) return;
 
   const [catalogResponse, healthResponse] = await Promise.all([
@@ -163,6 +171,8 @@ async function warmSlowPublicServices(): Promise<void> {
 }
 
 async function warmCandidate(candidate: ServiceWarmupCandidate): Promise<void> {
+  if (getRuntimePressureSnapshot().level === "critical") return;
+
   const target = new URL(candidate.url);
   target.searchParams.set("f", "json");
 
@@ -192,7 +202,11 @@ async function mapWithConcurrency<T>(items: T[], limit: number, mapper: (item: T
     while (cursor < items.length) {
       const index = cursor++;
       const item = items[index];
-      if (item !== undefined) await mapper(item);
+      if (item === undefined) continue;
+
+      await cooperativeYield();
+      if (getRuntimePressureSnapshot().level === "critical") continue;
+      await mapper(item);
     }
   }
   await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, () => worker()));
