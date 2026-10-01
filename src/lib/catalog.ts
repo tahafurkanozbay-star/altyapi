@@ -1,4 +1,5 @@
 import type { RawServiceDefinition, ServiceDefinition, ServiceKind } from "../types";
+import { asRecord, readArray, readString } from "../platform/runtimeContracts";
 import {
   loadTucbsEndpoints,
   loadTucbsScaleProfiles,
@@ -18,7 +19,6 @@ import {
 } from "./tucbsCoverage";
 
 const supportedKinds = new Set<ServiceKind>(["WMS", "WFS", "MapServer", "FeatureServer", "SceneServer"]);
-const requiredFields = ["ustKurumAdi", "metaveriSahibiKurumAdi", "cografiVeriKatmanAdi", "servisTuruAdi", "tokenUrl"] as const;
 const TUCBS_SCALE_PROBE_KEY = "altyapi:tucbs-scale-probe:v18";
 const TUCBS_COVERAGE_PROBE_KEY = "altyapi:tucbs-coverage-probe:v26";
 
@@ -33,8 +33,8 @@ export function slugify(value: string): string {
 }
 
 export function inferKind(raw: RawServiceDefinition): ServiceKind {
-  const declared = raw.servisTuruAdi as ServiceKind;
-  if (supportedKinds.has(declared)) return declared;
+  const declared = raw.servisTuruAdi;
+  if (supportedKinds.has(declared as ServiceKind)) return declared as ServiceKind;
   const url = raw.tokenUrl.toLowerCase();
   if (url.includes("/featureserver")) return "FeatureServer";
   if (url.includes("/sceneserver")) return "SceneServer";
@@ -45,21 +45,28 @@ export function inferKind(raw: RawServiceDefinition): ServiceKind {
 }
 
 export function parseServicesDocument(input: unknown): RawServiceDefinition[] {
-  if (!input || typeof input !== "object" || !("services" in input)) {
-    throw new Error("services.json içinde 'services' dizisi bulunamadı.");
-  }
-  const services = (input as { services?: unknown }).services;
-  if (!Array.isArray(services)) throw new Error("services.json içindeki 'services' bir dizi olmalıdır.");
+  const document = asRecord(input);
+  if (!document) throw new Error("services.json kök değeri bir nesne olmalıdır.");
+  const services = readArray(document, "services");
+  if (!services) throw new Error("services.json içinde 'services' dizisi bulunamadı.");
 
   return services.map((entry, index) => {
-    if (!entry || typeof entry !== "object") throw new Error(`Servis #${index + 1} nesne olmalıdır.`);
-    const record = entry as Record<string, unknown>;
-    for (const field of requiredFields) {
-      if (typeof record[field] !== "string" || !record[field].trim()) {
-        throw new Error(`Servis #${index + 1}: '${field}' eksik veya geçersiz.`);
-      }
-    }
-    return record as unknown as RawServiceDefinition;
+    const record = asRecord(entry);
+    if (!record) throw new Error(`Servis #${index + 1} nesne olmalıdır.`);
+
+    const ustKurumAdi = requiredString(record, "ustKurumAdi", index);
+    const metaveriSahibiKurumAdi = requiredString(record, "metaveriSahibiKurumAdi", index);
+    const cografiVeriKatmanAdi = requiredString(record, "cografiVeriKatmanAdi", index);
+    const servisTuruAdi = requiredString(record, "servisTuruAdi", index);
+    const tokenUrl = requiredString(record, "tokenUrl", index);
+
+    return {
+      ustKurumAdi,
+      metaveriSahibiKurumAdi,
+      cografiVeriKatmanAdi,
+      servisTuruAdi,
+      tokenUrl
+    };
   });
 }
 
@@ -245,6 +252,12 @@ function newestVerification(...values: Array<string | undefined>): string | unde
   const valid = values.filter((value): value is string => Boolean(value) && !Number.isNaN(Date.parse(value!)));
   if (!valid.length) return undefined;
   return valid.sort((left, right) => Date.parse(right) - Date.parse(left))[0];
+}
+
+function requiredString(record: Record<string, unknown>, field: string, index: number): string {
+  const value = readString(record, field, { trim: true, nonEmpty: true });
+  if (!value) throw new Error(`Servis #${index + 1}: '${field}' eksik veya geçersiz.`);
+  return value;
 }
 
 function isInterchangeableOgcPair(left: ServiceKind, right: ServiceKind): boolean {
