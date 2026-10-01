@@ -34,7 +34,7 @@ export interface RuntimeEventMap {
 export type RuntimeEventName = keyof RuntimeEventMap;
 export type RuntimeEventListener<K extends RuntimeEventName> = (detail: Readonly<RuntimeEventMap[K]>) => void;
 
-type ErasedRuntimeEventListener = (detail: RuntimeEventMap[RuntimeEventName]) => void;
+type ErasedRuntimeEventListener = (detail: unknown) => void;
 
 const listeners = new Map<RuntimeEventName, Set<ErasedRuntimeEventListener>>();
 
