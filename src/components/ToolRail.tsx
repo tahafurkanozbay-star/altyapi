@@ -45,6 +45,7 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
             key={tool.id}
             icon={tool.icon}
             label={tool.label}
+            toolTarget={tool.id}
             active={activeTool === tool.id}
             onClick={() => onTool(tool.id)}
           />
@@ -65,11 +66,12 @@ interface ToolButtonProps {
   label: string;
   shortcut?: string;
   panelTarget?: Exclude<PanelId, null>;
+  toolTarget?: Exclude<ToolId, null>;
   active?: boolean;
   onClick: () => void;
 }
 
-function ToolButton({ icon, label, shortcut, panelTarget, active, onClick }: ToolButtonProps) {
+function ToolButton({ icon, label, shortcut, panelTarget, toolTarget, active, onClick }: ToolButtonProps) {
   const isToggle = active !== undefined;
   return (
     <button
@@ -82,6 +84,7 @@ function ToolButton({ icon, label, shortcut, panelTarget, active, onClick }: Too
       aria-controls={panelTarget ? "kent-rehberi-panels" : undefined}
       aria-expanded={panelTarget ? Boolean(active) : undefined}
       data-panel-target={panelTarget}
+      data-tool-target={toolTarget}
       data-toggle={isToggle ? "true" : "false"}
       title={shortcut ? `${label} (${shortcut})` : label}
     >

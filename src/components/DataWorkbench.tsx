@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { defaultVisibleFields, filterAttributeRows, formatCell, rowsToCsv } from "../lib/attributeTable";
 import { filterNeedsValue, filterOperatorsForField } from "../lib/attributeQuery";
 import type {
@@ -22,6 +22,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
     () => services.filter((service) => service.kind === "FeatureServer" || service.kind === "SceneServer"),
     [services]
   );
+  const queryGenerationRef = useRef(0);
   const [serviceId, setServiceId] = useState("");
   const [limit, setLimit] = useState<number>(100);
   const [result, setResult] = useState<AttributeTableResult | null>(null);
@@ -38,12 +39,20 @@ export function DataWorkbench({ services, onQuery }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => () => {
+    queryGenerationRef.current += 1;
+  }, []);
+
   useEffect(() => {
     if (queryable.length === 0) {
+      if (serviceId) queryGenerationRef.current += 1;
       setServiceId("");
+      setBusy(false);
       return;
     }
     if (serviceId && queryable.some((service) => service.id === serviceId)) return;
+    queryGenerationRef.current += 1;
+    setBusy(false);
     setServiceId(queryable.find((service) => service.visible)?.id ?? queryable[0]!.id);
   }, [queryable, serviceId]);
 
@@ -79,10 +88,13 @@ export function DataWorkbench({ services, onQuery }: Props) {
     nextSort: AttributeQueryOptions["orderBy"] = appliedSort
   ) => {
     if (!activeService || busy) return;
+    const generation = ++queryGenerationRef.current;
+    const requestedService = activeService;
     setBusy(true);
     setError(null);
     try {
-      const next = await onQuery(activeService, { limit, offset, filter: nextFilter, orderBy: nextSort });
+      const next = await onQuery(requestedService, { limit, offset, filter: nextFilter, orderBy: nextSort });
+      if (generation !== queryGenerationRef.current) return;
       setResult(next);
       setSelectedFields((current) => {
         const available = new Set(next.fields.map((field) => field.name));
@@ -91,9 +103,10 @@ export function DataWorkbench({ services, onQuery }: Props) {
       });
       setFilter("");
     } catch (reason) {
+      if (generation !== queryGenerationRef.current) return;
       setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
     } finally {
-      setBusy(false);
+      if (generation === queryGenerationRef.current) setBusy(false);
     }
   };
 
@@ -128,8 +141,11 @@ export function DataWorkbench({ services, onQuery }: Props) {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `${safeName(result.serviceName)}-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.hidden = true;
+    document.body.append(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const toggleField = (name: string) => {
@@ -143,6 +159,8 @@ export function DataWorkbench({ services, onQuery }: Props) {
   };
 
   const resetForService = (id: string) => {
+    queryGenerationRef.current += 1;
+    setBusy(false);
     setServiceId(id);
     setResult(null);
     setError(null);
@@ -155,7 +173,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
   };
 
   return (
-    <div className="operations-body data-workbench">
+    <div className="operations-body data-workbench" aria-busy={busy}>
       <div className="data-workbench-hero">
         <span className="data-hero-icon"><Icon name="database" size={22} /></span>
         <div>
@@ -183,7 +201,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
         </button>
       </div>
 
-      {error && <div className="data-error"><Icon name="warning" /><div><strong>Sorgu tamamlanamadı</strong><span>{error}</span></div></div>}
+      {error && <div className="data-error" role="alert"><Icon name="warning" /><div><strong>Sorgu tamamlanamadı</strong><span>{error}</span></div></div>}
 
       {result && (
         <>
@@ -285,6 +303,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
 
           <div className="attribute-table-wrap">
             <table className="attribute-table">
+              <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları</caption>
               <thead>
                 <tr>{visibleFields.map((field) => <th key={field.name} title={field.name}>{field.alias}</th>)}</tr>
               </thead>
