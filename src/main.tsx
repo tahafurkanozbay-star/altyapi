@@ -18,6 +18,7 @@ import "./styles/tucbs-access.css";
 import "./styles/experience-v43.css";
 import "./styles/experience-v44.css";
 import "./styles/experience-v45.css";
+import "./styles/experience-v47.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");

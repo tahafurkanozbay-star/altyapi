@@ -1,0 +1,351 @@
+/* v47 · Product-wide citizen usability hardening.
+   Loaded last so responsive shell fixes and OS-level accessibility preferences
+   can refine the existing ArcGIS/citizen experience without weakening GIS behavior. */
+
+:root {
+  --v47-safe-top: env(safe-area-inset-top, 0px);
+  --v47-safe-right: env(safe-area-inset-right, 0px);
+  --v47-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --v47-safe-left: env(safe-area-inset-left, 0px);
+  --v47-visual-width: 100vw;
+  --v47-focus: 0 0 0 4px rgba(4, 112, 181, 0.2);
+}
+
+/* Five visible desktop groups need five explicit grid tracks. */
+.topbar {
+  grid-template-columns: minmax(270px, 360px) auto auto minmax(260px, 1fr) auto !important;
+  min-width: 0;
+}
+
+.topbar > *,
+.brand,
+.global-search,
+.top-actions {
+  min-width: 0;
+}
+
+.global-search {
+  width: 100%;
+}
+
+.top-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.brand > div:last-child {
+  min-width: 0;
+}
+
+.brand > div:last-child > strong,
+.brand > div:last-child > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-content,
+.operations-body,
+.details-drawer,
+.map-tool-panel {
+  overscroll-behavior: contain;
+}
+
+.panel-heading,
+.operations-heading {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: color-mix(in srgb, white 94%, transparent);
+  backdrop-filter: blur(14px) saturate(1.05);
+}
+
+.layer-card-title strong,
+.layer-owner-line,
+.section-note,
+.health-note span,
+.help-steps span,
+.bookmark-main strong,
+.bookmark-main small {
+  overflow-wrap: anywhere;
+}
+
+/* Destructive saved-view actions require an explicit second action. */
+.bookmark-card.is-confirming-delete {
+  border-color: rgba(178, 49, 72, 0.24);
+  background: #fffafb;
+}
+
+.bookmark-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.bookmark-delete-confirm .catalog-action.is-danger {
+  min-height: 34px;
+  padding-inline: 10px;
+  border-color: rgba(178, 49, 72, 0.28);
+  background: #fff0f3;
+  color: #a4243d;
+}
+
+.bookmark-delete-confirm .catalog-action.is-danger:hover {
+  background: #ffe2e8;
+}
+
+/* Keyboard modality gets an intentionally stronger visual location cue. */
+html[data-input-modality="keyboard"] :is(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid #0874b6 !important;
+  outline-offset: 3px !important;
+  box-shadow: var(--v47-focus) !important;
+}
+
+/* Pointer users keep :focus-visible semantics without persistent focus decoration. */
+html[data-input-modality="pointer"] :focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Standalone mode must respect display cutouts and home indicators. */
+html[data-display-mode="standalone"] .topbar {
+  top: calc(12px + var(--v47-safe-top));
+}
+
+html[data-display-mode="standalone"] .tool-rail {
+  bottom: calc(52px + var(--v47-safe-bottom));
+}
+
+html[data-display-mode="standalone"] .status-bar {
+  bottom: calc(10px + var(--v47-safe-bottom));
+}
+
+/* Medium desktop/tablet: progressively remove secondary chrome before content can overlap. */
+@media (max-width: 1280px) and (min-width: 761px) {
+  :root {
+    --panel-width: min(360px, 34vw);
+  }
+
+  .topbar {
+    left: 78px !important;
+    right: 12px !important;
+    grid-template-columns: minmax(235px, 310px) auto minmax(220px, 1fr) auto !important;
+  }
+
+  .workspace-summary {
+    display: none !important;
+  }
+
+  .brand > div:last-child > span {
+    max-width: 210px;
+  }
+
+  .map-tool-panel,
+  .details-drawer {
+    width: min(390px, calc(100vw - var(--panel-width) - 118px));
+  }
+}
+
+@media (max-width: 1020px) and (min-width: 761px) {
+  :root {
+    --panel-width: min(340px, 38vw);
+  }
+
+  .topbar {
+    grid-template-columns: minmax(210px, 280px) minmax(210px, 1fr) auto !important;
+  }
+
+  .live-chip,
+  .brand > div:last-child > span {
+    display: none !important;
+  }
+
+  .top-actions .compact-select {
+    max-width: 118px;
+  }
+
+  .share-button {
+    padding-inline: 10px !important;
+  }
+}
+
+/* Touch layout: use a three-track header and keep horizontal tool navigation predictable. */
+@media (max-width: 760px) {
+  .topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    padding-left: max(8px, var(--v47-safe-left)) !important;
+    padding-right: max(8px, var(--v47-safe-right)) !important;
+  }
+
+  .mobile-menu {
+    grid-column: 1;
+  }
+
+  .brand {
+    grid-column: 2;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .top-actions {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .global-search {
+    max-width: calc(100vw - max(20px, var(--v47-safe-left)) - max(20px, var(--v47-safe-right))) !important;
+  }
+
+  .tool-rail {
+    padding-left: max(8px, var(--v47-safe-left)) !important;
+    padding-right: max(8px, var(--v47-safe-right)) !important;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tool-group {
+    scroll-snap-align: start;
+  }
+
+  .tool-button {
+    scroll-snap-align: center;
+  }
+
+  .panel-zone {
+    left: max(6px, var(--v47-safe-left)) !important;
+    right: max(6px, var(--v47-safe-right)) !important;
+  }
+
+  .panel-heading,
+  .operations-heading {
+    padding-top: max(10px, var(--v47-safe-top));
+  }
+
+  .mobile-panel-close,
+  .operations-heading [data-panel-close] {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .bookmark-delete-confirm .catalog-action.is-danger,
+  .bookmark-delete-confirm .icon-ghost {
+    min-height: 44px;
+  }
+
+  html[data-display-mode="standalone"] .tool-rail {
+    padding-bottom: max(7px, var(--v47-safe-bottom)) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    gap: 5px !important;
+  }
+
+  .brand {
+    padding-inline: 5px 8px !important;
+  }
+
+  .brand-symbol {
+    flex: 0 0 25px !important;
+    width: 25px !important;
+  }
+
+  .brand > div:last-child > strong {
+    max-width: min(32vw, 118px) !important;
+  }
+
+  .top-actions {
+    gap: 4px;
+  }
+
+  .top-icon-button,
+  .share-button,
+  .mobile-menu {
+    width: 44px !important;
+    min-width: 44px !important;
+  }
+
+  .bookmark-card.is-confirming-delete {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+}
+
+@media (max-height: 620px) and (max-width: 760px) {
+  .panel-zone.is-mobile-visible {
+    height: min(68dvh, calc(var(--v44-visual-height) - 112px)) !important;
+    max-height: calc(var(--v44-visual-height) - 112px) !important;
+  }
+
+  .global-search {
+    top: calc(66px + var(--v47-safe-top)) !important;
+  }
+}
+
+/* OS preference signals are mirrored into data attributes for WebView/PWA consistency. */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+html[data-contrast="more"] .main-panel,
+html[data-contrast="more"] .operations-panel,
+html[data-contrast="more"] .topbar,
+html[data-contrast="more"] .tool-rail,
+html[data-contrast="more"] .layer-card,
+html[data-contrast="more"] .bookmark-card {
+  border-color: #718894 !important;
+}
+
+html[data-contrast="more"] :is(.muted, .section-note, .layer-owner-line, .layer-meta-row) {
+  color: #314f60 !important;
+}
+
+html[data-contrast="forced"] .map-vignette {
+  display: none !important;
+}
+
+@media (forced-colors: active) {
+  .bookmark-delete-confirm .catalog-action.is-danger,
+  .bookmark-card.is-confirming-delete {
+    border: 2px solid CanvasText !important;
+  }
+
+  .tool-button.is-active,
+  .filter-chip.is-active,
+  .availability-chip.is-active {
+    forced-color-adjust: auto;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .topbar,
+  .tool-rail,
+  .main-panel,
+  .operations-panel,
+  .status-bar,
+  .offline-banner,
+  .app-update-banner,
+  .panel-heading,
+  .operations-heading {
+    backdrop-filter: none !important;
+    background-color: #ffffff !important;
+  }
+}
