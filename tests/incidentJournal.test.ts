@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeIncident } from "../src/types";
 import {
+  INCIDENT_DEDUP_WINDOW_MS,
   MAX_INCIDENTS,
   appendIncident,
   createIncident,
@@ -29,6 +30,24 @@ describe("incidentJournal", () => {
     expect(incident.message).not.toContain("https://");
     expect(incident.serviceId).toBe("svca1");
     expect(incident.durationMs).toBe(124);
+  });
+
+  it("collapses equivalent incident storms inside the dedupe window", () => {
+    const first = createIncident({ severity: "error", kind: "network", message: "Bağlantı yok" }, new Date("2026-10-02T04:00:00.000Z"));
+    const second = createIncident({ severity: "error", kind: "network", message: "Bağlantı yok" }, new Date("2026-10-02T04:00:10.000Z"));
+    const journal = appendIncident(appendIncident([], first), second);
+
+    expect(journal).toHaveLength(1);
+    expect(journal[0]?.occurrences).toBe(2);
+    expect(journal[0]?.occurredAt).toBe(second.occurredAt);
+  });
+
+  it("keeps equivalent incidents separate after the dedupe window", () => {
+    const started = Date.parse("2026-10-02T04:00:00.000Z");
+    const first = createIncident({ severity: "warning", kind: "system", message: "GPU kurtarma" }, new Date(started));
+    const second = createIncident({ severity: "warning", kind: "system", message: "GPU kurtarma" }, new Date(started + INCIDENT_DEDUP_WINDOW_MS + 1));
+    const journal = appendIncident(appendIncident([], first), second);
+    expect(journal).toHaveLength(2);
   });
 
   it("caps the journal and exports a safe JSON envelope", () => {
