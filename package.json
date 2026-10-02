@@ -3,7 +3,7 @@
   "version": "49.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması ve v49 typed platform recovery, çakışmasız sistem bildirimleri ve daha katı TypeScript semantiği sunan profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması ve v49 typed platform recovery, çakışmasız sistem bildirimleri ve ayrı maksimum-strict TypeScript sözleşme derlemesi sunan profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
@@ -13,7 +13,7 @@
     "build:watch": "npm run build:sw && vite build --watch",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "preview:host": "vite preview --host 0.0.0.0 --port 4173",
-    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.sw.json --pretty false && tsc -p tsconfig.worker.json --pretty false",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.contracts.json --pretty false && tsc -p tsconfig.sw.json --pretty false && tsc -p tsconfig.worker.json --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:dependencies": "tsx scripts/validate-dependencies.ts",
