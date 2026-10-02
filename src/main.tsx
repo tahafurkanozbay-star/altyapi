@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { InstallPromptHost } from "./components/InstallPromptHost";
 import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installBrowserServiceHealthMemory } from "./lib/browserServiceHealth";
@@ -19,6 +20,7 @@ import "./styles/experience-v43.css";
 import "./styles/experience-v44.css";
 import "./styles/experience-v45.css";
 import "./styles/experience-v47.css";
+import "./styles/experience-v48.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");
@@ -45,6 +47,7 @@ installPublicServiceWarmup();
 createRoot(root).render(
   <AppErrorBoundary>
     <App />
+    <InstallPromptHost />
     <TucbsAccessSetupHost />
   </AppErrorBoundary>
 );
