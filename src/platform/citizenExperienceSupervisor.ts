@@ -13,6 +13,9 @@ const STANDALONE_QUERY = "(display-mode: standalone)";
 const KEYBOARD_THRESHOLD_PX = 120;
 const PANEL_SELECTOR = "#kent-rehberi-panels";
 const PANEL_TRIGGER_SELECTOR = "button[data-panel-target]";
+const TOOL_PANEL_SELECTOR = ".map-tool-panel";
+const TOOL_TRIGGER_SELECTOR = "button[data-tool-target]";
+const TOOL_CLOSE_SELECTOR = ".map-tool-header button";
 const INTERACTIVE_SELECTOR = [
   "input",
   "textarea",
@@ -74,9 +77,14 @@ export function installCitizenExperienceSupervisor(): () => void {
   let panel: HTMLElement | null = null;
   let panelObserver: MutationObserver | null = null;
   let shellObserver: MutationObserver | null = null;
+  let toolObserver: MutationObserver | null = null;
+  let toolPanel: HTMLElement | null = null;
   let lastPanelTrigger: HTMLButtonElement | null = null;
+  let lastToolTrigger: HTMLButtonElement | null = null;
   let panelWasVisible = false;
   let focusPanelAfterOpen = false;
+  let focusToolAfterOpen = false;
+  let restoreToolFocusOnClose = false;
 
   const syncViewport = (): void => {
     const viewportHeight = visualViewport?.height ?? window.innerHeight;
@@ -152,6 +160,32 @@ export function installCitizenExperienceSupervisor(): () => void {
     panelWasVisible = isVisible;
   };
 
+  const syncToolAccessibility = (): void => {
+    const nextToolPanel = document.querySelector<HTMLElement>(TOOL_PANEL_SELECTOR);
+
+    if (nextToolPanel && nextToolPanel !== toolPanel) {
+      toolPanel = nextToolPanel;
+      if (focusToolAfterOpen) {
+        focusToolAfterOpen = false;
+        window.requestAnimationFrame(() => {
+          focusWithoutScroll(toolPanel?.querySelector<HTMLElement>(TOOL_CLOSE_SELECTOR) ?? null);
+        });
+      }
+      return;
+    }
+
+    if (!nextToolPanel && toolPanel) {
+      toolPanel = null;
+      focusToolAfterOpen = false;
+      if (restoreToolFocusOnClose && lastToolTrigger?.isConnected) {
+        restoreToolFocusOnClose = false;
+        window.requestAnimationFrame(() => focusWithoutScroll(lastToolTrigger));
+      } else {
+        restoreToolFocusOnClose = false;
+      }
+    }
+  };
+
   const bindPanelObserver = (): boolean => {
     const nextPanel = document.querySelector<HTMLElement>(PANEL_SELECTOR);
     if (!nextPanel) return false;
@@ -169,15 +203,32 @@ export function installCitizenExperienceSupervisor(): () => void {
 
   const onDocumentClick = (event: MouseEvent): void => {
     if (!(event.target instanceof Element)) return;
-    const trigger = event.target.closest<HTMLButtonElement>(PANEL_TRIGGER_SELECTOR);
-    if (!trigger) return;
-    lastPanelTrigger = trigger;
-    focusPanelAfterOpen = mobileQuery.matches;
-    window.requestAnimationFrame(syncPanelAccessibility);
+
+    const panelTrigger = event.target.closest<HTMLButtonElement>(PANEL_TRIGGER_SELECTOR);
+    if (panelTrigger) {
+      lastPanelTrigger = panelTrigger;
+      focusPanelAfterOpen = mobileQuery.matches;
+      window.requestAnimationFrame(syncPanelAccessibility);
+    }
+
+    const toolTrigger = event.target.closest<HTMLButtonElement>(TOOL_TRIGGER_SELECTOR);
+    if (toolTrigger) {
+      const opening = !toolTrigger.classList.contains("is-active");
+      lastToolTrigger = toolTrigger;
+      focusToolAfterOpen = opening && (mobileQuery.matches || root.dataset.inputModality === "keyboard");
+      restoreToolFocusOnClose = false;
+      window.requestAnimationFrame(syncToolAccessibility);
+      return;
+    }
+
+    if (toolPanel && isElementInside(toolPanel, event.target) && event.target.closest(TOOL_CLOSE_SELECTOR)) {
+      restoreToolFocusOnClose = true;
+    }
   };
 
   const onKeyDownCapture = (event: KeyboardEvent): void => {
     if (event.key === "Tab") setDatasetValue(root, "inputModality", "keyboard");
+    if (event.key === "Escape" && toolPanel) restoreToolFocusOnClose = true;
 
     if (shouldSuppressAppSingleKeyShortcut(
       shortcutEventDescriptor(event),
@@ -199,7 +250,7 @@ export function installCitizenExperienceSupervisor(): () => void {
     syncPanelAccessibility();
   };
 
-  root.dataset.experience = "v47";
+  root.dataset.experience = "v48";
   root.dataset.inputModality = "pointer";
   syncDeviceCapabilities();
   syncUserPreferences();
@@ -213,6 +264,10 @@ export function installCitizenExperienceSupervisor(): () => void {
     });
     shellObserver.observe(document.body ?? root, { childList: true, subtree: true });
   }
+
+  toolObserver = new MutationObserver(syncToolAccessibility);
+  toolObserver.observe(document.body ?? root, { childList: true, subtree: true });
+  syncToolAccessibility();
 
   window.addEventListener("resize", syncViewport, { passive: true });
   window.addEventListener("keydown", onKeyDownCapture, true);
@@ -233,6 +288,7 @@ export function installCitizenExperienceSupervisor(): () => void {
   return () => {
     shellObserver?.disconnect();
     panelObserver?.disconnect();
+    toolObserver?.disconnect();
     window.removeEventListener("resize", syncViewport);
     window.removeEventListener("keydown", onKeyDownCapture, true);
     window.removeEventListener("pointerdown", onPointerDown, true);
