@@ -42,12 +42,12 @@ export function decodeShareState(params: URLSearchParams): ShareState | undefine
 
   const rawBasemap = params.get("basemap") ?? undefined;
   const basemap = rawBasemap && BASEMAP_PATTERN.test(rawBasemap) ? rawBasemap : undefined;
-
-  return {
+  const decoded: ShareState = {
     camera: { longitude, latitude, z, heading, tilt },
-    layerIds: sanitizeLayerIds((params.get("layers") ?? "").split(",")),
-    basemap
+    layerIds: sanitizeLayerIds((params.get("layers") ?? "").split(","))
   };
+  if (basemap) decoded.basemap = basemap;
+  return decoded;
 }
 
 function sanitizeLayerIds(values: string[]): string[] {
