@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "46.0.0",
+  "version": "47.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması ve erişilebilir citizen-first responsive arayüz sunan profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması ve v47 responsive/erişilebilir citizen-first etkileşim katmanı sunan profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
