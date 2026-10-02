@@ -19,6 +19,8 @@ export interface LayerRenderHealthEventDetail {
   elapsedMs?: number;
 }
 
+export type RuntimeFaultSource = "window-error" | "unhandled-rejection" | "service-worker";
+
 export interface RuntimeEventMap {
   "atomic-layer-activation-complete": {
     layerId: string;
@@ -29,6 +31,15 @@ export interface RuntimeEventMap {
     serviceName: string;
     kind: ServiceKind;
   };
+  "app-runtime-fault": {
+    source: RuntimeFaultSource;
+    message: string;
+    reloadRecommended: boolean;
+  };
+  "pwa-update-available": {
+    source: "waiting" | "installed";
+  };
+  "pwa-apply-update": Record<never, never>;
 }
 
 export type RuntimeEventName = keyof RuntimeEventMap;
