@@ -82,6 +82,10 @@ export function InstallPromptHost() {
       await current.prompt();
       await current.userChoice;
       setPromptEvent(null);
+    } catch {
+      // The native install UI can disappear when the browser invalidates a prompt.
+      // Drop that one-shot event and wait for the browser to offer a fresh prompt.
+      setPromptEvent(null);
     } finally {
       setInstalling(false);
     }
