@@ -2,12 +2,14 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("v48 product integrity", () => {
-  it("ships a typed progressive install experience without forcing unsupported browsers", async () => {
+  it("keeps the typed progressive install experience while v49 composes platform notices", async () => {
     const entry = await readFile("src/main.tsx", "utf8");
+    const statusHost = await readFile("src/components/PlatformStatusHost.tsx", "utf8");
     const install = await readFile("src/components/InstallPromptHost.tsx", "utf8");
     const css = await readFile("src/styles/experience-v48.css", "utf8");
 
-    expect(entry).toContain("InstallPromptHost");
+    expect(entry).toContain("PlatformStatusHost");
+    expect(statusHost).toContain("InstallPromptHost");
     expect(entry).toContain('import "./styles/experience-v48.css"');
     expect(install).toContain("BeforeInstallPromptEvent");
     expect(install).toContain('window.addEventListener("beforeinstallprompt"');
