@@ -7,6 +7,11 @@ const LazyDataWorkbench = lazy(async () => {
   return { default: module.DataWorkbench };
 });
 
+const LazyCitizenStatusCenter = lazy(async () => {
+  const module = await import("./CitizenStatusCenter");
+  return { default: module.CitizenStatusCenter };
+});
+
 interface Props {
   panel: Exclude<PanelId, null | "layers">;
   services: ServiceDefinition[];
@@ -19,7 +24,7 @@ interface Props {
 }
 
 export function OperationsPanel(props: Props) {
-  if (props.panel !== "data" && props.panel !== "bookmarks" && props.panel !== "help") return null;
+  if (props.panel !== "data" && props.panel !== "bookmarks" && props.panel !== "health" && props.panel !== "help") return null;
   const headingId = `operations-panel-title-${props.panel}`;
 
   return (
@@ -34,6 +39,11 @@ export function OperationsPanel(props: Props) {
       {props.panel === "data" && (
         <Suspense fallback={<PanelLoading label="Harita verisi hazırlanıyor…" />}>
           <LazyDataWorkbench services={props.services} onQuery={props.onQueryAttributes} />
+        </Suspense>
+      )}
+      {props.panel === "health" && (
+        <Suspense fallback={<PanelLoading label="Bağlantı durumu hazırlanıyor…" />}>
+          <LazyCitizenStatusCenter services={props.services} />
         </Suspense>
       )}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
@@ -99,6 +109,7 @@ function HelpPanel() {
           <li><strong>Katman seçin.</strong><span>Katmanlar bölümünden görmek istediğiniz veriyi açın; gerekli zoom otomatik ayarlanır.</span></li>
           <li><strong>Görünümü düzenleyin.</strong><span>Açık katmanlarda yukarı/aşağı kontrolleriyle hangi verinin üstte çizileceğini belirleyin ve saydamlığı ayarlayın.</span></li>
           <li><strong>Çalışmanızı kaydedin.</strong><span>Yer İmleri bölümünde kamera, açık katmanlar, harita görünümü, saydamlıklar ve çizim sırası birlikte saklanır.</span></li>
+          <li><strong>Durumu kontrol edin.</strong><span>Bağlantı Durumu bölümü servis sorunlarını ve bu tarayıcıdaki son bağlantı olaylarını güvenli biçimde gösterir.</span></li>
         </ol>
       </section>
 
@@ -117,6 +128,7 @@ function HelpPanel() {
       </section>
 
       <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Bir katmanı açtığınızda Kent Rehberi servis kapsamını ve uygun zoom aralığını otomatik uygular; açık katmanların çizim sırası sizin kontrolünüzdedir.</span></div></div>
+      <div className="health-note"><Icon name="health" /><div><strong>Bağlantı Durumu</strong><span>Servis doğrulaması, katman sorunları ve bu tarayıcıdaki güvenli olay geçmişi tek bölümde izlenebilir.</span></div></div>
       <div className="health-note"><Icon name="search" /><div><strong>Arama</strong><span>Üst bölümdeki arama alanını kullanarak adres ve yer arayabilirsiniz.</span></div></div>
       <div className="health-note"><Icon name="info" /><div><strong>Bağlantı ve performans</strong><span>Harita kalitesi, servis tekrar denemeleri ve bağlantı kurtarma işlemleri cihazınıza göre arka planda yönetilir.</span></div></div>
     </div>
@@ -136,6 +148,7 @@ function Shortcut({ keyName, label }: { keyName: string; label: string }) {
 
 function panelTitle(panel: Props["panel"]): string {
   if (panel === "data") return "Harita Verisi";
+  if (panel === "health") return "Bağlantı Durumu";
   if (panel === "bookmarks") return "Yer İmleri";
   return "Yardım ve Kısayollar";
 }
