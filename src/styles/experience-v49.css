@@ -1,0 +1,196 @@
+/* v49 · Platform-wide usability and recovery layer.
+   Platform notices are intentionally separated from GIS rendering so a service,
+   PWA or browser fault cannot obscure the map controls or each other. */
+
+.platform-status-stack {
+  position: fixed;
+  z-index: 2960;
+  right: max(14px, var(--v47-safe-right, 0px));
+  bottom: calc(58px + var(--v47-safe-bottom, 0px));
+  width: min(440px, calc(100vw - 28px));
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.platform-status-stack > * {
+  pointer-events: auto;
+}
+
+.platform-update-banner,
+.runtime-fault-banner,
+.platform-status-stack .install-banner {
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  transform: none !important;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(34, 74, 96, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #294b5d;
+  box-shadow: 0 18px 48px rgba(27, 56, 72, 0.18);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.runtime-fault-banner {
+  border-color: rgba(184, 105, 21, 0.32);
+  background: rgba(255, 250, 239, 0.98);
+}
+
+.platform-status-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: #eaf5fb;
+  color: #075f91;
+}
+
+.platform-status-icon.is-warning {
+  background: #fff0d5;
+  color: #9a5b00;
+}
+
+.platform-status-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.platform-status-copy strong,
+.platform-status-copy span {
+  overflow-wrap: anywhere;
+}
+
+.platform-status-copy strong {
+  color: #173d54;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.platform-status-copy span {
+  color: #536b79;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.platform-status-action {
+  min-width: 76px;
+}
+
+.platform-status-dismiss {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* The connectivity notice owns the opposite desktop corner so it cannot collide
+   with install/update/recovery notices. */
+.offline-banner {
+  left: 14px !important;
+  right: auto !important;
+  transform: none !important;
+}
+
+.fatal-screen .fatal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.fatal-screen .fatal-details {
+  width: min(760px, calc(100vw - 32px));
+  margin-top: 14px;
+  text-align: left;
+}
+
+.fatal-screen .fatal-details pre {
+  max-height: 34vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .platform-status-stack {
+    left: max(8px, var(--v47-safe-left, 0px));
+    right: max(8px, var(--v47-safe-right, 0px));
+    bottom: calc(var(--v43-mobile-dock, 66px) + 10px);
+    width: auto;
+    max-height: min(52dvh, 420px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .platform-update-banner,
+  .runtime-fault-banner,
+  .platform-status-stack .install-banner {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    border-radius: 14px;
+  }
+
+  .platform-status-action,
+  .platform-status-stack .install-banner-action {
+    grid-column: 2;
+    justify-self: start;
+    min-height: 44px;
+  }
+
+  .platform-status-dismiss,
+  .platform-status-stack .install-banner-dismiss {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: start;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Connectivity is persistent and therefore lives below search rather than
+     competing with transient bottom-sheet/PWA notices. */
+  .offline-banner {
+    top: calc(126px + var(--v43-safe-top, 0px)) !important;
+    bottom: auto !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .platform-update-banner,
+  .runtime-fault-banner,
+  .platform-status-stack .install-banner {
+    backdrop-filter: none;
+    background: #ffffff;
+  }
+
+  .runtime-fault-banner {
+    background: #fffaf0;
+  }
+}
+
+@media (forced-colors: active) {
+  .platform-update-banner,
+  .runtime-fault-banner,
+  .platform-status-stack .install-banner {
+    border: 2px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .platform-status-icon,
+  .platform-status-icon.is-warning {
+    background: Canvas;
+    color: CanvasText;
+  }
+}
