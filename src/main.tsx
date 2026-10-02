@@ -48,6 +48,7 @@ window.addEventListener("unhandledrejection", (event) => {
 // Application-owned events stay typed, main-thread pressure is measured at runtime,
 // background GIS work yields before it can compete with interactive rendering, and
 // the citizen shell keeps mobile focus/viewport behavior coherent across browsers.
+// Migration note: legacy `altyapi:update-available` is retired in favor of RuntimeEventMap.
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installCitizenExperienceSupervisor();
