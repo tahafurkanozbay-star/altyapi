@@ -272,6 +272,8 @@ export interface RuntimeIncident {
   serviceName?: string;
   durationMs?: number;
   recovered?: boolean;
+  /** Repeated equivalent incidents collapsed into this journal row. */
+  occurrences?: number;
 }
 
 export interface ServiceHealthSnapshot {
