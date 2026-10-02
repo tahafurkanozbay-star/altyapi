@@ -17,6 +17,7 @@ interface NavigatorStandalone extends Navigator {
 }
 
 const SESSION_DISMISS_KEY = "altyapi:pwa-install-dismissed";
+const STANDALONE_QUERY = "(display-mode: standalone)";
 
 function isInstallPromptEvent(event: Event): event is BeforeInstallPromptEvent {
   const candidate = event as Partial<BeforeInstallPromptEvent>;
@@ -25,7 +26,7 @@ function isInstallPromptEvent(event: Event): event is BeforeInstallPromptEvent {
 
 function isStandaloneDisplay(): boolean {
   const navigatorWithStandalone = navigator as NavigatorStandalone;
-  return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
+  return window.matchMedia(STANDALONE_QUERY).matches || navigatorWithStandalone.standalone === true;
 }
 
 function wasDismissedThisSession(): boolean {
@@ -48,8 +49,12 @@ export function InstallPromptHost() {
   const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(wasDismissedThisSession);
   const [installing, setInstalling] = useState(false);
+  const [standalone, setStandalone] = useState(isStandaloneDisplay);
 
   useEffect(() => {
+    const standaloneQuery = window.matchMedia(STANDALONE_QUERY);
+    const syncStandalone = (): void => setStandalone(isStandaloneDisplay());
+
     const onBeforeInstallPrompt = (event: Event): void => {
       if (!isInstallPromptEvent(event) || isStandaloneDisplay()) return;
       event.preventDefault();
@@ -59,11 +64,14 @@ export function InstallPromptHost() {
     const onAppInstalled = (): void => {
       setPromptEvent(null);
       setInstalling(false);
+      setStandalone(true);
     };
 
+    standaloneQuery.addEventListener("change", syncStandalone);
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onAppInstalled);
     return () => {
+      standaloneQuery.removeEventListener("change", syncStandalone);
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
     };
@@ -91,7 +99,7 @@ export function InstallPromptHost() {
     }
   }, [installing, promptEvent]);
 
-  if (!promptEvent || dismissed || isStandaloneDisplay()) return null;
+  if (!promptEvent || dismissed || standalone) return null;
 
   return (
     <aside className="install-banner" aria-label="Kent Rehberi uygulamasını yükle">

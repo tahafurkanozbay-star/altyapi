@@ -1,0 +1,109 @@
+/* v50 · application-integrity layer.
+   Local failures remain local, notifications expose explicit controls, and all
+   recovery surfaces retain usable geometry on narrow/zoomed viewports. */
+
+.toast-stack .toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  cursor: default;
+}
+
+.toast-stack .toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-stack .toast-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-stack .toast-dismiss {
+  min-width: 36px;
+  min-height: 36px;
+  margin: -6px -6px -6px 0;
+}
+
+.panel-recovery {
+  margin: 14px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid rgba(175, 103, 24, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 250, 240, 0.96);
+  color: #294b5d;
+}
+
+.panel-recovery-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #fff0d5;
+  color: #945700;
+}
+
+.panel-recovery strong {
+  display: block;
+  color: #173d54;
+  font-size: 14px;
+}
+
+.panel-recovery p {
+  margin: 5px 0 0;
+  color: #5b6e79;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.panel-recovery-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .toast-stack .toast-dismiss {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .panel-recovery {
+    grid-template-columns: 1fr;
+    margin: 10px;
+  }
+
+  .panel-recovery-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .panel-recovery-actions {
+    grid-column: 1;
+  }
+
+  .panel-recovery-actions > button {
+    min-height: 44px;
+  }
+}
+
+@media (forced-colors: active) {
+  .panel-recovery {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .panel-recovery-icon {
+    background: Canvas;
+    color: CanvasText;
+  }
+}

@@ -25,6 +25,7 @@
   },
   "include": [
     "src/platform/runtimeEvents.ts",
+    "src/lib/publicError.ts",
     "src/lib/urlState.ts",
     "src/lib/workspaceView.ts",
     "src/lib/globalShortcutGuard.ts"
