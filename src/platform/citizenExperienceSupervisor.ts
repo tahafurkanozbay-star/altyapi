@@ -1,8 +1,31 @@
+import {
+  shortcutEventDescriptor,
+  shouldSuppressAppSingleKeyShortcut
+} from "../lib/globalShortcutGuard";
+
 const MOBILE_QUERY = "(max-width: 760px)";
 const COARSE_POINTER_QUERY = "(pointer: coarse)";
+const HOVER_QUERY = "(hover: hover)";
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const HIGH_CONTRAST_QUERY = "(prefers-contrast: more)";
+const FORCED_COLORS_QUERY = "(forced-colors: active)";
+const STANDALONE_QUERY = "(display-mode: standalone)";
 const KEYBOARD_THRESHOLD_PX = 120;
 const PANEL_SELECTOR = "#kent-rehberi-panels";
 const PANEL_TRIGGER_SELECTOR = "button[data-panel-target]";
+const INTERACTIVE_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "a[href]",
+  "[contenteditable='true']",
+  "[role='textbox']",
+  "[role='combobox']",
+  "[role='listbox']",
+  "[role='menu']",
+  "[role='dialog']"
+].join(",");
 
 interface NetworkInformationLike extends EventTarget {
   readonly saveData?: boolean;
@@ -29,10 +52,21 @@ function focusWithoutScroll(element: HTMLElement | null): void {
   element?.focus({ preventScroll: true });
 }
 
+function eventPathContainsInteractiveTarget(event: KeyboardEvent): boolean {
+  return event.composedPath().some((candidate) =>
+    candidate instanceof HTMLElement && candidate.matches(INTERACTIVE_SELECTOR)
+  );
+}
+
 export function installCitizenExperienceSupervisor(): () => void {
   const root = document.documentElement;
   const mobileQuery = window.matchMedia(MOBILE_QUERY);
   const coarsePointerQuery = window.matchMedia(COARSE_POINTER_QUERY);
+  const hoverQuery = window.matchMedia(HOVER_QUERY);
+  const reducedMotionQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+  const highContrastQuery = window.matchMedia(HIGH_CONTRAST_QUERY);
+  const forcedColorsQuery = window.matchMedia(FORCED_COLORS_QUERY);
+  const standaloneQuery = window.matchMedia(STANDALONE_QUERY);
   const visualViewport = window.visualViewport;
   const navigatorWithConnection = navigator as NavigatorWithConnection;
   const connection = navigatorWithConnection.connection;
@@ -46,17 +80,30 @@ export function installCitizenExperienceSupervisor(): () => void {
 
   const syncViewport = (): void => {
     const viewportHeight = visualViewport?.height ?? window.innerHeight;
+    const viewportWidth = visualViewport?.width ?? window.innerWidth;
     const viewportOffsetTop = visualViewport?.offsetTop ?? 0;
     const keyboardInset = Math.max(0, window.innerHeight - viewportHeight - viewportOffsetTop);
 
     setCssPixelVariable(root, "--v44-visual-height", viewportHeight);
     setCssPixelVariable(root, "--v44-keyboard-inset", keyboardInset);
+    setCssPixelVariable(root, "--v47-visual-width", viewportWidth);
     setDatasetValue(root, "virtualKeyboard", keyboardInset >= KEYBOARD_THRESHOLD_PX ? "open" : "closed");
   };
 
   const syncDeviceCapabilities = (): void => {
     setDatasetValue(root, "viewport", mobileQuery.matches ? "mobile" : "desktop");
     setDatasetValue(root, "pointer", coarsePointerQuery.matches ? "coarse" : "fine");
+    setDatasetValue(root, "hover", hoverQuery.matches ? "true" : "false");
+  };
+
+  const syncUserPreferences = (): void => {
+    setDatasetValue(root, "reducedMotion", reducedMotionQuery.matches ? "true" : "false");
+    setDatasetValue(
+      root,
+      "contrast",
+      forcedColorsQuery.matches ? "forced" : highContrastQuery.matches ? "more" : "normal"
+    );
+    setDatasetValue(root, "displayMode", standaloneQuery.matches ? "standalone" : "browser");
   };
 
   const syncNetworkPreferences = (): void => {
@@ -95,7 +142,9 @@ export function installCitizenExperienceSupervisor(): () => void {
     if (!panelWasVisible && isVisible && focusPanelAfterOpen) {
       focusPanelAfterOpen = false;
       window.requestAnimationFrame(() => {
-        const closeButton = panel?.querySelector<HTMLElement>(".mobile-panel-close") ?? null;
+        const closeButton = panel?.querySelector<HTMLElement>(
+          ".mobile-panel-close, .operations-heading button, [data-panel-close]"
+        ) ?? null;
         focusWithoutScroll(closeButton);
       });
     }
@@ -127,14 +176,33 @@ export function installCitizenExperienceSupervisor(): () => void {
     window.requestAnimationFrame(syncPanelAccessibility);
   };
 
+  const onKeyDownCapture = (event: KeyboardEvent): void => {
+    if (event.key === "Tab") setDatasetValue(root, "inputModality", "keyboard");
+
+    if (shouldSuppressAppSingleKeyShortcut(
+      shortcutEventDescriptor(event),
+      eventPathContainsInteractiveTarget(event)
+    )) {
+      // Keep browser/assistive-technology defaults intact while preventing the app's
+      // unmodified single-key shortcuts from stealing modified or text-input keystrokes.
+      event.stopImmediatePropagation();
+    }
+  };
+
+  const onPointerDown = (): void => {
+    setDatasetValue(root, "inputModality", "pointer");
+  };
+
   const onMobileChange = (): void => {
     syncDeviceCapabilities();
     syncViewport();
     syncPanelAccessibility();
   };
 
-  root.dataset.experience = "v44";
+  root.dataset.experience = "v47";
+  root.dataset.inputModality = "pointer";
   syncDeviceCapabilities();
+  syncUserPreferences();
   syncViewport();
   syncNetworkPreferences();
   syncVisibility();
@@ -147,10 +215,17 @@ export function installCitizenExperienceSupervisor(): () => void {
   }
 
   window.addEventListener("resize", syncViewport, { passive: true });
+  window.addEventListener("keydown", onKeyDownCapture, true);
+  window.addEventListener("pointerdown", onPointerDown, { passive: true, capture: true });
   visualViewport?.addEventListener("resize", syncViewport, { passive: true });
   visualViewport?.addEventListener("scroll", syncViewport, { passive: true });
   mobileQuery.addEventListener("change", onMobileChange);
   coarsePointerQuery.addEventListener("change", syncDeviceCapabilities);
+  hoverQuery.addEventListener("change", syncDeviceCapabilities);
+  reducedMotionQuery.addEventListener("change", syncUserPreferences);
+  highContrastQuery.addEventListener("change", syncUserPreferences);
+  forcedColorsQuery.addEventListener("change", syncUserPreferences);
+  standaloneQuery.addEventListener("change", syncUserPreferences);
   connection?.addEventListener("change", syncNetworkPreferences);
   document.addEventListener("visibilitychange", syncVisibility);
   document.addEventListener("click", onDocumentClick, true);
@@ -159,21 +234,34 @@ export function installCitizenExperienceSupervisor(): () => void {
     shellObserver?.disconnect();
     panelObserver?.disconnect();
     window.removeEventListener("resize", syncViewport);
+    window.removeEventListener("keydown", onKeyDownCapture, true);
+    window.removeEventListener("pointerdown", onPointerDown, true);
     visualViewport?.removeEventListener("resize", syncViewport);
     visualViewport?.removeEventListener("scroll", syncViewport);
     mobileQuery.removeEventListener("change", onMobileChange);
     coarsePointerQuery.removeEventListener("change", syncDeviceCapabilities);
+    hoverQuery.removeEventListener("change", syncDeviceCapabilities);
+    reducedMotionQuery.removeEventListener("change", syncUserPreferences);
+    highContrastQuery.removeEventListener("change", syncUserPreferences);
+    forcedColorsQuery.removeEventListener("change", syncUserPreferences);
+    standaloneQuery.removeEventListener("change", syncUserPreferences);
     connection?.removeEventListener("change", syncNetworkPreferences);
     document.removeEventListener("visibilitychange", syncVisibility);
     document.removeEventListener("click", onDocumentClick, true);
     root.style.removeProperty("--v44-visual-height");
     root.style.removeProperty("--v44-keyboard-inset");
+    root.style.removeProperty("--v47-visual-width");
     delete root.dataset.experience;
     delete root.dataset.viewport;
     delete root.dataset.pointer;
+    delete root.dataset.hover;
     delete root.dataset.virtualKeyboard;
     delete root.dataset.saveData;
     delete root.dataset.networkClass;
     delete root.dataset.pageVisibility;
+    delete root.dataset.reducedMotion;
+    delete root.dataset.contrast;
+    delete root.dataset.displayMode;
+    delete root.dataset.inputModality;
   };
 }
