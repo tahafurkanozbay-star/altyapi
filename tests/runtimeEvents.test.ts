@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   publishRuntimeEvent,
   runtimeEventSubscriberCount,
@@ -42,5 +42,24 @@ describe("typed runtime event bus", () => {
     publishRuntimeEvent("atomic-layer-activation-complete", { layerId: "svc-demo" });
     expect(activations).toBe(1);
     detach();
+  });
+
+  it("keeps delivering when one subscriber throws", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const received: string[] = [];
+    const detachBroken = subscribeRuntimeEvent("pwa-update-available", () => {
+      throw new Error("consumer failed");
+    });
+    const detachHealthy = subscribeRuntimeEvent("pwa-update-available", (detail) => {
+      received.push(detail.source);
+    });
+
+    expect(() => publishRuntimeEvent("pwa-update-available", { source: "installed" })).not.toThrow();
+    expect(received).toEqual(["installed"]);
+    expect(errorSpy).toHaveBeenCalledOnce();
+
+    detachBroken();
+    detachHealthy();
+    errorSpy.mockRestore();
   });
 });
