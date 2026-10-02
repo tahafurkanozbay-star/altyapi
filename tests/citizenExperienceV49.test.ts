@@ -5,14 +5,16 @@ describe("v49 platform usability", () => {
   it("routes platform lifecycle and recovery through the typed runtime event bus", async () => {
     const entry = await readFile("src/main.tsx", "utf8");
     const events = await readFile("src/platform/runtimeEvents.ts", "utf8");
+    const lifecycle = await readFile("src/platform/serviceWorkerLifecycle.ts", "utf8");
     const host = await readFile("src/components/PlatformStatusHost.tsx", "utf8");
 
     expect(events).toContain('"app-runtime-fault"');
     expect(events).toContain('"pwa-update-available"');
     expect(events).toContain('"pwa-apply-update"');
     expect(entry).toContain('publishRuntimeEvent("app-runtime-fault"');
-    expect(entry).toContain('publishRuntimeEvent("pwa-update-available"');
-    expect(entry).toContain('subscribeRuntimeEvent("pwa-apply-update"');
+    expect(entry).toContain("installServiceWorkerLifecycle");
+    expect(lifecycle).toContain('publishRuntimeEvent("pwa-update-available"');
+    expect(lifecycle).toContain('subscribeRuntimeEvent("pwa-apply-update"');
     expect(entry).not.toContain('new Event("altyapi:update-available")');
     expect(entry).not.toContain('new Event("altyapi:apply-update")');
     expect(host).toContain('subscribeRuntimeEvent("app-runtime-fault"');
