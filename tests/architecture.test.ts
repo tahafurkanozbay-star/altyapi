@@ -259,6 +259,7 @@ describe("architecture guardrails", () => {
     const stabilization = await readFile("src/lib/stabilization.ts", "utf8");
     const reliability = await readFile("src/lib/sessionReliability.ts", "utf8");
     const main = await readFile("src/main.tsx", "utf8");
+    const lifecycle = await readFile("src/platform/serviceWorkerLifecycle.ts", "utf8");
     const serviceWorker = await readFile("public/sw.js", "utf8");
     const app = await readFile("src/App.tsx", "utf8");
 
@@ -266,9 +267,12 @@ describe("architecture guardrails", () => {
     expect(reliability).toContain("summarizeIncidentReliability");
     expect(app).not.toContain("stabilizeWorkspace");
     expect(app).toContain("detectPerformanceProfile");
-    expect(app).toContain("altyapi:apply-update");
-    expect(main).toContain("altyapi:update-available");
-    expect(main).toContain("controllerchange");
+    expect(app).not.toContain("altyapi:apply-update");
+    expect(main).toContain("installServiceWorkerLifecycle");
+    expect(main).not.toContain("altyapi:update-available");
+    expect(lifecycle).toContain('subscribeRuntimeEvent("pwa-apply-update"');
+    expect(lifecycle).toContain('publishRuntimeEvent("pwa-update-available"');
+    expect(lifecycle).toContain("controllerchange");
     expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
