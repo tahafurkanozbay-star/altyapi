@@ -54,15 +54,13 @@ describe("v45 citizen workspace experience", () => {
   });
 
   it("ships the accessible naming flow, native sharing and runtime draw-order bridge", async () => {
-    const [app, dialog, explorer, runtime, entry, css, packageText, sw] = await Promise.all([
+    const [app, dialog, explorer, runtime, entry, css] = await Promise.all([
       readFile("src/App.tsx", "utf8"),
       readFile("src/components/BookmarkDialog.tsx", "utf8"),
       readFile("src/components/LayerExplorer.tsx", "utf8"),
       readFile("src/gis/ArcGISRuntime.ts", "utf8"),
       readFile("src/main.tsx", "utf8"),
-      readFile("src/styles/experience-v45.css", "utf8"),
-      readFile("package.json", "utf8"),
-      readFile("public/sw.js", "utf8")
+      readFile("src/styles/experience-v45.css", "utf8")
     ]);
 
     expect(app).not.toContain("window.prompt");
@@ -80,9 +78,8 @@ describe("v45 citizen workspace experience", () => {
     expect(css).toContain(".workspace-dialog");
     expect(css).toContain(".layer-stack-editor");
 
-    const pkg = JSON.parse(packageText) as { version: string };
-    expect(pkg.version).toBe("45.0.0");
-    expect(sw).toContain('altyapi-shell-v45');
-    expect(sw).toContain('altyapi-data-v45');
+    // Release/cache generation coherence is intentionally owned by
+    // releaseCoherence.test.ts. This regression suite protects v45 workspace
+    // behavior across later releases instead of pinning the package to v45.
   });
 });

@@ -20,6 +20,10 @@ import {
   applyTucbsClientHealth,
   loadTucbsClientHealthProfiles
 } from "./tucbsClientHealth";
+import {
+  applyBrowserServiceHealth,
+  loadBrowserServiceHealthProfiles
+} from "./browserServiceHealth";
 
 const AVAILABILITY = new Set<ServiceAvailability>(["verified", "degraded", "unavailable", "unknown"]);
 const ACCESS = new Set<ServiceAccess>(["public-browser", "browser-blocked", "network-restricted", "server-error", "unknown"]);
@@ -91,11 +95,19 @@ export function applyServiceHealthSnapshot(
     ? applyPublicRunnerHealth(services, snapshot, now)
     : services;
 
+  // A recent stable LayerView in this exact browser/network is stronger evidence
+  // than a public CI runner's reachability result. The local proof stores only
+  // anonymous service IDs and timestamps; no provider URL or credential is kept.
+  const browserCatalog = applyBrowserServiceHealth(
+    publicRunnerCatalog,
+    loadBrowserServiceHealthProfiles(undefined, now),
+    now
+  );
+
   // Public GitHub runners cannot prove source-IP-restricted TUCBS access. A
-  // sanitized endpoint-key-only browser profile therefore overlays the public
-  // snapshot only for locally configured TUCBS rows. No protected URL crosses
-  // into service-health.json or this client-health store.
-  return applyTucbsClientHealth(publicRunnerCatalog, loadTucbsClientHealthProfiles(), now);
+  // sanitized endpoint-key-only browser profile therefore remains the final,
+  // dedicated authority for locally configured TUCBS rows.
+  return applyTucbsClientHealth(browserCatalog, loadTucbsClientHealthProfiles(), now);
 }
 
 function applyPublicRunnerHealth(
@@ -108,6 +120,20 @@ function applyPublicRunnerHealth(
   return services.map((service, index) => {
     const entry = entries.get(index);
     if (!entry || entry.name !== service.displayName || entry.kind !== service.kind) return service;
+
+    // Once the runner snapshot is outside its freshness window it becomes
+    // provenance only. Carrying an old degraded/unavailable state into the load
+    // scheduler can unfairly penalize a service that is healthy on the citizen's
+    // current network, while an old verified state can be equally misleading.
+    if (stale) {
+      return {
+        ...service,
+        verificationReason: entry.reason,
+        verifiedAt: snapshot.generatedAt,
+        verificationStale: true
+      };
+    }
+
     return {
       ...service,
       availability: entry.availability,
@@ -116,7 +142,7 @@ function applyPublicRunnerHealth(
       verificationLatencyMs: entry.latencyMs,
       verificationReason: entry.reason,
       verifiedAt: snapshot.generatedAt,
-      verificationStale: stale
+      verificationStale: false
     };
   });
 }
@@ -180,7 +206,8 @@ export function successPatch(durationMs: number | undefined, now = Date.now()): 
 
   // A successful ArcGIS/OGC Layer.load() happened inside the actual browser,
   // so it is stronger reachability evidence than a public-runner snapshot.
-  // This state is runtime-local; no endpoint or credential is persisted here.
+  // This state is runtime-local; v46 separately remembers only stable rendered
+  // public service IDs, never endpoint URLs or credentials.
   return {
     status: "ready",
     error: undefined,
