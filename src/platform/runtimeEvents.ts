@@ -57,6 +57,9 @@ const listeners = new Map<RuntimeEventName, Set<ErasedRuntimeEventListener>>();
  * CustomEvents. This makes event names/payloads compile-time checked, prevents
  * unrelated page scripts from spoofing internal state, and works in tests/SSR
  * without a browser global.
+ *
+ * Subscriber failures are isolated: one optional UI consumer must never prevent
+ * service-health, recovery or PWA listeners from receiving the same signal.
  */
 export function publishRuntimeEvent<K extends RuntimeEventName>(
   name: K,
@@ -64,7 +67,13 @@ export function publishRuntimeEvent<K extends RuntimeEventName>(
 ): void {
   const bucket = listeners.get(name);
   if (!bucket?.size) return;
-  for (const listener of [...bucket]) listener(detail);
+  for (const listener of [...bucket]) {
+    try {
+      listener(detail);
+    } catch (error) {
+      console.error(`[Ankara Kent Rehberi] Runtime event subscriber failed: ${name}`, error);
+    }
+  }
 }
 
 export function subscribeRuntimeEvent<K extends RuntimeEventName>(
