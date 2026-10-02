@@ -12,7 +12,7 @@ interface State {
 }
 
 export class PanelErrorBoundary extends Component<Props, State> {
-  state: State = { failed: false };
+  override state: State = { failed: false };
 
   static getDerivedStateFromError(): State {
     return { failed: true };
