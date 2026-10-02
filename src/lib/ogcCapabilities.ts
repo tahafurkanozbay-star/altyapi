@@ -27,17 +27,15 @@ export function inspectOgcCapabilities(xml: string, kind: OgcCapabilityKind): Og
   const valid = Boolean(root) && !exception;
   const capabilityVersion = root ? attributeValue(root[1] ?? "", "version") : undefined;
 
-  if (!valid || kind !== "WMS") {
-    return { valid, exception, capabilityVersion };
-  }
+  const inspection: OgcCapabilitiesInspection = { valid, exception };
+  if (capabilityVersion) inspection.capabilityVersion = capabilityVersion;
+  if (!valid || kind !== "WMS") return inspection;
 
-  return {
-    valid,
-    exception,
-    capabilityVersion,
-    scaleProfile: extractWmsScaleProfile(xml),
-    geographicExtent: extractWmsGeographicExtent(xml)
-  };
+  const scaleProfile = extractWmsScaleProfile(xml);
+  const geographicExtent = extractWmsGeographicExtent(xml);
+  if (scaleProfile) inspection.scaleProfile = scaleProfile;
+  if (geographicExtent) inspection.geographicExtent = geographicExtent;
+  return inspection;
 }
 
 export function extractWmsScaleProfile(xml: string): OgcScaleProfile | undefined {
@@ -50,11 +48,12 @@ export function extractWmsScaleProfile(xml: string): OgcScaleProfile | undefined
   if (!minScale && !maxScale) return undefined;
   if (minScale && maxScale && maxScale >= minScale) return undefined;
 
-  return {
-    minScale,
-    maxScale,
-    recommendedScale: recommendedScaleInside(minScale, maxScale)
-  };
+  const profile: OgcScaleProfile = {};
+  if (minScale !== undefined) profile.minScale = minScale;
+  if (maxScale !== undefined) profile.maxScale = maxScale;
+  const recommendedScale = recommendedScaleInside(minScale, maxScale);
+  if (recommendedScale !== undefined) profile.recommendedScale = recommendedScale;
+  return profile;
 }
 
 /**
