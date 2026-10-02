@@ -71,7 +71,7 @@ export function clearIncidentJournal(): void {
 export function incidentJournalToJson(incidents: RuntimeIncident[]): string {
   return JSON.stringify({
     schemaVersion: 1,
-    application: "Başkent 3B CBS",
+    application: "Ankara Kent Rehberi",
     exportedAt: new Date().toISOString(),
     count: incidents.length,
     incidents: incidents.map((incident) => ({
