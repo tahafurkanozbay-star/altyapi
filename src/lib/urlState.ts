@@ -4,10 +4,8 @@ export interface ShareState {
   camera: CameraState;
   layerIds: string[];
   basemap?: string;
-  layerOpacity?: Record<string, number>;
 }
 
-const SHARE_SCHEMA_VERSION = "2";
 const MAX_LAYER_IDS = 100;
 const MAX_LAYER_ID_LENGTH = 160;
 const BASEMAP_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/i;
@@ -16,18 +14,14 @@ export function encodeShareState(state: ShareState): URLSearchParams {
   const { camera } = state;
   const layerIds = sanitizeLayerIds(state.layerIds);
   const basemap = state.basemap && BASEMAP_PATTERN.test(state.basemap) ? state.basemap : undefined;
-  const opacity = encodeOpacity(layerIds, state.layerOpacity);
-
   return new URLSearchParams({
-    v: SHARE_SCHEMA_VERSION,
     lon: camera.longitude.toFixed(6),
     lat: camera.latitude.toFixed(6),
     z: String(Math.round(camera.z)),
     heading: String(Math.round(camera.heading * 10) / 10),
     tilt: String(Math.round(camera.tilt * 10) / 10),
     layers: layerIds.join(","),
-    ...(basemap ? { basemap } : {}),
-    ...(opacity ? { opacity } : {})
+    ...(basemap ? { basemap } : {})
   });
 }
 
@@ -48,43 +42,12 @@ export function decodeShareState(params: URLSearchParams): ShareState | undefine
 
   const rawBasemap = params.get("basemap") ?? undefined;
   const basemap = rawBasemap && BASEMAP_PATTERN.test(rawBasemap) ? rawBasemap : undefined;
-  const layerIds = sanitizeLayerIds((params.get("layers") ?? "").split(","));
-  const layerOpacity = decodeOpacity(params.get("opacity"), layerIds);
 
   return {
     camera: { longitude, latitude, z, heading, tilt },
-    layerIds,
-    basemap,
-    ...(Object.keys(layerOpacity).length ? { layerOpacity } : {})
+    layerIds: sanitizeLayerIds((params.get("layers") ?? "").split(",")),
+    basemap
   };
-}
-
-function encodeOpacity(layerIds: string[], values?: Record<string, number>): string | undefined {
-  if (!values) return undefined;
-  const encoded: string[] = [];
-  for (const id of layerIds) {
-    const value = values[id];
-    if (!Number.isFinite(value)) continue;
-    const percent = Math.round(Math.min(1, Math.max(0, value!)) * 100);
-    if (percent === 100) continue;
-    encoded.push(`${id}:${percent}`);
-  }
-  return encoded.length ? encoded.join(",") : undefined;
-}
-
-function decodeOpacity(raw: string | null, layerIds: string[]): Record<string, number> {
-  if (!raw) return {};
-  const allowed = new Set(layerIds);
-  const result: Record<string, number> = {};
-  for (const item of raw.split(",").slice(0, MAX_LAYER_IDS)) {
-    const separator = item.lastIndexOf(":");
-    if (separator <= 0) continue;
-    const id = item.slice(0, separator).trim();
-    const percent = Number(item.slice(separator + 1));
-    if (!allowed.has(id) || !Number.isFinite(percent) || percent < 0 || percent > 100) continue;
-    result[id] = Math.round(percent) / 100;
-  }
-  return result;
 }
 
 function sanitizeLayerIds(values: string[]): string[] {
