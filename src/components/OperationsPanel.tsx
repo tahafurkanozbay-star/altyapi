@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
+import { PanelErrorBoundary } from "./PanelErrorBoundary";
 
 const LazyDataWorkbench = lazy(async () => {
   const module = await import("./DataWorkbench");
@@ -40,9 +41,11 @@ export function OperationsPanel(props: Props) {
         </button>
       </div>
       {props.panel === "data" && (
-        <Suspense fallback={<PanelLoading label="Harita verisi hazırlanıyor…" />}>
-          <LazyDataWorkbench services={props.services} onQuery={props.onQueryAttributes} />
-        </Suspense>
+        <PanelErrorBoundary resetKey={props.panel} onClose={props.onClose}>
+          <Suspense fallback={<PanelLoading label="Harita verisi hazırlanıyor…" />}>
+            <LazyDataWorkbench services={props.services} onQuery={props.onQueryAttributes} />
+          </Suspense>
+        </PanelErrorBoundary>
       )}
       {props.panel === "bookmarks" && <BookmarksPanel {...props} />}
       {props.panel === "help" && <HelpPanel />}
