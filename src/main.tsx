@@ -3,6 +3,7 @@ import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
+import { installBrowserServiceHealthMemory } from "./lib/browserServiceHealth";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import { installPublicServiceWarmup } from "./lib/serviceWarmup";
 import { installCitizenExperienceSupervisor } from "./platform/citizenExperienceSupervisor";
@@ -36,6 +37,7 @@ installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installCitizenExperienceSupervisor();
 installLayerRenderHealthStore();
+installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();
 installPublicServiceWarmup();
 
