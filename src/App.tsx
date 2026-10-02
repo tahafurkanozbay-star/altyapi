@@ -6,6 +6,7 @@ import { detectPerformanceProfile } from "./lib/performance";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import { appendIncident, createIncident, loadIncidentJournal, type IncidentInput } from "./lib/incidentJournal";
+import { publicErrorMessage } from "./lib/publicError";
 import {
   applyServiceHealthSnapshot,
   failurePatch,
@@ -39,13 +40,14 @@ import type {
   ServiceDefinition,
   ToolId
 } from "./types";
+import { useToastQueue } from "./hooks/useToastQueue";
 import { LayerExplorer } from "./components/LayerExplorer";
 import { ToolRail } from "./components/ToolRail";
 import { StatusBar } from "./components/StatusBar";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OperationsPanel } from "./components/OperationsPanel";
 import { BookmarkDialog } from "./components/BookmarkDialog";
-import { ToastStack, type ToastItem } from "./components/ToastStack";
+import { ToastStack } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
 
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
@@ -70,12 +72,11 @@ export default function App() {
   const [activeTool, setActiveTool] = useState<ToolId>(null);
   const [identify, setIdentify] = useState<IdentifyResult | null>(null);
   const [telemetry, setTelemetry] = useState<SceneTelemetry>({ altitude: DEFAULT_CAMERA.z, tilt: DEFAULT_CAMERA.tilt, heading: DEFAULT_CAMERA.heading });
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
+  const { items: toasts, pushToast, dismissToast } = useToastQueue();
 
   const mapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -98,12 +99,6 @@ export default function App() {
   );
 
   useEffect(() => { servicesRef.current = services; }, [services]);
-
-  const pushToast = useCallback((message: string, tone: ToastItem["tone"] = "info") => {
-    const id = createId();
-    setToasts((items) => [...items.slice(-3), { id, message, tone }]);
-    window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 4800);
-  }, []);
 
   const recordIncident = useCallback((input: IncidentInput) => {
     incidentsRef.current = appendIncident(incidentsRef.current, createIncident(input));
@@ -131,18 +126,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = "light";
   }, []);
-
-  useEffect(() => {
-    const onUpdate = () => setUpdateAvailable(true);
-    window.addEventListener("altyapi:update-available", onUpdate);
-    return () => window.removeEventListener("altyapi:update-available", onUpdate);
-  }, []);
-
-  const applyAppUpdate = useCallback(() => {
-    window.dispatchEvent(new Event("altyapi:apply-update"));
-    setUpdateAvailable(false);
-    pushToast("Kent Rehberi güncelleniyor…", "info");
-  }, [pushToast]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -225,8 +208,11 @@ export default function App() {
             onTelemetry: setTelemetry,
             onCamera: (camera) => saveCamera(camera),
             onGraphicsRecovery: (event) => {
+              const recoveryMessage = event.state === "recovered"
+                ? "Harita görüntüsü yeniden hazır."
+                : publicErrorMessage(event.message, "Harita görüntüsü geçici olarak hazırlanamadı.");
               pushToast(
-                event.state === "recovered" ? "Harita görüntüsü yeniden hazır." : event.message,
+                recoveryMessage,
                 event.state === "recovered" ? "success" : event.state === "failed" ? "error" : "info"
               );
               recordIncident({
@@ -289,10 +275,12 @@ export default function App() {
         }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
-        const message = error instanceof Error ? error.message : "Kent Rehberi başlatılamadı.";
+        const fallback = "Kent Rehberi şu anda başlatılamadı. Lütfen yeniden deneyin.";
+        const message = publicErrorMessage(error, fallback);
+        const diagnostic = error instanceof Error ? error.message : fallback;
         setBootError(message);
         pushToast(message, "error");
-        recordIncident({ severity: "error", kind: "boot", message });
+        recordIncident({ severity: "error", kind: "boot", message: diagnostic });
       }
     })();
 
@@ -478,7 +466,7 @@ export default function App() {
         serviceName: service.displayName,
         durationMs: Math.round(performance.now() - startedAt)
       });
-      throw error;
+      throw new Error(publicErrorMessage(error, "Harita verisi şu anda alınamadı. Lütfen yeniden deneyin."));
     }
   }, [recordIncident]);
 
@@ -798,7 +786,7 @@ export default function App() {
 
       <DetailsPanel result={identify} onClose={() => setIdentify(null)} />
       <StatusBar telemetry={telemetry} services={services} />
-      <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
+      <ToastStack items={toasts} onDismiss={dismissToast} />
       <BookmarkDialog
         open={bookmarkDialogOpen}
         suggestedName={`Görünüm ${preferences.bookmarks.length + 1}`}
@@ -810,15 +798,6 @@ export default function App() {
         <div className="offline-banner" role="status" aria-live="polite">
           <Icon name="warning" size={18} />
           <div><strong>Bağlantı yok</strong><span>Önbellekteki harita kabuğu kullanılabilir; canlı katmanlar bağlantı geri geldiğinde yenilenir.</span></div>
-        </div>
-      )}
-
-      {updateAvailable && (
-        <div className="app-update-banner" role="status" aria-live="polite">
-          <span className="app-update-icon"><Icon name="refresh" size={16} /></span>
-          <div><strong>Kent Rehberi güncellemesi hazır</strong><span>Yeni sürüm uygulanabilir; harita tercihleriniz korunur.</span></div>
-          <button type="button" className="primary-button" onClick={applyAppUpdate}>Güncelle</button>
-          <button type="button" className="icon-ghost" onClick={() => setUpdateAvailable(false)} aria-label="Güncelleme bildirimini kapat"><Icon name="close" size={14} /></button>
         </div>
       )}
 
