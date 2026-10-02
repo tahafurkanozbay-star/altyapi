@@ -31,6 +31,7 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
         <ToolButton icon="layers" label="Katmanlar" shortcut="L" panelTarget="layers" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
         <ToolButton icon="table" label="Harita verisi" shortcut="D" panelTarget="data" active={activePanel === "data"} onClick={() => onPanel("data")} />
         <ToolButton icon="bookmark" label="Yer imleri" panelTarget="bookmarks" active={activePanel === "bookmarks"} onClick={() => onPanel("bookmarks")} />
+        <ToolButton icon="health" label="Bağlantı durumu" panelTarget="health" active={activePanel === "health"} onClick={() => onPanel("health")} />
       </div>
 
       <div className="tool-group" role="group" aria-label="Harita konumu">
