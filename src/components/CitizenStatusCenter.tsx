@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   INCIDENT_JOURNAL_EVENT,
   clearIncidentJournal,
-  incidentJournalToJson,
   loadIncidentJournal
 } from "../lib/incidentJournal";
 import { availabilityLabel, cooldownRemaining } from "../lib/serviceHealth";
 import { summarizeServiceHealth } from "../lib/serviceMetrics";
+import { citizenSupportReportToJson, createCitizenSupportReport } from "../lib/supportReport";
 import type { RuntimeIncident, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
@@ -50,8 +50,9 @@ export function CitizenStatusCenter({ services }: Props) {
     };
   }, []);
 
-  const exportJournal = () => {
-    const blob = new Blob([incidentJournalToJson(incidents)], { type: "application/json;charset=utf-8" });
+  const exportReport = () => {
+    const report = createCitizenSupportReport(services, incidents, online);
+    const blob = new Blob([citizenSupportReportToJson(report)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -153,7 +154,7 @@ export function CitizenStatusCenter({ services }: Props) {
         )}
 
         <div className="citizen-status-actions">
-          <button type="button" className="catalog-action" onClick={exportJournal} disabled={incidents.length === 0}><Icon name="download" size={15} /> Güvenli raporu indir</button>
+          <button type="button" className="catalog-action" onClick={exportReport}><Icon name="download" size={15} /> Güvenli durum raporu indir</button>
           {confirmClear ? (
             <span className="citizen-clear-confirm">
               <button type="button" className="catalog-action is-danger" onClick={clearJournal}>Evet, temizle</button>
@@ -163,7 +164,7 @@ export function CitizenStatusCenter({ services }: Props) {
             <button type="button" className="catalog-action" onClick={() => setConfirmClear(true)} disabled={incidents.length === 0}><Icon name="trash" size={15} /> Geçmişi temizle</button>
           )}
         </div>
-        <p className="section-note">Bu geçmiş yalnız bu tarayıcıda tutulur. Dışa aktarılan raporda servis URL'si veya erişim anahtarı bulunmaz; tekrar eden aynı olaylar 30 saniyelik pencerede tek satırda birleştirilir.</p>
+        <p className="section-note">Bu geçmiş yalnız bu tarayıcıda tutulur. Dışa aktarılan rapor servis durumlarını ve olay geçmişini içerir; servis URL'si veya erişim anahtarı yazılmaz. Tekrar eden aynı olaylar 30 saniyelik pencerede tek satırda birleştirilir.</p>
       </section>
     </div>
   );
