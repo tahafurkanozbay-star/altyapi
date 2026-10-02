@@ -31,19 +31,25 @@ describe("v49 platform usability", () => {
     expect(css).toContain("top: calc(126px + var(--v43-safe-top, 0px))");
   });
 
-  it("uses stricter TypeScript optional and index semantics in every first-party execution world", async () => {
+  it("keeps every execution world strict and applies maximum optional/index semantics to pure contracts", async () => {
     const configs = await Promise.all([
       readFile("tsconfig.app.json", "utf8"),
       readFile("tsconfig.node.json", "utf8"),
       readFile("tsconfig.worker.json", "utf8"),
       readFile("tsconfig.sw.json", "utf8")
     ]);
+    const contracts = await readFile("tsconfig.contracts.json", "utf8");
+    const packageJson = await readFile("package.json", "utf8");
 
-    for (const config of configs) {
-      expect(config).toContain('"exactOptionalPropertyTypes": true');
-      expect(config).toContain('"noPropertyAccessFromIndexSignature": true');
-      expect(config).toContain('"strict": true');
-    }
+    for (const config of configs) expect(config).toContain('"strict": true');
+    expect(configs[0]).toContain('"strictNullChecks": true');
+    expect(configs[0]).toContain('"noImplicitAny": true');
+    expect(configs[0]).toContain('"useUnknownInCatchVariables": true');
+    expect(contracts).toContain('"exactOptionalPropertyTypes": true');
+    expect(contracts).toContain('"noPropertyAccessFromIndexSignature": true');
+    expect(contracts).toContain("src/platform/runtimeEvents.ts");
+    expect(contracts).toContain("src/lib/urlState.ts");
+    expect(packageJson).toContain("tsconfig.contracts.json");
   });
 
   it("removes the unreachable technical command-palette source from the citizen bundle", async () => {
