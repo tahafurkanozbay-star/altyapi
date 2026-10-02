@@ -1,0 +1,362 @@
+@layer citizen-v46 {
+  .citizen-status-center {
+    display: grid;
+    align-content: start;
+    gap: 14px;
+  }
+
+  .citizen-status-hero {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 14px;
+    border: 1px solid #dce6ec;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #ffffff, #f7fafc);
+  }
+
+  .citizen-status-hero.is-online {
+    border-color: #c9e6d7;
+    background: linear-gradient(145deg, #ffffff, #f2faf6);
+  }
+
+  .citizen-status-hero.is-offline {
+    border-color: #ead7a6;
+    background: linear-gradient(145deg, #ffffff, #fff9ec);
+  }
+
+  .citizen-status-hero-icon {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    background: #eaf3fb;
+    color: #1677d2;
+  }
+
+  .citizen-status-hero.is-online .citizen-status-hero-icon {
+    background: #eaf7f1;
+    color: #16865b;
+  }
+
+  .citizen-status-hero.is-offline .citizen-status-hero-icon {
+    background: #fff3d8;
+    color: #966613;
+  }
+
+  .citizen-status-hero h3 {
+    margin: 3px 0 5px;
+    color: #183243;
+    font-size: 17px;
+    line-height: 1.2;
+    letter-spacing: -.015em;
+  }
+
+  .citizen-status-hero p {
+    margin: 0;
+    color: #627b8b;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  .citizen-status-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .citizen-status-metric {
+    min-width: 0;
+    padding: 10px 8px;
+    border: 1px solid #e0e8ed;
+    border-radius: 12px;
+    background: #f8fafb;
+    text-align: center;
+  }
+
+  .citizen-status-metric strong,
+  .citizen-status-metric span {
+    display: block;
+  }
+
+  .citizen-status-metric strong {
+    color: #294657;
+    font-size: 18px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .citizen-status-metric span {
+    margin-top: 3px;
+    color: #718795;
+    font-size: 8px;
+    font-weight: 750;
+  }
+
+  .citizen-status-metric.tone-good {
+    border-color: #d1e7db;
+    background: #f3faf7;
+  }
+
+  .citizen-status-metric.tone-bad {
+    border-color: #efcbd1;
+    background: #fff6f7;
+  }
+
+  .citizen-status-verification {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 11px;
+    border: 1px solid #dfe8ed;
+    border-radius: 12px;
+    background: #f7fafb;
+    color: #537083;
+  }
+
+  .citizen-status-verification > svg {
+    color: #1677d2;
+  }
+
+  .citizen-status-verification strong,
+  .citizen-status-verification span {
+    display: block;
+  }
+
+  .citizen-status-verification strong {
+    color: #294657;
+    font-size: 9.5px;
+  }
+
+  .citizen-status-verification span {
+    margin-top: 2px;
+    color: #768b98;
+    font-size: 8px;
+  }
+
+  .citizen-status-verification em {
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: #eef4f7;
+    color: #5d7686;
+    font-size: 7.5px;
+    font-style: normal;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .citizen-status-section {
+    display: grid;
+    gap: 8px;
+  }
+
+  .citizen-status-section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .citizen-status-section-heading h4 {
+    margin: 2px 0 0;
+    color: #294657;
+    font-size: 11px;
+  }
+
+  .citizen-status-section-heading > span {
+    color: #81939f;
+    font-size: 8px;
+    white-space: nowrap;
+  }
+
+  .citizen-service-issues,
+  .citizen-incident-list {
+    display: grid;
+    gap: 6px;
+  }
+
+  .citizen-service-issues article,
+  .citizen-incident-list article {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid #e2e9ed;
+    border-radius: 11px;
+    background: #fff;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 64px;
+  }
+
+  .citizen-issue-indicator {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #b77817;
+  }
+
+  .citizen-issue-indicator.is-error {
+    background: #c94b5f;
+  }
+
+  .citizen-service-issues strong,
+  .citizen-service-issues span,
+  .citizen-service-issues small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .citizen-service-issues strong {
+    color: #2d4b5d;
+    font-size: 9.5px;
+  }
+
+  .citizen-service-issues span {
+    margin-top: 2px;
+    color: #788c99;
+    font-size: 7.5px;
+  }
+
+  .citizen-service-issues small {
+    margin-top: 3px;
+    color: #87662b;
+    font-size: 7.5px;
+  }
+
+  .citizen-service-issues em,
+  .citizen-incident-list em {
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: #f3f6f8;
+    color: #728792;
+    font-size: 7px;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .citizen-incident-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: #eef4f7;
+    color: #577486;
+  }
+
+  .citizen-incident-list article.severity-warning .citizen-incident-icon {
+    background: #fff6e3;
+    color: #966613;
+  }
+
+  .citizen-incident-list article.severity-error .citizen-incident-icon {
+    background: #fff0f2;
+    color: #bd4054;
+  }
+
+  .citizen-incident-list strong,
+  .citizen-incident-list p,
+  .citizen-incident-list small {
+    display: block;
+  }
+
+  .citizen-incident-list strong {
+    color: #2d4b5d;
+    font-size: 9.5px;
+  }
+
+  .citizen-incident-list p {
+    margin: 2px 0 0;
+    color: #5d7686;
+    font-size: 8px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .citizen-incident-list small {
+    margin-top: 3px;
+    color: #8798a2;
+    font-size: 7.5px;
+  }
+
+  .citizen-status-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .citizen-status-actions .catalog-action {
+    min-height: 36px;
+  }
+
+  .citizen-clear-confirm {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .catalog-action.is-danger {
+    border-color: #efc3ca;
+    background: #fff5f6;
+    color: #b33f52;
+  }
+
+  @media (max-width: 620px) {
+    .citizen-status-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .citizen-status-verification {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .citizen-status-verification em {
+      grid-column: 2;
+      justify-self: start;
+    }
+
+    .citizen-status-actions,
+    .citizen-clear-confirm {
+      display: grid;
+      grid-template-columns: 1fr;
+      width: 100%;
+    }
+
+    .citizen-status-actions .catalog-action {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .citizen-status-hero,
+    .citizen-service-issues article,
+    .citizen-incident-list article {
+      scroll-behavior: auto;
+      transition: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .citizen-status-hero,
+    .citizen-status-metric,
+    .citizen-status-verification,
+    .citizen-service-issues article,
+    .citizen-incident-list article {
+      border: 1px solid CanvasText;
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    .citizen-status-hero-icon,
+    .citizen-incident-icon,
+    .citizen-issue-indicator {
+      forced-color-adjust: none;
+    }
+  }
+}
