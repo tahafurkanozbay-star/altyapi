@@ -24,6 +24,8 @@ export function StatusBar({ telemetry, services }: { telemetry: SceneTelemetry; 
 }
 
 function coordinate(telemetry: SceneTelemetry): string {
-  if (!Number.isFinite(telemetry.latitude) || !Number.isFinite(telemetry.longitude)) return "39.92080° N · 32.85420° E";
-  return `${telemetry.latitude!.toFixed(5)}° N · ${telemetry.longitude!.toFixed(5)}° E`;
+  const { latitude, longitude } = telemetry;
+  if (typeof latitude !== "number" || typeof longitude !== "number") return "—";
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "—";
+  return `${latitude.toFixed(5)}° N · ${longitude.toFixed(5)}° E`;
 }
