@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   INCIDENT_JOURNAL_EVENT,
   clearIncidentJournal,
-  loadIncidentJournal
+  loadIncidentJournal,
+  sanitizeIncidentText
 } from "../lib/incidentJournal";
 import { availabilityLabel, cooldownRemaining } from "../lib/serviceHealth";
 import { summarizeServiceHealth } from "../lib/serviceMetrics";
@@ -119,7 +120,7 @@ export function CitizenStatusCenter({ services }: Props) {
                   <div>
                     <strong>{service.displayName}</strong>
                     <span>{service.kind} · {availabilityLabel(service)}</span>
-                    <small>{service.error ? friendlyIssue(service.error) : service.verificationReason ?? "Servis bağlantısı sınırlı olabilir."}</small>
+                    <small>{service.error ? friendlyIssue(service.error) : sanitizeIncidentText(service.verificationReason ?? "Servis bağlantısı sınırlı olabilir.")}</small>
                   </div>
                   {cooldown && <em>{cooldown}</em>}
                 </article>
@@ -184,7 +185,7 @@ function incidentKindLabel(kind: RuntimeIncident["kind"]): string {
 }
 
 function friendlyIssue(value: string): string {
-  const safe = String(value).replace(/https?:\/\/\S+/gi, "[adres gizlendi]");
+  const safe = sanitizeIncidentText(value);
   if (/timeout|timed out|zaman aş/i.test(safe)) return "Servis zamanında yanıt vermedi.";
   if (/401|403|unauthor|forbidden|yetki/i.test(safe)) return "Servis erişim izni gerektiriyor.";
   if (/network|fetch|bağlant/i.test(safe)) return "Servise ağ üzerinden ulaşılamadı.";
