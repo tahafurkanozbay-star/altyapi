@@ -2,6 +2,8 @@ import type { IncidentKind, IncidentSeverity, RuntimeIncident } from "../types";
 
 export const INCIDENT_STORAGE_KEY = "altyapi:incidents:v1";
 export const MAX_INCIDENTS = 80;
+export const INCIDENT_DEDUP_WINDOW_MS = 30_000;
+export const INCIDENT_JOURNAL_EVENT = "altyapi:incident-journal-updated";
 
 export interface IncidentInput {
   severity: IncidentSeverity;
@@ -55,8 +57,17 @@ export function appendIncident(
   incidents: RuntimeIncident[],
   incident: RuntimeIncident
 ): RuntimeIncident[] {
-  const next = [incident, ...incidents.filter((item) => item.id !== incident.id)].slice(0, MAX_INCIDENTS);
+  const duplicate = incidents.find((item) => isEquivalentRecentIncident(item, incident));
+  const nextIncident = duplicate
+    ? {
+        ...incident,
+        id: duplicate.id,
+        occurrences: Math.min(999, Math.max(1, duplicate.occurrences ?? 1) + 1)
+      }
+    : incident;
+  const next = [nextIncident, ...incidents.filter((item) => item.id !== nextIncident.id)].slice(0, MAX_INCIDENTS);
   persistIncidentJournal(next);
+  dispatchJournalUpdated();
   return next;
 }
 
@@ -66,12 +77,13 @@ export function clearIncidentJournal(): void {
   } catch {
     // Ignore policy-restricted storage.
   }
+  dispatchJournalUpdated();
 }
 
 export function incidentJournalToJson(incidents: RuntimeIncident[]): string {
   return JSON.stringify({
     schemaVersion: 1,
-    application: "Başkent 3B CBS",
+    application: "Ankara Kent Rehberi",
     exportedAt: new Date().toISOString(),
     count: incidents.length,
     incidents: incidents.map((incident) => ({
@@ -115,8 +127,30 @@ function parseIncident(value: unknown): RuntimeIncident[] {
     durationMs: typeof item.durationMs === "number" && Number.isFinite(item.durationMs) && item.durationMs >= 0
       ? Math.round(item.durationMs)
       : undefined,
-    recovered: item.recovered === true ? true : undefined
+    recovered: item.recovered === true ? true : undefined,
+    occurrences: typeof item.occurrences === "number" && Number.isInteger(item.occurrences) && item.occurrences > 1
+      ? Math.min(999, item.occurrences)
+      : undefined
   }];
+}
+
+function isEquivalentRecentIncident(previous: RuntimeIncident, next: RuntimeIncident): boolean {
+  const previousTime = Date.parse(previous.occurredAt);
+  const nextTime = Date.parse(next.occurredAt);
+  return Number.isFinite(previousTime)
+    && Number.isFinite(nextTime)
+    && nextTime >= previousTime
+    && nextTime - previousTime <= INCIDENT_DEDUP_WINDOW_MS
+    && previous.severity === next.severity
+    && previous.kind === next.kind
+    && previous.message === next.message
+    && previous.serviceId === next.serviceId
+    && previous.recovered === next.recovered;
+}
+
+function dispatchJournalUpdated(): void {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
+  window.dispatchEvent(new Event(INCIDENT_JOURNAL_EVENT));
 }
 
 function isSeverity(value: unknown): value is IncidentSeverity {
