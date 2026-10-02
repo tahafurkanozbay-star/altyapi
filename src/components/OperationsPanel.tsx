@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, ServiceDefinition } from "../types";
 import { Icon } from "./Icon";
 
@@ -29,7 +29,15 @@ export function OperationsPanel(props: Props) {
           <span className="eyebrow">ANKARA KENT REHBERİ</span>
           <h2 id={headingId}>{panelTitle(props.panel)}</h2>
         </div>
-        <button type="button" className="icon-ghost" onClick={props.onClose} aria-label={`${panelTitle(props.panel)} panelini kapat`}><Icon name="close" /></button>
+        <button
+          type="button"
+          className="icon-ghost mobile-panel-close"
+          data-panel-close
+          onClick={props.onClose}
+          aria-label={`${panelTitle(props.panel)} panelini kapat`}
+        >
+          <Icon name="close" />
+        </button>
       </div>
       {props.panel === "data" && (
         <Suspense fallback={<PanelLoading label="Harita verisi hazırlanıyor…" />}>
@@ -44,7 +52,7 @@ export function OperationsPanel(props: Props) {
 
 function PanelLoading({ label }: { label: string }) {
   return (
-    <div className="panel-loading" role="status" aria-live="polite">
+    <div className="panel-loading" role="status" aria-live="polite" aria-busy="true">
       <span className="panel-loading-spinner" aria-hidden="true" />
       <strong>{label}</strong>
       <span>Bu bölüm yalnız gerektiğinde yüklenir.</span>
@@ -66,21 +74,47 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
           </div>
         )}
         {bookmarks.map((bookmark) => (
-          <article className="bookmark-card" key={bookmark.id}>
-            <button type="button" className="bookmark-main" onClick={() => onGoBookmark(bookmark)} aria-label={`${bookmark.name} çalışma görünümüne git`}>
-              <span className="bookmark-icon"><Icon name="bookmark" /></span>
-              <span>
-                <strong>{bookmark.name}</strong>
-                <small>{bookmarkMetadata(bookmark)}</small>
-              </span>
-            </button>
-            <button type="button" className="icon-ghost is-danger" onClick={() => onDeleteBookmark(bookmark)} aria-label={`${bookmark.name} kayıtlı görünümünü sil`}>
-              <Icon name="trash" size={15} />
-            </button>
-          </article>
+          <BookmarkCard
+            key={bookmark.id}
+            bookmark={bookmark}
+            onGo={() => onGoBookmark(bookmark)}
+            onDelete={() => onDeleteBookmark(bookmark)}
+          />
         ))}
       </div>
     </div>
+  );
+}
+
+function BookmarkCard({ bookmark, onGo, onDelete }: { bookmark: Bookmark; onGo: () => void; onDelete: () => void }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  return (
+    <article className={`bookmark-card ${confirmDelete ? "is-confirming-delete" : ""}`}>
+      <button type="button" className="bookmark-main" onClick={onGo} aria-label={`${bookmark.name} çalışma görünümüne git`}>
+        <span className="bookmark-icon"><Icon name="bookmark" /></span>
+        <span>
+          <strong>{bookmark.name}</strong>
+          <small>{bookmarkMetadata(bookmark)}</small>
+        </span>
+      </button>
+      {confirmDelete ? (
+        <div className="bookmark-delete-confirm" role="group" aria-label={`${bookmark.name} silme onayı`}>
+          <span className="visually-hidden" role="status">Silme işlemini onaylayın veya vazgeçin.</span>
+          <button type="button" className="catalog-action is-danger" onClick={onDelete}>Sil</button>
+          <button type="button" className="icon-ghost" onClick={() => setConfirmDelete(false)} aria-label="Silmekten vazgeç"><Icon name="close" size={15} /></button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="icon-ghost is-danger"
+          onClick={() => setConfirmDelete(true)}
+          aria-label={`${bookmark.name} kayıtlı görünümünü sil`}
+        >
+          <Icon name="trash" size={15} />
+        </button>
+      )}
+    </article>
   );
 }
 
@@ -114,6 +148,13 @@ function HelpPanel() {
           <Shortcut keyName="M" label="Haritaya odaklan" />
           <Shortcut keyName="Esc" label="Açık aracı veya paneli kapat" />
         </div>
+        <p className="section-note">Tek tuşlu kısayollar metin yazarken veya Ctrl/⌘/Alt gibi tarayıcı kısayolları kullanılırken devre dışı kalır.</p>
+      </section>
+
+      <section className="help-section" aria-labelledby="help-accessibility">
+        <h4 id="help-accessibility">Erişilebilir kullanım</h4>
+        <div className="health-note"><Icon name="info" /><div><strong>Klavye ve ekran okuyucu</strong><span>Tab ile araçlar arasında ilerleyebilir, sayfanın başındaki hızlı erişim bağlantılarıyla doğrudan haritaya veya panellere geçebilirsiniz.</span></div></div>
+        <div className="health-note"><Icon name="eye" /><div><strong>Görsel tercihler</strong><span>Azaltılmış hareket, yüksek kontrast, zorunlu renkler ve büyük metin tercihleri mümkün olduğunca işletim sistemi ayarlarını takip eder.</span></div></div>
       </section>
 
       <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Bir katmanı açtığınızda Kent Rehberi servis kapsamını ve uygun zoom aralığını otomatik uygular; açık katmanların çizim sırası sizin kontrolünüzdedir.</span></div></div>
