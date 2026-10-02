@@ -4,7 +4,9 @@ v49, v48'in responsive vatandaş deneyimini ve çalışan GIS servis/runtime zin
 
 ## Dil ve platform kararı
 
-ArcGIS Maps SDK 5.1, React 19.3, Vite 8.3 ve tarayıcı/PWA çalışma zamanı için first-party kaynak dili strict TypeScript 7 olarak kalır. Native bir dile toplu yeniden yazım, ArcGIS web component ve browser API yüzeylerine FFI/WASM katmanı ekleyerek hata yüzeyini büyüteceğinden yapılmaz. Bunun yerine uygulama, Node tooling, Dedicated Worker ve Service Worker TypeScript projelerinde `exactOptionalPropertyTypes` ve `noPropertyAccessFromIndexSignature` dahil daha katı derleyici semantiği kullanılır.
+ArcGIS Maps SDK 5.1, React 19.3, Vite 8.3 ve tarayıcı/PWA çalışma zamanı için first-party kaynak dili strict TypeScript 7 olarak kalır. Native bir dile toplu yeniden yazım, ArcGIS web component ve browser API yüzeylerine FFI/WASM katmanı ekleyerek hata yüzeyini büyüteceğinden yapılmaz.
+
+Bütün execution world'ler `strict` TypeScript 7 ile derlenir; browser uygulaması ayrıca `strictNullChecks`, `noImplicitAny`, `useUnknownInCatchVariables`, `noUncheckedIndexedAccess`, unused/fallthrough/unreachable guardrail'lerini açıkça taşır. Saf uygulama sözleşmeleri için `tsconfig.contracts.json` adlı ayrı maksimum-strict proje `exactOptionalPropertyTypes` ve `noPropertyAccessFromIndexSignature` uygular. Dedicated Worker ve Service Worker projeleri de kendi izole strict derlemelerini korur. Bu katmanlı yaklaşım, ArcGIS/DOM property-bag sınırlarına yapay tip dönüşümleri dayatmadan domain kontratlarını daha sert doğrular.
 
 `public/sw.js` yalnız `src/sw/sw.ts` kaynağından üretilen deployment çıktısıdır; kaynak-of-truth değildir.
 
@@ -36,6 +38,10 @@ Yeni katman:
 - reduced-transparency tercihini takip eder,
 - forced-colors modunda sistem renklerini kullanır,
 - mobilde bounded scroll alanı kullanarak harita kontrollerini tamamen kapatmaz.
+
+## Exact optional sözleşme temizliği
+
+Maximum-strict kontrat derlemesi ilk çalışmada paylaşım URL sözleşmesinde gerçek bir belirsizlik yakaladı: `basemap` alanı yokken nesneye `basemap: undefined` yazılıyordu. v49 bu sınırı gerçekten optional yapar ve alan yalnız doğrulanmış bir değer olduğunda nesneye eklenir. OGC Worker metadata sonucu da aynı ilkeye geçirilir; optional scale/version/extent alanları artık yalnız mevcut olduklarında taşınır.
 
 ## Kod temizliği
 
