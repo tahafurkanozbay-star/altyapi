@@ -8,14 +8,29 @@ export interface ToastItem {
 
 export function ToastStack({ items, onDismiss }: { items: ToastItem[]; onDismiss: (id: string) => void }) {
   return (
-    <div className="toast-stack" aria-live="polite" aria-atomic="false">
+    <section className="toast-stack" aria-label="Kent Rehberi bildirimleri">
       {items.map((item) => (
-        <button type="button" key={item.id} className={`toast toast-${item.tone}`} onClick={() => onDismiss(item.id)}>
-          <Icon name={item.tone === "success" ? "check" : item.tone === "error" ? "warning" : "info"} size={16} />
-          <span>{item.message}</span>
-          <Icon name="close" size={13} />
-        </button>
+        <div
+          key={item.id}
+          className={`toast toast-${item.tone}`}
+          role={item.tone === "error" ? "alert" : "status"}
+          aria-live={item.tone === "error" ? "assertive" : "polite"}
+          aria-atomic="true"
+        >
+          <span className="toast-icon" aria-hidden="true">
+            <Icon name={item.tone === "success" ? "check" : item.tone === "error" ? "warning" : "info"} size={16} />
+          </span>
+          <span className="toast-message">{item.message}</span>
+          <button
+            type="button"
+            className="icon-ghost toast-dismiss"
+            onClick={() => onDismiss(item.id)}
+            aria-label="Bildirimi kapat"
+          >
+            <Icon name="close" size={13} />
+          </button>
+        </div>
       ))}
-    </div>
+    </section>
   );
 }
