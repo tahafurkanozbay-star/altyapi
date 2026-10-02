@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { clearPreferences } from "../lib/storage";
+import { Icon } from "./Icon";
 
 interface Props {
   children: ReactNode;
@@ -17,7 +18,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[Başkent 3B CBS] React render error", error, info.componentStack);
+    console.error("[Ankara Kent Rehberi] React render error", error, info.componentStack);
   }
 
   override render(): ReactNode {
@@ -25,12 +26,16 @@ export class AppErrorBoundary extends Component<Props, State> {
 
     return (
       <main className="fatal-screen" role="alert">
-        <div aria-hidden="true" style={{ fontSize: 34 }}>⚠</div>
-        <h1>Uygulama beklenmeyen bir hatayla durdu</h1>
-        <p>{this.state.error.message || "Bilinmeyen bir istemci hatası oluştu."}</p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+        <Icon name="warning" size={34} />
+        <h1>Kent Rehberi beklenmeyen bir hatayla durdu</h1>
+        <p>
+          {import.meta.env.DEV
+            ? (this.state.error.message || "Bilinmeyen bir istemci hatası oluştu.")
+            : "Harita oturumu güvenli biçimde durduruldu. Sayfayı yeniden yükleyebilir veya yerel tercihleri sıfırlayıp temiz bir oturum başlatabilirsiniz."}
+        </p>
+        <div className="fatal-actions">
           <button type="button" className="primary-button" onClick={() => window.location.reload()}>
-            Yeniden yükle
+            <Icon name="refresh" size={16} /> Yeniden yükle
           </button>
           <button
             type="button"
@@ -44,9 +49,9 @@ export class AppErrorBoundary extends Component<Props, State> {
           </button>
         </div>
         {import.meta.env.DEV && (
-          <details style={{ maxWidth: 760, textAlign: "left", marginTop: 14 }}>
+          <details className="fatal-details">
             <summary>Geliştirici ayrıntıları</summary>
-            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{this.state.error.stack ?? this.state.error.message}</pre>
+            <pre>{this.state.error.stack ?? this.state.error.message}</pre>
           </details>
         )}
       </main>
