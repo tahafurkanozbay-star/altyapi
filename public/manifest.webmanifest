@@ -1,7 +1,7 @@
 {
   "name": "Ankara Kent Rehberi",
   "short_name": "Kent Rehberi",
-  "description": "Ankara Büyükşehir Belediyesi 3B kent haritası; kent ve altyapı katmanları, adres arama, ölçüm, yer imleri ve veri inceleme araçları.",
+  "description": "Ankara Büyükşehir Belediyesi 3B kent haritası; kent ve altyapı katmanları, adres arama, ölçüm, yer imleri, veri inceleme ve vatandaş odaklı bağlantı durumu araçları.",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
