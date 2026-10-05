@@ -33,7 +33,7 @@ describe("v51 responsive citizen workspace", () => {
     ]);
 
     expect(entry).toContain('import "./styles/experience-v51.css"');
-    expect(entry).toContain('dataset.experience = "v51"');
+    expect(entry).toContain("dataset.experience");
     expect(css).toContain("env(safe-area-inset-top)");
     expect(css).toContain("env(safe-area-inset-bottom)");
     expect(css).toContain(".mobile-menu");
@@ -73,17 +73,19 @@ describe("v51 responsive citizen workspace", () => {
     expect(css).toContain("prefers-reduced-motion: reduce");
   });
 
-  it("rotates package and both service-worker cache generations together", async () => {
+  it("keeps package and service-worker cache generations coherent after v51", async () => {
     const [packageText, sourceWorker, generatedWorker] = await Promise.all([
       readFile("package.json", "utf8"),
       readFile("src/sw/sw.ts", "utf8"),
       readFile("public/sw.js", "utf8")
     ]);
+    const packageJson = JSON.parse(packageText) as { version: string };
+    const generation = Number(packageJson.version.split(".")[0]);
 
-    expect(JSON.parse(packageText)).toMatchObject({ version: "51.0.0" });
-    expect(sourceWorker).toContain('altyapi-shell-v51');
-    expect(sourceWorker).toContain('altyapi-data-v51');
-    expect(generatedWorker).toContain('altyapi-shell-v51');
-    expect(generatedWorker).toContain('altyapi-data-v51');
+    expect(generation).toBeGreaterThanOrEqual(51);
+    expect(sourceWorker).toContain(`altyapi-shell-v${generation}`);
+    expect(sourceWorker).toContain(`altyapi-data-v${generation}`);
+    expect(generatedWorker).toContain(`altyapi-shell-v${generation}`);
+    expect(generatedWorker).toContain(`altyapi-data-v${generation}`);
   });
 });

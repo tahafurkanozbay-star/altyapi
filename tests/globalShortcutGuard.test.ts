@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isAppSingleKeyShortcut,
+  resolveCitizenShortcut,
   shouldSuppressAppSingleKeyShortcut,
   type AppShortcutKeyEvent
 } from "../src/lib/globalShortcutGuard";
@@ -20,7 +21,7 @@ function event(overrides: Partial<AppShortcutKeyEvent> = {}): AppShortcutKeyEven
 }
 
 describe("global shortcut guard", () => {
-  it("recognizes only the app's unmodified single-key shortcut set", () => {
+  it("recognizes the retired legacy character-key set", () => {
     expect(isAppSingleKeyShortcut("L")).toBe(true);
     expect(isAppSingleKeyShortcut("/")).toBe(true);
     expect(isAppSingleKeyShortcut("?")).toBe(true);
@@ -28,27 +29,35 @@ describe("global shortcut guard", () => {
     expect(isAppSingleKeyShortcut("x")).toBe(false);
   });
 
-  it("protects browser shortcuts from single-key app handlers", () => {
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "l", ctrlKey: true }), false)).toBe(true);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "d", metaKey: true }), false)).toBe(true);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "f", altKey: true }), false)).toBe(true);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "m", shiftKey: true }), false)).toBe(true);
+  it("suppresses every legacy unmodified character shortcut in v52", () => {
+    for (const key of ["h", "l", "d", "m", "f", "/", "?"]) {
+      expect(shouldSuppressAppSingleKeyShortcut(event({ key }), false)).toBe(true);
+    }
+    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "Escape" }), false)).toBe(false);
   });
 
-  it("allows question-mark help even though the keyboard usually reports Shift+?", () => {
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "?", shiftKey: true }), false)).toBe(false);
+  it("resolves explicit Alt workspace chords", () => {
+    expect(resolveCitizenShortcut(event({ key: "l", altKey: true }), false)).toBe("layers");
+    expect(resolveCitizenShortcut(event({ key: "d", altKey: true }), false)).toBe("data");
+    expect(resolveCitizenShortcut(event({ key: "h", altKey: true }), false)).toBe("home");
+    expect(resolveCitizenShortcut(event({ key: "m", altKey: true }), false)).toBe("focus-mode");
   });
 
-  it("does not steal text entry, composition, held keys or already-handled events", () => {
-    expect(shouldSuppressAppSingleKeyShortcut(event(), true)).toBe(true);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ isComposing: true }), false)).toBe(true);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ repeat: true }), false)).toBe(true);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ defaultPrevented: true }), false)).toBe(true);
+  it("resolves platform-primary search/help/fullscreen chords", () => {
+    expect(resolveCitizenShortcut(event({ key: "k", ctrlKey: true }), false)).toBe("search");
+    expect(resolveCitizenShortcut(event({ key: "K", metaKey: true }), false)).toBe("search");
+    expect(resolveCitizenShortcut(event({ key: "/", ctrlKey: true }), false)).toBe("help");
+    expect(resolveCitizenShortcut(event({ key: "/", metaKey: true }), false)).toBe("help");
+    expect(resolveCitizenShortcut(event({ key: "f", ctrlKey: true, shiftKey: true }), false)).toBe("fullscreen");
+    expect(resolveCitizenShortcut(event({ key: "F", metaKey: true, shiftKey: true }), false)).toBe("fullscreen");
   });
 
-  it("keeps ordinary app shortcuts available on the non-interactive page surface", () => {
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "h" }), false)).toBe(false);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "f" }), false)).toBe(false);
-    expect(shouldSuppressAppSingleKeyShortcut(event({ key: "/" }), false)).toBe(false);
+  it("does not steal text entry, composition, held keys or unrelated modifier chords", () => {
+    expect(resolveCitizenShortcut(event({ key: "l", altKey: true }), true)).toBeNull();
+    expect(resolveCitizenShortcut(event({ key: "k", ctrlKey: true, isComposing: true }), false)).toBeNull();
+    expect(resolveCitizenShortcut(event({ key: "k", ctrlKey: true, repeat: true }), false)).toBeNull();
+    expect(resolveCitizenShortcut(event({ key: "k", ctrlKey: true, defaultPrevented: true }), false)).toBeNull();
+    expect(resolveCitizenShortcut(event({ key: "x", altKey: true }), false)).toBeNull();
+    expect(resolveCitizenShortcut(event({ key: "l", altKey: true, shiftKey: true }), false)).toBeNull();
   });
 });

@@ -38,8 +38,11 @@ describe("v43 citizen experience", () => {
   });
 
   it("exposes accessible landmarks, offline state and keyboard navigation", async () => {
-    const app = await readFile("src/App.tsx", "utf8");
-    const rail = await readFile("src/components/ToolRail.tsx", "utf8");
+    const [app, rail, keyboard] = await Promise.all([
+      readFile("src/App.tsx", "utf8"),
+      readFile("src/components/ToolRail.tsx", "utf8"),
+      readFile("src/platform/citizenKeyboardSupervisor.ts", "utf8")
+    ]);
 
     expect(app).toContain('className="skip-links"');
     expect(app).toContain('id="kent-rehberi-map"');
@@ -47,10 +50,10 @@ describe("v43 citizen experience", () => {
     expect(app).toContain('id="kent-rehberi-panels"');
     expect(app).toContain('className="offline-banner"');
     expect(app).toContain('className="workspace-summary"');
-    expect(app).toContain('event.key === "?"');
-    expect(app).toContain('event.key === "/"');
     expect(rail).toContain('id="kent-rehberi-tools"');
     expect(rail).toContain("aria-keyshortcuts");
+    expect(keyboard).toContain("resolveCitizenShortcut");
+    expect(keyboard).toContain("ArrowRight");
   });
 
   it("keeps layer management understandable and recoverable", async () => {
@@ -68,8 +71,9 @@ describe("v43 citizen experience", () => {
     expect(panel).toContain("lazy(async () =>");
     expect(panel).toContain("<Suspense");
     expect(panel).toContain("Hızlı başlangıç");
-    expect(panel).toContain('keyName="/"');
-    expect(panel).toContain('keyName="?"');
+    expect(panel).toContain("Klavye kısayolları");
+    expect(panel).toContain("Arama alanına git");
+    expect(panel).toContain("Yardımı aç");
   });
 
   it("loads the responsive accessibility stylesheet and keeps the current PWA brand asset cached", async () => {

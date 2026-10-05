@@ -139,22 +139,24 @@ function HelpPanel() {
       <section className="help-section" aria-labelledby="help-shortcuts">
         <h4 id="help-shortcuts">Klavye kısayolları</h4>
         <div className="shortcut-list">
-          <Shortcut keyName="L" label="Katmanlar" />
-          <Shortcut keyName="D" label="Harita verisi" />
-          <Shortcut keyName="H" label="Başlangıç görünümü" />
-          <Shortcut keyName="/" label="Arama alanına git" />
-          <Shortcut keyName="?" label="Yardımı aç" />
-          <Shortcut keyName="F" label="Tam ekran" />
-          <Shortcut keyName="M" label="Haritaya odaklan" />
+          <Shortcut keyName="Alt + L" label="Katmanlar" />
+          <Shortcut keyName="Alt + D" label="Harita verisi" />
+          <Shortcut keyName="Alt + H" label="Başlangıç görünümü" />
+          <Shortcut keyName="Ctrl/⌘ + K" label="Arama alanına git" />
+          <Shortcut keyName="Ctrl/⌘ + /" label="Yardımı aç" />
+          <Shortcut keyName="Ctrl/⌘ + Shift + F" label="Tam ekran" />
+          <Shortcut keyName="Alt + M" label="Haritaya odaklan" />
           <Shortcut keyName="Esc" label="Açık aracı veya paneli kapat" />
+          <Shortcut keyName="← ↑ ↓ →" label="Araç dock'unda gezin" />
+          <Shortcut keyName="Home / End" label="İlk veya son araca git" />
         </div>
-        <p className="section-note">Tek tuşlu kısayollar metin yazarken veya Ctrl/⌘/Alt gibi tarayıcı kısayolları kullanılırken devre dışı kalır.</p>
+        <p className="section-note">v52 ile çıplak tek-harf kısayolları kaldırıldı. Kısayollar metin alanlarında çalışmaz; tarayıcı, ekran okuyucu ve konuşma ile giriş komutlarıyla çakışmaması için açık modifier kombinasyonları kullanılır.</p>
       </section>
 
       <section className="help-section" aria-labelledby="help-accessibility">
         <h4 id="help-accessibility">Erişilebilir kullanım</h4>
-        <div className="health-note"><Icon name="info" /><div><strong>Klavye ve ekran okuyucu</strong><span>Tab ile araçlar arasında ilerleyebilir, sayfanın başındaki hızlı erişim bağlantılarıyla doğrudan haritaya veya panellere geçebilirsiniz.</span></div></div>
-        <div className="health-note"><Icon name="eye" /><div><strong>Görsel tercihler</strong><span>Azaltılmış hareket, yüksek kontrast, zorunlu renkler ve büyük metin tercihleri mümkün olduğunca işletim sistemi ayarlarını takip eder.</span></div></div>
+        <div className="health-note"><Icon name="info" /><div><strong>Klavye ve ekran okuyucu</strong><span>Tab ile ana bölgelere ilerleyebilir, araç dock'unda ok tuşlarını kullanabilir ve sayfanın başındaki hızlı erişim bağlantılarıyla doğrudan haritaya veya panellere geçebilirsiniz.</span></div></div>
+        <div className="health-note"><Icon name="eye" /><div><strong>Görsel tercihler</strong><span>Azaltılmış hareket, azaltılmış saydamlık, yüksek kontrast, zorunlu renkler ve büyük metin tercihleri mümkün olduğunca işletim sistemi ayarlarını takip eder.</span></div></div>
       </section>
 
       <div className="health-note"><Icon name="layers" /><div><strong>Katmanlar</strong><span>Bir katmanı açtığınızda Kent Rehberi servis kapsamını ve uygun zoom aralığını otomatik uygular; açık katmanların çizim sırası sizin kontrolünüzdedir.</span></div></div>
