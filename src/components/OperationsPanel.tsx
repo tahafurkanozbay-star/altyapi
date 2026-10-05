@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, ServiceDefinition } from "../types";
+import { CITIZEN_SHORTCUTS, STATIC_HELP_SHORTCUTS, panelLabel } from "../platform/citizenActions";
 import { Icon } from "./Icon";
 
 const LazyDataWorkbench = lazy(async () => {
@@ -21,20 +22,21 @@ interface Props {
 export function OperationsPanel(props: Props) {
   if (props.panel !== "data" && props.panel !== "bookmarks" && props.panel !== "help") return null;
   const headingId = `operations-panel-title-${props.panel}`;
+  const title = panelLabel(props.panel);
 
   return (
     <aside className="operations-panel" aria-labelledby={headingId}>
       <div className="operations-heading">
         <div>
           <span className="eyebrow">ANKARA KENT REHBERİ</span>
-          <h2 id={headingId}>{panelTitle(props.panel)}</h2>
+          <h2 id={headingId}>{title}</h2>
         </div>
         <button
           type="button"
           className="icon-ghost mobile-panel-close"
           data-panel-close
           onClick={props.onClose}
-          aria-label={`${panelTitle(props.panel)} panelini kapat`}
+          aria-label={`${title} panelini kapat`}
         >
           <Icon name="close" />
         </button>
@@ -139,18 +141,14 @@ function HelpPanel() {
       <section className="help-section" aria-labelledby="help-shortcuts">
         <h4 id="help-shortcuts">Klavye kısayolları</h4>
         <div className="shortcut-list">
-          <Shortcut keyName="Alt + L" label="Katmanlar" />
-          <Shortcut keyName="Alt + D" label="Harita verisi" />
-          <Shortcut keyName="Alt + H" label="Başlangıç görünümü" />
-          <Shortcut keyName="Ctrl/⌘ + K" label="Arama alanına git" />
-          <Shortcut keyName="Ctrl/⌘ + /" label="Yardımı aç" />
-          <Shortcut keyName="Ctrl/⌘ + Shift + F" label="Tam ekran" />
-          <Shortcut keyName="Alt + M" label="Haritaya odaklan" />
-          <Shortcut keyName="Esc" label="Açık aracı veya paneli kapat" />
-          <Shortcut keyName="← ↑ ↓ →" label="Araç dock'unda gezin" />
-          <Shortcut keyName="Home / End" label="İlk veya son araca git" />
+          {CITIZEN_SHORTCUTS.map((shortcut) => (
+            <Shortcut key={shortcut.command} keyName={shortcut.display} label={shortcut.label} />
+          ))}
+          {STATIC_HELP_SHORTCUTS.map((shortcut) => (
+            <Shortcut key={shortcut.display} keyName={shortcut.display} label={shortcut.label} />
+          ))}
         </div>
-        <p className="section-note">v52 ile çıplak tek-harf kısayolları kaldırıldı. Kısayollar metin alanlarında çalışmaz; tarayıcı, ekran okuyucu ve konuşma ile giriş komutlarıyla çakışmaması için açık modifier kombinasyonları kullanılır.</p>
+        <p className="section-note">Çıplak tek-harf kısayolları kullanılmaz. Kısayollar metin alanlarında çalışmaz; tarayıcı, ekran okuyucu ve konuşma ile giriş komutlarıyla çakışmaması için açık modifier kombinasyonları kullanılır.</p>
       </section>
 
       <section className="help-section" aria-labelledby="help-accessibility">
@@ -175,10 +173,4 @@ function bookmarkMetadata(bookmark: Bookmark): string {
 
 function Shortcut({ keyName, label }: { keyName: string; label: string }) {
   return <div><kbd>{keyName}</kbd><span>{label}</span></div>;
-}
-
-function panelTitle(panel: Props["panel"]): string {
-  if (panel === "data") return "Harita Verisi";
-  if (panel === "bookmarks") return "Yer İmleri";
-  return "Yardım ve Kısayollar";
 }
