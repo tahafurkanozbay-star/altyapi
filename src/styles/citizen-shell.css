@@ -1,0 +1,94 @@
+/*
+ * Ankara Kent Rehberi — unified citizen shell stylesheet.
+ *
+ * Historical experience fragments are imported in their original cascade order
+ * so v54 can expose one stable stylesheet entry point without changing proven
+ * layout behavior. New releases extend this file instead of adding another
+ * top-level import to main.tsx.
+ */
+@import "./experience-v43.css";
+@import "./experience-v44.css";
+@import "./experience-v45.css";
+@import "./experience-v47.css";
+@import "./experience-v48.css";
+@import "./experience-v49.css";
+@import "./experience-v50.css";
+@import "./experience-v51.css";
+@import "./experience-v52.css";
+@import "./experience-v53.css";
+
+html[data-experience="v54"] {
+  --citizen-focus-ring: 3px solid #0b63ce;
+  --citizen-focus-offset: 3px;
+  --citizen-touch-target: 44px;
+}
+
+html[data-experience="v54"] :where(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: var(--citizen-focus-ring) !important;
+  outline-offset: var(--citizen-focus-offset) !important;
+}
+
+html[data-experience="v54"] :where(.tool-button, .top-icon-button, .mobile-menu, .icon-ghost) {
+  min-width: var(--citizen-touch-target);
+  min-height: var(--citizen-touch-target);
+}
+
+html[data-experience="v54"] [data-v54-inert="true"] {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+html[data-experience="v54"] :where(.brand, .workspace-summary, .operations-heading, .catalog-card, .health-note) {
+  min-width: 0;
+}
+
+html[data-experience="v54"] :where(.brand strong, .brand span, .workspace-summary span, .catalog-card strong, .health-note span) {
+  overflow-wrap: anywhere;
+}
+
+html[data-experience="v54"] .panel-zone :where(.main-panel, .operations-panel)[aria-modal="true"] {
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+@media (pointer: coarse) {
+  html[data-experience="v54"] :where(button, select, input[type="checkbox"], input[type="range"]) {
+    min-height: var(--citizen-touch-target);
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-experience="v54"] .panel-zone.is-mobile-visible :where(.main-panel, .operations-panel)[aria-modal="true"] {
+    max-height: min(86dvh, calc(var(--app-visual-height, 100dvh) - 76px));
+    scroll-padding-block: 16px;
+  }
+
+  html[data-experience="v54"] .top-actions {
+    min-width: 0;
+  }
+
+  html[data-experience="v54"] .compact-select {
+    max-width: min(42vw, 168px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-experience="v54"] *,
+  html[data-experience="v54"] *::before,
+  html[data-experience="v54"] *::after {
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  html[data-experience="v54"] :focus-visible {
+    outline: 3px solid Highlight !important;
+  }
+}
