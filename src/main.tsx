@@ -23,6 +23,7 @@ import "./styles/experience-v45.css";
 import "./styles/experience-v47.css";
 import "./styles/experience-v48.css";
 import "./styles/experience-v49.css";
+import "./styles/experience-v50.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");
@@ -48,10 +49,10 @@ window.addEventListener("unhandledrejection", (event) => {
 // Application-owned events stay typed, main-thread pressure is measured at runtime,
 // background GIS work yields before it can compete with interactive rendering, and
 // the citizen shell keeps mobile focus/viewport behavior coherent across browsers.
-// Migration note: legacy `altyapi:update-available` is retired in favor of RuntimeEventMap.
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installCitizenExperienceSupervisor();
+document.documentElement.dataset.experience = "v50";
 installLayerRenderHealthStore();
 installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();

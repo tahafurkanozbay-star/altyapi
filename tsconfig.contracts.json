@@ -27,6 +27,7 @@
     "src/platform/runtimeEvents.ts",
     "src/lib/urlState.ts",
     "src/lib/workspaceView.ts",
-    "src/lib/globalShortcutGuard.ts"
+    "src/lib/globalShortcutGuard.ts",
+    "src/lib/citizenReadiness.ts"
   ]
 }

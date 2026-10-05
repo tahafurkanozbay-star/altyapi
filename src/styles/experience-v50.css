@@ -1,0 +1,127 @@
+/* v50 citizen experience: concise map readiness, safe responsive density and accessible state color. */
+.status-readiness {
+  --v50-state: #2563eb;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(280px, 31vw);
+  max-width: 390px;
+}
+
+.status-readiness[data-tone="ready"] { --v50-state: #15803d; }
+.status-readiness[data-tone="loading"] { --v50-state: #0369a1; }
+.status-readiness[data-tone="warning"] { --v50-state: #b45309; }
+.status-readiness[data-tone="offline"] { --v50-state: #b91c1c; }
+.status-readiness[data-tone="idle"] { --v50-state: #475569; }
+
+.status-readiness-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 999px;
+  background: var(--v50-state);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--v50-state) 16%, transparent);
+}
+
+.status-readiness-copy {
+  display: grid;
+  min-width: 0;
+  line-height: 1.18;
+}
+
+.status-readiness-copy > strong {
+  color: var(--v50-state);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.status-readiness-copy > span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-muted, #64748b);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-service-summary {
+  gap: 10px;
+  white-space: nowrap;
+}
+
+/* The top summary remains useful while the footer becomes the authoritative readiness surface. */
+.workspace-summary .is-loading,
+.workspace-summary .is-error {
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-summary .is-error {
+  font-weight: 700;
+}
+
+@media (max-width: 1120px) {
+  .status-readiness {
+    min-width: 190px;
+    max-width: 270px;
+  }
+
+  .status-readiness-copy > span {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .status-bar {
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    padding-left: max(10px, env(safe-area-inset-left));
+  }
+
+  .status-coordinate {
+    display: none !important;
+  }
+
+  .status-readiness {
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .status-readiness-copy > strong {
+    font-size: 11px;
+  }
+
+  .status-service-summary > span:not(:first-child) {
+    display: none;
+  }
+}
+
+@media (max-width: 460px) {
+  .status-service-summary {
+    display: none !important;
+  }
+
+  .status-readiness-copy > strong {
+    max-width: 45vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-readiness-dot {
+    transition: background-color 160ms ease, box-shadow 160ms ease;
+  }
+}
+
+@media (forced-colors: active) {
+  .status-readiness-dot {
+    background: CanvasText;
+    box-shadow: none;
+    border: 1px solid CanvasText;
+  }
+
+  .status-readiness-copy > strong {
+    color: CanvasText;
+  }
+}
