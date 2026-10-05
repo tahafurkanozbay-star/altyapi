@@ -47,11 +47,12 @@ describe("v50 citizen experience", () => {
   });
 
   it("keeps responsive, reduced-motion and forced-colors v50 foundations loaded", async () => {
-    const [entry, css] = await Promise.all([
+    const [entry, shellCss, css] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8"),
       readFile("src/styles/experience-v50.css", "utf8")
     ]);
-    expect(entry).toContain('import "./styles/experience-v50.css"');
+    expect(shellCss).toContain('@import "./experience-v50.css"');
     expect(entry).toContain("dataset.experience");
     expect(css).toContain(".status-readiness");
     expect(css).toContain("@media (max-width: 760px)");
