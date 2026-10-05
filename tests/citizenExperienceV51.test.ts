@@ -27,7 +27,7 @@ describe("v51 full-page usability", () => {
     expect(supervisor).toContain("EDITING_SELECTOR");
     expect(supervisor).toContain("scrollIntoView");
     expect(supervisor).toContain("shellDensity");
-    expect(supervisor).toContain('root.dataset.experience = "v51"');
+    expect(supervisor).toContain('root.dataset["experience"] = "v51"');
     expect(css).toContain('data-pointer="coarse"');
     expect(css).toContain("min-width: 44px");
     expect(css).toContain('data-virtual-keyboard="open"');
