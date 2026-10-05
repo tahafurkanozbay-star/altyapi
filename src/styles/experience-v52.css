@@ -1,0 +1,107 @@
+/* Ankara Kent Rehberi v52 — accessible interaction contract.
+   Loaded after prior experience layers so keyboard/focus semantics stay authoritative. */
+
+:where(
+  .app-shell button,
+  .app-shell a[href],
+  .app-shell select,
+  .app-shell input,
+  .app-shell textarea,
+  .app-shell [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+#kent-rehberi-map:focus-visible,
+#kent-rehberi-panels:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: -5px;
+}
+
+#kent-rehberi-tools .tool-button:focus-visible {
+  position: relative;
+  z-index: 3;
+  scroll-margin: 12px;
+}
+
+.toast-stack {
+  pointer-events: none;
+}
+
+.toast-stack .toast {
+  pointer-events: auto;
+  cursor: default;
+}
+
+.toast-leading {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.toast-message {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.toast-dismiss {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  margin-inline-start: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.toast-dismiss:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.shortcut-list kbd {
+  min-width: 5.75rem;
+  white-space: nowrap;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  #kent-rehberi-tools .tool-button:focus-visible {
+    scroll-margin-inline: max(14px, env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+
+  .shortcut-list kbd {
+    min-width: 7rem;
+    white-space: normal;
+  }
+}
+
+@media (forced-colors: active) {
+  :where(
+    .app-shell button,
+    .app-shell a[href],
+    .app-shell select,
+    .app-shell input,
+    .app-shell textarea,
+    .app-shell [tabindex]
+  ):focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 3px;
+  }
+
+  .toast-dismiss {
+    border: 1px solid ButtonText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #kent-rehberi-tools .tool-button {
+    scroll-behavior: auto;
+  }
+}
