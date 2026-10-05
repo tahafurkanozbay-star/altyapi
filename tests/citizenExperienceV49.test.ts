@@ -20,10 +20,12 @@ describe("v49 platform usability", () => {
   });
 
   it("keeps platform notices readable without stacking fixed banners on the same corner", async () => {
-    const css = await readFile("src/styles/experience-v49.css", "utf8");
-    const entry = await readFile("src/main.tsx", "utf8");
+    const [css, shellCss] = await Promise.all([
+      readFile("src/styles/experience-v49.css", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8")
+    ]);
 
-    expect(entry).toContain('import "./styles/experience-v49.css"');
+    expect(shellCss).toContain('@import "./experience-v49.css"');
     expect(css).toContain(".platform-status-stack");
     expect(css).toContain(".platform-status-stack .install-banner");
     expect(css).toContain("position: static !important");
