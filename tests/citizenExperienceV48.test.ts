@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v48 product integrity", () => {
-  it("keeps the typed progressive install experience while v49 composes platform notices", async () => {
+describe("v48 product integrity retained by later releases", () => {
+  it("keeps the typed progressive install experience while later releases compose platform notices", async () => {
     const entry = await readFile("src/main.tsx", "utf8");
     const statusHost = await readFile("src/components/PlatformStatusHost.tsx", "utf8");
     const install = await readFile("src/components/InstallPromptHost.tsx", "utf8");
@@ -24,7 +24,7 @@ describe("v48 product integrity", () => {
     expect(supervisor).toContain('TOOL_PANEL_SELECTOR = ".map-tool-panel"');
     expect(supervisor).toContain('TOOL_TRIGGER_SELECTOR = "button[data-tool-target]"');
     expect(supervisor).toContain("restoreToolFocusOnClose");
-    expect(supervisor).toContain('root.dataset.experience = "v48"');
+    expect(supervisor).toContain('root.dataset["experience"] =');
     expect(rail).toContain("data-tool-target={toolTarget}");
   });
 

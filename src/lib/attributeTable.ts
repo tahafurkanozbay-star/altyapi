@@ -26,14 +26,30 @@ export function formatCell(value: AttributeValue | undefined): string {
 }
 
 export function rowsToCsv(rows: AttributeRow[], fields: AttributeField[]): string {
-  const header = fields.map((field) => csvEscape(field.alias || field.name)).join(",");
-  const body = rows.map((row) => fields.map((field) => csvEscape(formatCell(row[field.name]))).join(",")).join("\n");
+  const header = fields.map((field) => csvEscape(neutralizeSpreadsheetFormula(field.alias || field.name))).join(",");
+  const body = rows
+    .map((row) => fields.map((field) => csvCell(row[field.name])).join(","))
+    .join("\n");
   return "\uFEFF" + [header, body].filter(Boolean).join("\n");
 }
 
 export function defaultVisibleFields(fields: AttributeField[], maxColumns = 8): string[] {
   const preferred = fields.filter((field) => !/shape|geometry|globalid/i.test(field.name));
   return (preferred.length ? preferred : fields).slice(0, Math.max(1, maxColumns)).map((field) => field.name);
+}
+
+export function neutralizeSpreadsheetFormula(value: string): string {
+  const firstMeaningfulCharacter = value.trimStart().charAt(0);
+  if (!firstMeaningfulCharacter || !/[=+\-@]/.test(firstMeaningfulCharacter)) return value;
+  return `'${value}`;
+}
+
+function csvCell(value: AttributeValue | undefined): string {
+  const formatted = formatCell(value);
+  if (typeof value === "number" || typeof value === "boolean" || value === null || value === undefined) {
+    return csvEscape(formatted);
+  }
+  return csvEscape(neutralizeSpreadsheetFormula(formatted));
 }
 
 function csvEscape(value: string): string {
