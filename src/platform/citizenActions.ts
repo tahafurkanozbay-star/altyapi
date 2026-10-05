@@ -1,4 +1,4 @@
-import type { PanelId, ToolId } from "../types";
+import type { ToolId } from "../types";
 
 export type CitizenShortcutCommand =
   | "home"
@@ -8,6 +8,8 @@ export type CitizenShortcutCommand =
   | "search"
   | "help"
   | "fullscreen";
+
+export type CitizenPanelId = "layers" | "data" | "bookmarks" | "help";
 
 export interface CitizenShortcutDefinition {
   command: CitizenShortcutCommand;
@@ -98,7 +100,7 @@ export const PANEL_LABELS = {
   data: "Harita Verisi",
   bookmarks: "Yer İmleri",
   help: "Yardım ve Kısayollar"
-} as const satisfies Record<Exclude<PanelId, null>, string>;
+} as const satisfies Record<CitizenPanelId, string>;
 
 export const MAP_TOOL_METADATA = {
   legend: { label: "Lejant", keywords: ["lejant", "sembol"] },
@@ -123,7 +125,7 @@ export function shortcutFor(command: CitizenShortcutCommand): CitizenShortcutDef
   return shortcut;
 }
 
-export function panelLabel(panel: Exclude<PanelId, null>): string {
+export function panelLabel(panel: CitizenPanelId): string {
   return PANEL_LABELS[panel];
 }
 
