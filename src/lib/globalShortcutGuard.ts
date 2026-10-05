@@ -1,3 +1,9 @@
+import {
+  CITIZEN_SHORTCUTS,
+  type CitizenShortcutCommand,
+  type CitizenShortcutDefinition
+} from "../platform/citizenActions";
+
 export interface AppShortcutKeyEvent {
   key: string;
   altKey: boolean;
@@ -9,14 +15,7 @@ export interface AppShortcutKeyEvent {
   defaultPrevented: boolean;
 }
 
-export type CitizenShortcutCommand =
-  | "home"
-  | "layers"
-  | "data"
-  | "focus-mode"
-  | "search"
-  | "help"
-  | "fullscreen";
+export type { CitizenShortcutCommand } from "../platform/citizenActions";
 
 const APP_SINGLE_KEY_SHORTCUTS = new Set(["h", "l", "d", "m", "f", "/", "?"]);
 
@@ -25,16 +24,24 @@ export function isAppSingleKeyShortcut(key: string): boolean {
 }
 
 /**
- * v52 deliberately suppresses every legacy unmodified single-key shortcut.
- * WCAG 2.1.4 requires character-key shortcuts to be disableable/remappable; using
- * explicit modifier chords instead avoids accidental activation for speech input,
- * screen-reader users and ordinary page navigation.
+ * Character-only shortcuts stay disabled. Modifier chords live in one typed
+ * registry so the keyboard supervisor, visible help and aria-keyshortcuts can
+ * never silently drift apart.
  */
 export function shouldSuppressAppSingleKeyShortcut(
   event: AppShortcutKeyEvent,
   _interactiveTarget: boolean
 ): boolean {
   return isAppSingleKeyShortcut(event.key);
+}
+
+function shortcutMatches(event: AppShortcutKeyEvent, shortcut: CitizenShortcutDefinition): boolean {
+  const key = event.key.toLocaleLowerCase("tr-TR");
+  const primary = event.ctrlKey || event.metaKey;
+  return key === shortcut.key
+    && event.altKey === shortcut.alt
+    && primary === shortcut.primary
+    && event.shiftKey === shortcut.shift;
 }
 
 export function resolveCitizenShortcut(
@@ -48,21 +55,7 @@ export function resolveCitizenShortcut(
     || event.repeat
   ) return null;
 
-  const key = event.key.toLocaleLowerCase("tr-TR");
-  const primary = event.ctrlKey || event.metaKey;
-
-  if (primary && !event.altKey && !event.shiftKey && key === "k") return "search";
-  if (primary && !event.altKey && !event.shiftKey && key === "/") return "help";
-  if (primary && !event.altKey && event.shiftKey && key === "f") return "fullscreen";
-
-  if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-    if (key === "h") return "home";
-    if (key === "l") return "layers";
-    if (key === "d") return "data";
-    if (key === "m") return "focus-mode";
-  }
-
-  return null;
+  return CITIZEN_SHORTCUTS.find((shortcut) => shortcutMatches(event, shortcut))?.command ?? null;
 }
 
 export function shortcutEventDescriptor(event: KeyboardEvent): AppShortcutKeyEvent {
