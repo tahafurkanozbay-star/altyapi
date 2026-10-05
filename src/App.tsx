@@ -74,7 +74,6 @@ export default function App() {
   const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
@@ -131,18 +130,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = "light";
   }, []);
-
-  useEffect(() => {
-    const onUpdate = () => setUpdateAvailable(true);
-    window.addEventListener("altyapi:update-available", onUpdate);
-    return () => window.removeEventListener("altyapi:update-available", onUpdate);
-  }, []);
-
-  const applyAppUpdate = useCallback(() => {
-    window.dispatchEvent(new Event("altyapi:apply-update"));
-    setUpdateAvailable(false);
-    pushToast("Kent Rehberi güncelleniyor…", "info");
-  }, [pushToast]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -356,7 +343,6 @@ export default function App() {
           error: visible ? undefined : service.error
         }
       : failurePatch(service, result.error, result.durationMs);
-
     patchService(service.id, patch);
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
@@ -711,6 +697,7 @@ export default function App() {
         tabIndex={-1}
         aria-label="Ankara 3B Kent Rehberi haritası"
         aria-describedby="map-usage-hint"
+        aria-busy={!ready || shellMetrics.loading > 0}
       />
       <div className="map-vignette" aria-hidden="true" />
 
@@ -730,7 +717,7 @@ export default function App() {
           <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi · 3B Kent Haritası</span></div>
         </div>
         <div className={`live-chip ${online ? "" : "is-offline"}`} role="status" aria-live="polite" title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "CANLI HARİTA" : "ÇEVRİMDIŞI"}</div>
-        <div className="workspace-summary" role="status" aria-live="polite" aria-label="Katman çalışma özeti">
+        <div className="workspace-summary" role="group" aria-label="Katman çalışma özeti">
           <span><strong>{shellMetrics.active}</strong> açık</span>
           {shellMetrics.loading > 0 && <span className="is-loading"><strong>{shellMetrics.loading}</strong> hazırlanıyor</span>}
           {shellMetrics.error > 0 && <span className="is-error"><strong>{shellMetrics.error}</strong> sorunlu</span>}
@@ -756,7 +743,7 @@ export default function App() {
         onScreenshot={() => void takeScreenshot()}
       />
 
-      <div id="kent-rehberi-panels" className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri">
+      <div id="kent-rehberi-panels" className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri" tabIndex={-1}>
         <ViewTransition name="workspace-panel">
           {panel === "layers" ? (
             <aside className="main-panel" key="layers" aria-label="Katmanlar paneli">
@@ -810,15 +797,6 @@ export default function App() {
         <div className="offline-banner" role="status" aria-live="polite">
           <Icon name="warning" size={18} />
           <div><strong>Bağlantı yok</strong><span>Önbellekteki harita kabuğu kullanılabilir; canlı katmanlar bağlantı geri geldiğinde yenilenir.</span></div>
-        </div>
-      )}
-
-      {updateAvailable && (
-        <div className="app-update-banner" role="status" aria-live="polite">
-          <span className="app-update-icon"><Icon name="refresh" size={16} /></span>
-          <div><strong>Kent Rehberi güncellemesi hazır</strong><span>Yeni sürüm uygulanabilir; harita tercihleriniz korunur.</span></div>
-          <button type="button" className="primary-button" onClick={applyAppUpdate}>Güncelle</button>
-          <button type="button" className="icon-ghost" onClick={() => setUpdateAvailable(false)} aria-label="Güncelleme bildirimini kapat"><Icon name="close" size={14} /></button>
         </div>
       )}
 
