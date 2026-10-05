@@ -266,8 +266,10 @@ describe("architecture guardrails", () => {
     expect(reliability).toContain("summarizeIncidentReliability");
     expect(app).not.toContain("stabilizeWorkspace");
     expect(app).toContain("detectPerformanceProfile");
-    expect(app).toContain("altyapi:apply-update");
-    expect(main).toContain("altyapi:update-available");
+    expect(app).not.toContain("altyapi:apply-update");
+    expect(app).not.toContain("altyapi:update-available");
+    expect(main).toContain('publishRuntimeEvent("pwa-update-available"');
+    expect(main).toContain('subscribeRuntimeEvent("pwa-apply-update"');
     expect(main).toContain("controllerchange");
     expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
