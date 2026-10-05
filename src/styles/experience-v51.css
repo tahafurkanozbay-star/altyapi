@@ -1,0 +1,163 @@
+/* v51 interaction hardening: adaptive density, coarse-pointer targets, keyboard focus and semantic toasts. */
+
+@layer components {
+  :is(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 82%, white);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--panel-solid) 82%, transparent);
+  }
+
+  :is(button, a[href], summary) {
+    touch-action: manipulation;
+  }
+
+  :is(.panel-heading, .operations-heading, .help-hero) :is(h1, h2, h3, h4) {
+    text-wrap: balance;
+  }
+
+  .main-panel,
+  .operations-panel,
+  .map-tool-panel,
+  .details-drawer {
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .panel-content,
+  .operations-body,
+  .map-tool-host {
+    scroll-padding-block: 16px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .toast {
+    cursor: default;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .toast-icon {
+    display: grid;
+    place-items: center;
+  }
+
+  .toast-success .toast-icon { color: var(--green); }
+  .toast-error .toast-icon { color: var(--red); }
+  .toast-info .toast-icon { color: var(--accent-2); }
+
+  .toast-message {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+
+  .toast-dismiss {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .toast-dismiss:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .fatal-screen:focus {
+    outline: none;
+  }
+
+  .fatal-screen:focus-visible {
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+}
+
+@layer responsive {
+  html[data-shell-density="cozy"] .topbar {
+    grid-template-columns: minmax(240px, 310px) auto minmax(220px, 1fr) auto;
+  }
+
+  html[data-shell-density="cozy"] .brand > div:last-child > span {
+    max-width: 220px;
+  }
+
+  html[data-shell-density="compact"] .workspace-summary {
+    display: none;
+  }
+
+  html[data-shell-density="compact"] .brand > div:last-child > span {
+    display: none;
+  }
+
+  html[data-shell-density="compact"] .brand {
+    min-width: 0;
+  }
+
+  html[data-pointer="coarse"] :is(
+    .tool-button,
+    .top-icon-button,
+    .mobile-menu,
+    .mobile-panel-close,
+    .icon-ghost,
+    .visibility-button,
+    .favorite-button,
+    .catalog-action,
+    .filter-chip,
+    .availability-chip,
+    .primary-button,
+    .toast-dismiss
+  ) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  html[data-pointer="coarse"] input[type="range"] {
+    min-height: 44px;
+  }
+
+  html[data-virtual-keyboard="open"] :is(.panel-content, .operations-body, .map-tool-panel) {
+    scroll-padding-bottom: calc(var(--v44-keyboard-inset, 0px) + 24px);
+  }
+
+  @media (max-width: 760px) {
+    .toast-stack {
+      right: max(10px, env(safe-area-inset-right));
+      left: max(10px, env(safe-area-inset-left));
+      bottom: max(62px, calc(env(safe-area-inset-bottom) + 54px));
+      width: auto;
+    }
+
+    .toast {
+      min-height: 48px;
+      font-size: 10px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast-dismiss,
+  :is(button, a[href], summary) {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :is(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid Highlight;
+    box-shadow: none;
+  }
+
+  .toast {
+    border: 1px solid CanvasText;
+  }
+
+  .toast-dismiss {
+    color: ButtonText;
+  }
+}
