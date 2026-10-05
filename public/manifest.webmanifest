@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "Ankara Kent Rehberi",
   "short_name": "Kent Rehberi",
   "description": "Ankara Büyükşehir Belediyesi 3B kent haritası; kent ve altyapı katmanları, adres arama, ölçüm, yer imleri ve veri inceleme araçları.",
@@ -11,6 +12,9 @@
   "background_color": "#f4f7f9",
   "theme_color": "#ffffff",
   "categories": ["navigation", "utilities", "productivity"],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "icons": [
     {
       "src": "./ankara-logo.png",

@@ -1,0 +1,166 @@
+/* Ankara Kent Rehberi v53 — unified citizen shell and mobile context policy.
+   This layer is intentionally loaded last so full-page usability rules remain authoritative. */
+
+:root {
+  --v53-scrim: rgba(10, 31, 43, .22);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.app-shell :where(button, [role="button"], a[href]) {
+  touch-action: manipulation;
+}
+
+.app-shell :where(input[type="checkbox"], input[type="radio"], input[type="range"]) {
+  accent-color: var(--accent);
+}
+
+.panel-zone {
+  container-name: workspace-panel;
+  container-type: inline-size;
+}
+
+.panel-content,
+.operations-body,
+.details-drawer,
+.map-tool-panel {
+  scroll-padding-block: 18px;
+}
+
+.layer-card,
+.health-note,
+.bookmark-card,
+.empty-state,
+.panel-loading {
+  overflow-wrap: anywhere;
+}
+
+html[data-shell-context="details"] .details-drawer,
+html[data-shell-context="tool"] .map-tool-panel,
+html[data-shell-context="panel-desktop"] :is(.main-panel, .operations-panel),
+html[data-shell-context="panel-mobile"] :is(.main-panel, .operations-panel) {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line-strong));
+}
+
+@container workspace-panel (max-width: 350px) {
+  .catalog-overview,
+  .data-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .catalog-actions,
+  .server-query-actions,
+  .data-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .filter-row,
+  .availability-filter {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    padding-bottom: 3px;
+  }
+
+  .filter-chip,
+  .availability-chip {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 760px) {
+  /* A visible mobile workspace panel behaves like a real drawer. The pseudo
+     element is below the drawer but above the map; pointer hits land on the
+     panel-zone itself and are closed by citizenShellSupervisor. */
+  .panel-zone.is-mobile-visible {
+    pointer-events: auto !important;
+    isolation: isolate;
+  }
+
+  .panel-zone.is-mobile-visible::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: auto;
+    cursor: pointer;
+    background: var(--v53-scrim);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+
+  .panel-zone.is-mobile-visible > :is(.main-panel, .operations-panel) {
+    z-index: 1;
+  }
+
+  :is(.main-panel, .operations-panel)[data-v53-modal="true"] {
+    overscroll-behavior: contain;
+  }
+
+  html[data-shell-context="panel-mobile"] .mobile-menu {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--line-strong));
+  }
+
+  html[data-reduced-transparency="true"] .panel-zone.is-mobile-visible::before,
+  html[data-save-data="true"] .panel-zone.is-mobile-visible::before {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(10, 31, 43, .34);
+  }
+
+  .details-drawer,
+  .map-tool-panel,
+  .main-panel,
+  .operations-panel {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .workspace-summary,
+  .status-service-summary {
+    display: none !important;
+  }
+
+  .panel-heading p,
+  .section-note,
+  .health-note span,
+  .empty-state span {
+    font-size: max(11px, .72rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-zone.is-mobile-visible::before,
+  html[data-shell-context] :is(.details-drawer, .map-tool-panel, .main-panel, .operations-panel) {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .panel-zone.is-mobile-visible::before {
+    background: rgba(0, 0, 0, .42);
+  }
+
+  html[data-shell-context] :is(.details-drawer, .map-tool-panel, .main-panel, .operations-panel) {
+    border-width: 2px;
+  }
+}
+
+@media (forced-colors: active) {
+  .panel-zone.is-mobile-visible::before {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  :is(.main-panel, .operations-panel)[data-v53-modal="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

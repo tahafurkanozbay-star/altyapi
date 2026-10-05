@@ -9,6 +9,7 @@ import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
 import { installPublicServiceWarmup } from "./lib/serviceWarmup";
 import { installCitizenExperienceSupervisor } from "./platform/citizenExperienceSupervisor";
 import { installCitizenKeyboardSupervisor } from "./platform/citizenKeyboardSupervisor";
+import { installCitizenShellSupervisor } from "./platform/citizenShellSupervisor";
 import { installRuntimeEventDomBridge } from "./platform/runtimeEventDomBridge";
 import { publishRuntimeEvent, subscribeRuntimeEvent } from "./platform/runtimeEvents";
 import { installRuntimePressureMonitor } from "./platform/runtimePressure";
@@ -27,6 +28,7 @@ import "./styles/experience-v49.css";
 import "./styles/experience-v50.css";
 import "./styles/experience-v51.css";
 import "./styles/experience-v52.css";
+import "./styles/experience-v53.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");
@@ -50,13 +52,15 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 // Application-owned events stay typed, main-thread pressure is measured at runtime,
-// keyboard commands are normalized before React handlers, background GIS work yields
-// before it can compete with rendering, and the citizen shell coordinates responsive focus.
+// keyboard commands are normalized before React handlers, the whole citizen shell
+// receives one dismissal/context policy, background GIS work yields before it can
+// compete with rendering, and the responsive supervisor coordinates focus/viewport state.
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installCitizenKeyboardSupervisor();
 installCitizenExperienceSupervisor();
-document.documentElement.dataset.experience = "v52";
+installCitizenShellSupervisor();
+document.documentElement.dataset.experience = "v53";
 installLayerRenderHealthStore();
 installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();
