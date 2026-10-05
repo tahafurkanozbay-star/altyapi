@@ -66,7 +66,6 @@ function executeDismissAction(action: Exclude<CitizenDismissAction, "native-dial
     case "exit-focus-mode":
       return clickFirstEnabled(FOCUS_MODE_BUTTON_SELECTOR);
   }
-  return false;
 }
 
 function visibleMobilePanel(): HTMLElement | null {
