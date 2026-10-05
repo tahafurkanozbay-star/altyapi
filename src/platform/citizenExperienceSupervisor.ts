@@ -103,7 +103,7 @@ export function installCitizenExperienceSupervisor(): () => void {
   let editingVisibilityFrame = 0;
 
   const ensureEditingElementVisible = (): void => {
-    if (!mobileQuery.matches || root.dataset.virtualKeyboard !== "open") return;
+    if (!mobileQuery.matches || root.dataset["virtualKeyboard"] !== "open") return;
     if (!activeEditingElement?.isConnected) return;
     activeEditingElement.scrollIntoView({
       block: "nearest",
@@ -251,7 +251,7 @@ export function installCitizenExperienceSupervisor(): () => void {
     if (toolTrigger) {
       const opening = !toolTrigger.classList.contains("is-active");
       lastToolTrigger = toolTrigger;
-      focusToolAfterOpen = opening && (mobileQuery.matches || root.dataset.inputModality === "keyboard");
+      focusToolAfterOpen = opening && (mobileQuery.matches || root.dataset["inputModality"] === "keyboard");
       restoreToolFocusOnClose = false;
       window.requestAnimationFrame(syncToolAccessibility);
       return;
@@ -297,8 +297,8 @@ export function installCitizenExperienceSupervisor(): () => void {
     syncPanelAccessibility();
   };
 
-  root.dataset.experience = "v51";
-  root.dataset.inputModality = "pointer";
+  root.dataset["experience"] = "v51";
+  root.dataset["inputModality"] = "pointer";
   syncDeviceCapabilities();
   syncUserPreferences();
   syncViewport();
@@ -359,18 +359,18 @@ export function installCitizenExperienceSupervisor(): () => void {
     root.style.removeProperty("--v44-visual-height");
     root.style.removeProperty("--v44-keyboard-inset");
     root.style.removeProperty("--v47-visual-width");
-    delete root.dataset.experience;
-    delete root.dataset.viewport;
-    delete root.dataset.pointer;
-    delete root.dataset.hover;
-    delete root.dataset.virtualKeyboard;
-    delete root.dataset.saveData;
-    delete root.dataset.networkClass;
-    delete root.dataset.pageVisibility;
-    delete root.dataset.reducedMotion;
-    delete root.dataset.contrast;
-    delete root.dataset.displayMode;
-    delete root.dataset.inputModality;
-    delete root.dataset.shellDensity;
+    delete root.dataset["experience"];
+    delete root.dataset["viewport"];
+    delete root.dataset["pointer"];
+    delete root.dataset["hover"];
+    delete root.dataset["virtualKeyboard"];
+    delete root.dataset["saveData"];
+    delete root.dataset["networkClass"];
+    delete root.dataset["pageVisibility"];
+    delete root.dataset["reducedMotion"];
+    delete root.dataset["contrast"];
+    delete root.dataset["displayMode"];
+    delete root.dataset["inputModality"];
+    delete root.dataset["shellDensity"];
   };
 }
