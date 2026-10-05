@@ -29,6 +29,25 @@
     scroll-padding-block: 16px max(24px, env(safe-area-inset-bottom));
   }
 
+  .layer-bulk-undo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 12px 10px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-soft) 68%, var(--panel-solid));
+    color: var(--text-2);
+    font-size: 9px;
+  }
+
+  .layer-bulk-undo .catalog-action {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
   .toast {
     cursor: default;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -135,6 +154,11 @@
       min-height: 48px;
       font-size: 10px;
     }
+
+    .layer-bulk-undo {
+      margin-inline: 8px;
+      font-size: 10px;
+    }
   }
 }
 
@@ -153,7 +177,8 @@
     box-shadow: none;
   }
 
-  .toast {
+  .toast,
+  .layer-bulk-undo {
     border: 1px solid CanvasText;
   }
 
