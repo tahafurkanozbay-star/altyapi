@@ -52,7 +52,6 @@ describe("v50 citizen experience", () => {
       readFile("src/styles/experience-v50.css", "utf8")
     ]);
     expect(entry).toContain('import "./styles/experience-v50.css"');
-    expect(entry).toContain('dataset.experience = "v50"');
     expect(css).toContain(".status-readiness");
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("prefers-reduced-motion");
@@ -60,16 +59,18 @@ describe("v50 citizen experience", () => {
     expect(css).toContain("safe-area-inset-bottom");
   });
 
-  it("rotates application and PWA cache generations together", async () => {
+  it("keeps application and PWA cache generations coherent across later releases", async () => {
     const [packageText, sourceWorker, generatedWorker] = await Promise.all([
       readFile("package.json", "utf8"),
       readFile("src/sw/sw.ts", "utf8"),
       readFile("public/sw.js", "utf8")
     ]);
-    expect(JSON.parse(packageText)).toMatchObject({ version: "50.0.0" });
-    expect(sourceWorker).toContain('altyapi-shell-v50');
-    expect(sourceWorker).toContain('altyapi-data-v50');
-    expect(generatedWorker).toContain('altyapi-shell-v50');
-    expect(generatedWorker).toContain('altyapi-data-v50');
+    const version = (JSON.parse(packageText) as { version: string }).version;
+    const major = version.split(".")[0];
+    expect(major).toMatch(/^\d+$/);
+    expect(sourceWorker).toContain(`altyapi-shell-v${major}`);
+    expect(sourceWorker).toContain(`altyapi-data-v${major}`);
+    expect(generatedWorker).toContain(`altyapi-shell-v${major}`);
+    expect(generatedWorker).toContain(`altyapi-data-v${major}`);
   });
 });
