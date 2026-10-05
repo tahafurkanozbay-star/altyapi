@@ -25,9 +25,11 @@
   },
   "include": [
     "src/platform/runtimeEvents.ts",
+    "src/platform/citizenExperienceSupervisor.ts",
     "src/lib/urlState.ts",
     "src/lib/workspaceView.ts",
     "src/lib/globalShortcutGuard.ts",
-    "src/lib/citizenReadiness.ts"
+    "src/lib/citizenReadiness.ts",
+    "src/lib/attributeTable.ts"
   ]
 }
