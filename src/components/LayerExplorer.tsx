@@ -15,6 +15,10 @@ import {
   type LayerRenderHealthState
 } from "../lib/layerRenderHealth";
 import {
+  loadLayerExplorerState,
+  saveLayerExplorerState
+} from "../lib/layerExplorerState";
+import {
   formatScale,
   isOperationalScale,
   navigationSourceLabel,
@@ -55,15 +59,17 @@ export const LayerExplorer = memo(function LayerExplorer({
   onRetry,
   onMoveLayer
 }: Props) {
-  const [query, setQuery] = useState("");
+  const [initialView] = useState(loadLayerExplorerState);
+  const [query, setQuery] = useState(initialView.query);
   const deferredQuery = useDeferredValue(query);
-  const [kind, setKind] = useState<ServiceKind | "all">("all");
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [favoriteOnly, setFavoriteOnly] = useState(false);
-  const [availability, setAvailability] = useState<ServiceAvailability | "all">("all");
+  const [kind, setKind] = useState<ServiceKind | "all">(initialView.kind);
+  const [activeOnly, setActiveOnly] = useState(initialView.activeOnly);
+  const [favoriteOnly, setFavoriteOnly] = useState(initialView.favoriteOnly);
+  const [availability, setAvailability] = useState<ServiceAvailability | "all">(initialView.availability);
   const [openInfo, setOpenInfo] = useState<string | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(initialView.collapsedGroups));
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [recentlyClosedIds, setRecentlyClosedIds] = useState<string[]>([]);
   const renderHealth = useSyncExternalStore(
     subscribeLayerRenderHealth,
     getLayerRenderHealthSnapshot,
@@ -74,6 +80,23 @@ export const LayerExplorer = memo(function LayerExplorer({
     const visibleIds = new Set(services.filter((service) => service.visible).map((service) => service.id));
     pruneLayerRenderHealth(visibleIds);
   }, [services]);
+
+  useEffect(() => {
+    saveLayerExplorerState({
+      query,
+      kind,
+      activeOnly,
+      favoriteOnly,
+      availability,
+      collapsedGroups: [...collapsedGroups]
+    });
+  }, [query, kind, activeOnly, favoriteOnly, availability, collapsedGroups]);
+
+  useEffect(() => {
+    if (recentlyClosedIds.length === 0) return;
+    const timer = window.setTimeout(() => setRecentlyClosedIds([]), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [recentlyClosedIds]);
 
   const filtered = useMemo(() => services.filter((service) => {
     if (kind !== "all" && service.kind !== kind) return false;
@@ -120,7 +143,22 @@ export const LayerExplorer = memo(function LayerExplorer({
     if (visible.length === 0 || bulkBusy) return;
     setBulkBusy(true);
     try {
-      for (const service of visible) await onToggle(service, false);
+      await Promise.all(visible.map((service) => onToggle(service, false)));
+      setRecentlyClosedIds(visible.map((service) => service.id));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const restoreRecentlyClosed = async () => {
+    if (recentlyClosedIds.length === 0 || bulkBusy) return;
+    const ids = new Set(recentlyClosedIds);
+    const targets = services.filter((service) => ids.has(service.id) && !service.visible);
+    setRecentlyClosedIds([]);
+    if (targets.length === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(targets.map((service) => onToggle(service, true)));
     } finally {
       setBulkBusy(false);
     }
@@ -136,7 +174,7 @@ export const LayerExplorer = memo(function LayerExplorer({
     if (errors.length === 0 || bulkBusy) return;
     setBulkBusy(true);
     try {
-      for (const service of errors) await retryService(service);
+      await Promise.all(errors.map(retryService));
     } finally {
       setBulkBusy(false);
     }
@@ -176,6 +214,15 @@ export const LayerExplorer = memo(function LayerExplorer({
           <Icon name="refresh" size={14} /> Sorunlu katmanları dene
         </button>
       </div>
+
+      {recentlyClosedIds.length > 0 && (
+        <div className="layer-bulk-undo" role="status" aria-live="polite">
+          <span>{recentlyClosedIds.length} katman kapatıldı.</span>
+          <button type="button" className="catalog-action" onClick={() => void restoreRecentlyClosed()} disabled={bulkBusy}>
+            Geri al
+          </button>
+        </div>
+      )}
 
       {activeStack.length > 0 && (
         <section className="layer-stack-editor" aria-labelledby="layer-stack-title">
