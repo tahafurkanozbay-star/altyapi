@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   getLayerRenderHealthSnapshot,
   getServerLayerRenderHealthSnapshot,
@@ -18,6 +18,14 @@ export function StatusBar({ telemetry, services }: { telemetry: SceneTelemetry; 
   const scale = Number.isFinite(telemetry.scale) && telemetry.scale
     ? `1:${Math.round(telemetry.scale).toLocaleString("tr-TR")}`
     : "—";
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.workspaceReadiness = readiness.tone;
+    return () => {
+      delete root.dataset.workspaceReadiness;
+    };
+  }, [readiness.tone]);
 
   return (
     <footer className="status-bar" aria-label="Harita bilgileri">
