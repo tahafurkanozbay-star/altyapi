@@ -30,6 +30,7 @@
     "src/lib/workspaceView.ts",
     "src/lib/globalShortcutGuard.ts",
     "src/lib/citizenReadiness.ts",
-    "src/lib/attributeTable.ts"
+    "src/lib/attributeTable.ts",
+    "src/lib/layerExplorerState.ts"
   ]
 }
