@@ -27,12 +27,13 @@ describe("v51 responsive citizen workspace", () => {
   });
 
   it("ships one safe-area aware mobile shell with search and a horizontal tool dock", async () => {
-    const [entry, css] = await Promise.all([
+    const [entry, shellCss, css] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8"),
       readFile("src/styles/experience-v51.css", "utf8")
     ]);
 
-    expect(entry).toContain('import "./styles/experience-v51.css"');
+    expect(shellCss).toContain('@import "./experience-v51.css"');
     expect(entry).toContain("dataset.experience");
     expect(css).toContain("env(safe-area-inset-top)");
     expect(css).toContain("env(safe-area-inset-bottom)");
