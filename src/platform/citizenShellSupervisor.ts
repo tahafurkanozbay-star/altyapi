@@ -16,6 +16,14 @@ const TOOL_PANEL_SELECTOR = ".map-tool-panel";
 const TOOL_CLOSE_SELECTOR = ".map-tool-header button";
 const FOCUS_MODE_BUTTON_SELECTOR = ".top-icon-button[aria-pressed='true'][aria-label='Odak modundan çık']";
 const DIALOG_SELECTOR = "dialog[open]";
+const FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "a[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
 
 function firstEnabledButton(selector: string): HTMLButtonElement | null {
   const button = document.querySelector<HTMLButtonElement>(selector);
@@ -58,6 +66,51 @@ function executeDismissAction(action: Exclude<CitizenDismissAction, "native-dial
     case "exit-focus-mode":
       return clickFirstEnabled(FOCUS_MODE_BUTTON_SELECTOR);
   }
+  return false;
+}
+
+function visibleMobilePanel(): HTMLElement | null {
+  if (!document.querySelector<HTMLElement>(PANEL_ZONE_SELECTOR)?.classList.contains("is-mobile-visible")) return null;
+  return document.querySelector<HTMLElement>(`${PANEL_ZONE_SELECTOR} ${PANEL_CONTENT_SELECTOR}`);
+}
+
+function focusableElements(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)]
+    .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+}
+
+function trapMobilePanelTab(event: KeyboardEvent): boolean {
+  if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey || document.querySelector(DIALOG_SELECTOR)) return false;
+  const panel = visibleMobilePanel();
+  if (!panel) return false;
+  const focusable = focusableElements(panel);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    panel.focus({ preventScroll: true });
+    return true;
+  }
+
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return false;
+  const active = document.activeElement;
+
+  if (!panel.contains(active)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus({ preventScroll: true });
+    return true;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus({ preventScroll: true });
+    return true;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus({ preventScroll: true });
+    return true;
+  }
+  return false;
 }
 
 function syncMobilePanelSemantics(mobileViewport: boolean): void {
@@ -85,8 +138,8 @@ function syncMobilePanelSemantics(mobileViewport: boolean): void {
  *
  * v53 keeps React as the state owner, but normalizes global dismissal semantics
  * above it: one Escape closes exactly one top-most context, the mobile panel
- * backdrop closes only the drawer, and mobile panel semantics are exposed as a
- * modal surface to assistive technology while the drawer is actually visible.
+ * backdrop closes only the drawer, and visible mobile drawers expose modal
+ * semantics plus a bounded Tab loop without changing desktop navigation.
  */
 export function installCitizenShellSupervisor(): () => void {
   const root = document.documentElement;
@@ -107,6 +160,7 @@ export function installCitizenShellSupervisor(): () => void {
   };
 
   const onKeyDownCapture = (event: KeyboardEvent): void => {
+    if (mobileQuery.matches && trapMobilePanelTab(event)) return;
     if (
       event.key !== "Escape"
       || event.defaultPrevented
