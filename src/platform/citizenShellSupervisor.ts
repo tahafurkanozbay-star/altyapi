@@ -119,13 +119,13 @@ function syncMobilePanelSemantics(mobileViewport: boolean): void {
 
   for (const surface of document.querySelectorAll<HTMLElement>(PANEL_CONTENT_SELECTOR)) {
     if (surface === content && visible) {
-      surface.dataset.v53Modal = "true";
+      surface.dataset["v53Modal"] = "true";
       surface.setAttribute("role", "dialog");
       surface.setAttribute("aria-modal", "true");
       continue;
     }
-    if (surface.dataset.v53Modal === "true") {
-      delete surface.dataset.v53Modal;
+    if (surface.dataset["v53Modal"] === "true") {
+      delete surface.dataset["v53Modal"];
       surface.removeAttribute("role");
       surface.removeAttribute("aria-modal");
     }
@@ -149,7 +149,7 @@ export function installCitizenShellSupervisor(): () => void {
   const sync = (): void => {
     syncFrame = 0;
     const snapshot = readCitizenShellSnapshot(mobileQuery.matches);
-    root.dataset.shellContext = citizenShellContext(snapshot);
+    root.dataset["shellContext"] = citizenShellContext(snapshot);
     syncMobilePanelSemantics(mobileQuery.matches);
   };
 
@@ -218,9 +218,9 @@ export function installCitizenShellSupervisor(): () => void {
     window.removeEventListener("keydown", onKeyDownCapture, true);
     document.removeEventListener("click", onDocumentClickCapture, true);
     if (syncFrame) window.cancelAnimationFrame(syncFrame);
-    delete root.dataset.shellContext;
+    delete root.dataset["shellContext"];
     for (const surface of document.querySelectorAll<HTMLElement>("[data-v53-modal='true']")) {
-      delete surface.dataset.v53Modal;
+      delete surface.dataset["v53Modal"];
       surface.removeAttribute("role");
       surface.removeAttribute("aria-modal");
     }
