@@ -25,6 +25,7 @@
   },
   "include": [
     "src/platform/runtimeEvents.ts",
+    "src/platform/citizenActions.ts",
     "src/platform/citizenKeyboardSupervisor.ts",
     "src/platform/citizenShellPolicy.ts",
     "src/platform/citizenShellSupervisor.ts",
