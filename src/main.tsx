@@ -52,6 +52,7 @@ window.addEventListener("unhandledrejection", (event) => {
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installCitizenExperienceSupervisor();
+document.documentElement.dataset.experience = "v50";
 installLayerRenderHealthStore();
 installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();
