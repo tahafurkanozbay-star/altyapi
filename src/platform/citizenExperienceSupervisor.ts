@@ -16,6 +16,14 @@ const PANEL_TRIGGER_SELECTOR = "button[data-panel-target]";
 const TOOL_PANEL_SELECTOR = ".map-tool-panel";
 const TOOL_TRIGGER_SELECTOR = "button[data-tool-target]";
 const TOOL_CLOSE_SELECTOR = ".map-tool-header button";
+const EDITING_SELECTOR = [
+  "input:not([type='checkbox']):not([type='radio']):not([type='range'])",
+  "textarea",
+  "select",
+  "[contenteditable='true']",
+  "[role='textbox']",
+  "[role='combobox']"
+].join(",");
 const INTERACTIVE_SELECTOR = [
   "input",
   "textarea",
@@ -61,6 +69,12 @@ function eventPathContainsInteractiveTarget(event: KeyboardEvent): boolean {
   );
 }
 
+function shellDensity(width: number): "compact" | "cozy" | "comfortable" {
+  if (width < 560) return "compact";
+  if (width < 1040) return "cozy";
+  return "comfortable";
+}
+
 export function installCitizenExperienceSupervisor(): () => void {
   const root = document.documentElement;
   const mobileQuery = window.matchMedia(MOBILE_QUERY);
@@ -85,6 +99,26 @@ export function installCitizenExperienceSupervisor(): () => void {
   let focusPanelAfterOpen = false;
   let focusToolAfterOpen = false;
   let restoreToolFocusOnClose = false;
+  let activeEditingElement: HTMLElement | null = null;
+  let editingVisibilityFrame = 0;
+
+  const ensureEditingElementVisible = (): void => {
+    if (!mobileQuery.matches || root.dataset.virtualKeyboard !== "open") return;
+    if (!activeEditingElement?.isConnected) return;
+    activeEditingElement.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: reducedMotionQuery.matches ? "auto" : "smooth"
+    });
+  };
+
+  const scheduleEditingVisibility = (): void => {
+    if (editingVisibilityFrame) window.cancelAnimationFrame(editingVisibilityFrame);
+    editingVisibilityFrame = window.requestAnimationFrame(() => {
+      editingVisibilityFrame = 0;
+      ensureEditingElementVisible();
+    });
+  };
 
   const syncViewport = (): void => {
     const viewportHeight = visualViewport?.height ?? window.innerHeight;
@@ -96,6 +130,8 @@ export function installCitizenExperienceSupervisor(): () => void {
     setCssPixelVariable(root, "--v44-keyboard-inset", keyboardInset);
     setCssPixelVariable(root, "--v47-visual-width", viewportWidth);
     setDatasetValue(root, "virtualKeyboard", keyboardInset >= KEYBOARD_THRESHOLD_PX ? "open" : "closed");
+    setDatasetValue(root, "shellDensity", shellDensity(viewportWidth));
+    if (keyboardInset >= KEYBOARD_THRESHOLD_PX) scheduleEditingVisibility();
   };
 
   const syncDeviceCapabilities = (): void => {
@@ -244,13 +280,24 @@ export function installCitizenExperienceSupervisor(): () => void {
     setDatasetValue(root, "inputModality", "pointer");
   };
 
+  const onFocusIn = (event: FocusEvent): void => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.matches(EDITING_SELECTOR)) return;
+    activeEditingElement = target;
+    scheduleEditingVisibility();
+  };
+
+  const onFocusOut = (event: FocusEvent): void => {
+    if (event.target === activeEditingElement) activeEditingElement = null;
+  };
+
   const onMobileChange = (): void => {
     syncDeviceCapabilities();
     syncViewport();
     syncPanelAccessibility();
   };
 
-  root.dataset.experience = "v48";
+  root.dataset.experience = "v51";
   root.dataset.inputModality = "pointer";
   syncDeviceCapabilities();
   syncUserPreferences();
@@ -284,11 +331,14 @@ export function installCitizenExperienceSupervisor(): () => void {
   connection?.addEventListener("change", syncNetworkPreferences);
   document.addEventListener("visibilitychange", syncVisibility);
   document.addEventListener("click", onDocumentClick, true);
+  document.addEventListener("focusin", onFocusIn, true);
+  document.addEventListener("focusout", onFocusOut, true);
 
   return () => {
     shellObserver?.disconnect();
     panelObserver?.disconnect();
     toolObserver?.disconnect();
+    if (editingVisibilityFrame) window.cancelAnimationFrame(editingVisibilityFrame);
     window.removeEventListener("resize", syncViewport);
     window.removeEventListener("keydown", onKeyDownCapture, true);
     window.removeEventListener("pointerdown", onPointerDown, true);
@@ -304,6 +354,8 @@ export function installCitizenExperienceSupervisor(): () => void {
     connection?.removeEventListener("change", syncNetworkPreferences);
     document.removeEventListener("visibilitychange", syncVisibility);
     document.removeEventListener("click", onDocumentClick, true);
+    document.removeEventListener("focusin", onFocusIn, true);
+    document.removeEventListener("focusout", onFocusOut, true);
     root.style.removeProperty("--v44-visual-height");
     root.style.removeProperty("--v44-keyboard-inset");
     root.style.removeProperty("--v47-visual-width");
@@ -319,5 +371,6 @@ export function installCitizenExperienceSupervisor(): () => void {
     delete root.dataset.contrast;
     delete root.dataset.displayMode;
     delete root.dataset.inputModality;
+    delete root.dataset.shellDensity;
   };
 }
