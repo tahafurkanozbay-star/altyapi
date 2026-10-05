@@ -1,7 +1,8 @@
-import type { LayerRenderHealthSnapshot } from "./layerRenderHealth";
 import type { ServiceDefinition } from "../types";
 
 export type CitizenReadinessTone = "ready" | "loading" | "warning" | "offline" | "idle";
+export type CitizenRenderState = "preparing" | "ready" | "scale-adjusting" | "stalled" | "recovering" | "failed";
+export type CitizenRenderHealthSnapshot = Readonly<Record<string, { readonly state: CitizenRenderState } | undefined>>;
 
 export interface CitizenReadiness {
   tone: CitizenReadinessTone;
@@ -21,10 +22,15 @@ export interface CitizenReadiness {
  * is offline. Visible load/render failures come next, followed by work still in
  * progress. A service without a LayerView sample is not treated as failed: some
  * ArcGIS layer types legitimately produce their first render signal later.
+ *
+ * The render snapshot contract is deliberately structural and minimal. This
+ * keeps the maximum-strict citizen contract independent from the event/store
+ * implementation while allowing the real LayerRenderHealthSnapshot to satisfy
+ * it without an adapter or unsafe cast.
  */
 export function deriveCitizenReadiness(
   services: readonly ServiceDefinition[],
-  renderHealth: LayerRenderHealthSnapshot,
+  renderHealth: CitizenRenderHealthSnapshot,
   online: boolean
 ): CitizenReadiness {
   const visible = services.filter((service) => service.visible);
