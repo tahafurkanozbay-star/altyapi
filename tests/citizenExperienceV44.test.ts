@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 
 describe("v44 citizen experience hardening", () => {
   it("installs one typed viewport and focus supervisor", async () => {
-    const entry = await readFile("src/main.tsx", "utf8");
-    const supervisor = await readFile("src/platform/citizenExperienceSupervisor.ts", "utf8");
+    const [entry, supervisor, shellCss] = await Promise.all([
+      readFile("src/main.tsx", "utf8"),
+      readFile("src/platform/citizenExperienceSupervisor.ts", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8")
+    ]);
 
     expect(entry).toContain('installCitizenExperienceSupervisor');
-    expect(entry).toContain('import "./styles/experience-v44.css"');
+    expect(shellCss).toContain('@import "./experience-v44.css"');
     expect(supervisor).toContain("window.visualViewport");
     expect(supervisor).toContain("panel.inert = !isVisible");
     expect(supervisor).toContain('panel.setAttribute("aria-hidden", "true")');
