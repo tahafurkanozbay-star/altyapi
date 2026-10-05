@@ -1,25 +1,83 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { CITIZEN_SHORTCUTS, MAP_TOOL_METADATA, shortcutFor } from "../src/platform/citizenActions";
+import { resolveCitizenShortcut, type AppShortcutKeyEvent } from "../src/lib/globalShortcutGuard";
 
-describe("v53 unified citizen shell", () => {
-  it("installs one strict page-wide shell supervisor after keyboard and responsive supervisors", async () => {
-    const [entry, contracts] = await Promise.all([
+describe("v54 unified citizen experience", () => {
+  it("installs one stable citizen-shell stylesheet entry point and v54 shell generation", async () => {
+    const [entry, shellCss] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
-      readFile("tsconfig.contracts.json", "utf8")
+      readFile("src/styles/citizen-shell.css", "utf8")
     ]);
 
-    expect(entry).toContain('import { installCitizenShellSupervisor } from "./platform/citizenShellSupervisor"');
-    expect(entry).toContain('import "./styles/experience-v53.css"');
-    expect(entry).toContain('dataset.experience = "v53"');
-    expect(entry.indexOf("installCitizenKeyboardSupervisor();")).toBeLessThan(entry.indexOf("installCitizenShellSupervisor();"));
-    expect(entry.indexOf("installCitizenExperienceSupervisor();")).toBeLessThan(entry.indexOf("installCitizenShellSupervisor();"));
-    expect(contracts).toContain("src/platform/citizenShellPolicy.ts");
-    expect(contracts).toContain("src/platform/citizenShellSupervisor.ts");
+    expect(entry).toContain('import "./styles/citizen-shell.css"');
+    expect(entry).not.toContain('import "./styles/experience-v53.css"');
+    expect(entry).toContain('dataset.experience = "v54"');
+    expect(shellCss).toContain('@import "./experience-v43.css"');
+    expect(shellCss).toContain('@import "./experience-v53.css"');
+    expect(shellCss.indexOf('experience-v43.css')).toBeLessThan(shellCss.indexOf('experience-v53.css'));
+    expect(shellCss).toContain('html[data-experience="v54"]');
   });
 
-  it("uses a single Escape priority and keeps native dialogs authoritative", async () => {
-    const supervisor = await readFile("src/platform/citizenShellSupervisor.ts", "utf8");
-    const policy = await readFile("src/platform/citizenShellPolicy.ts", "utf8");
+  it("keeps one typed shortcut registry for runtime matching, visible help and aria metadata", async () => {
+    const [rail, help, guard] = await Promise.all([
+      readFile("src/components/ToolRail.tsx", "utf8"),
+      readFile("src/components/OperationsPanel.tsx", "utf8"),
+      readFile("src/lib/globalShortcutGuard.ts", "utf8")
+    ]);
+
+    expect(CITIZEN_SHORTCUTS).toHaveLength(7);
+    expect(new Set(CITIZEN_SHORTCUTS.map((item) => item.command)).size).toBe(CITIZEN_SHORTCUTS.length);
+    expect(Object.keys(MAP_TOOL_METADATA)).toHaveLength(8);
+    expect(shortcutFor("search").ariaKeyShortcuts).toContain("Control+K");
+    expect(shortcutFor("search").ariaKeyShortcuts).toContain("Meta+K");
+    expect(rail).toContain("shortcutFor(\"layers\")");
+    expect(help).toContain("CITIZEN_SHORTCUTS.map");
+    expect(guard).toContain("CITIZEN_SHORTCUTS.find");
+  });
+
+  it("matches modifier shortcuts while refusing interactive targets and character-only legacy keys", () => {
+    const event = (patch: Partial<AppShortcutKeyEvent>): AppShortcutKeyEvent => ({
+      key: "k",
+      altKey: false,
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: false,
+      repeat: false,
+      isComposing: false,
+      defaultPrevented: false,
+      ...patch
+    });
+
+    expect(resolveCitizenShortcut(event({}), false)).toBe("search");
+    expect(resolveCitizenShortcut(event({ ctrlKey: false, metaKey: true }), false)).toBe("search");
+    expect(resolveCitizenShortcut(event({ ctrlKey: false, key: "l" }), false)).toBeNull();
+    expect(resolveCitizenShortcut(event({}), true)).toBeNull();
+    expect(resolveCitizenShortcut(event({ repeat: true }), false)).toBeNull();
+  });
+
+  it("makes the visible mobile panel a real modal interaction with inert background and focus restoration", async () => {
+    const [supervisor, css] = await Promise.all([
+      readFile("src/platform/citizenShellSupervisor.ts", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8")
+    ]);
+
+    expect(supervisor).toContain('surface.setAttribute("role", "dialog")');
+    expect(supervisor).toContain('surface.setAttribute("aria-modal", "true")');
+    expect(supervisor).toContain("setMobileModalBackgroundInert(true)");
+    expect(supervisor).toContain('element.dataset["v54Inert"] = "true"');
+    expect(supervisor).toContain("focusBeforeModal");
+    expect(supervisor).toContain("preferred.focus({ preventScroll: true })");
+    expect(supervisor).toContain("trapMobilePanelTab");
+    expect(css).toContain('[data-v54-inert="true"]');
+    expect(css).toContain("--citizen-touch-target: 44px");
+  });
+
+  it("keeps one Escape priority and native dialogs authoritative", async () => {
+    const [supervisor, policy] = await Promise.all([
+      readFile("src/platform/citizenShellSupervisor.ts", "utf8"),
+      readFile("src/platform/citizenShellPolicy.ts", "utf8")
+    ]);
 
     expect(policy).toContain('if (snapshot.dialogOpen) return "native-dialog"');
     expect(policy).toContain('if (snapshot.detailsOpen) return "close-details"');
@@ -32,31 +90,14 @@ describe("v53 unified citizen shell", () => {
     expect(supervisor).toContain("stopImmediatePropagation");
   });
 
-  it("makes the visible mobile panel a bounded modal drawer with backdrop dismissal", async () => {
-    const [supervisor, css] = await Promise.all([
-      readFile("src/platform/citizenShellSupervisor.ts", "utf8"),
-      readFile("src/styles/experience-v53.css", "utf8")
-    ]);
-
-    expect(supervisor).toContain('surface.setAttribute("role", "dialog")');
-    expect(supervisor).toContain('surface.setAttribute("aria-modal", "true")');
-    expect(supervisor).toContain("trapMobilePanelTab");
-    expect(supervisor).toContain("FOCUSABLE_SELECTOR");
-    expect(supervisor).toContain('event.target !== panelZone');
-    expect(css).toContain(".panel-zone.is-mobile-visible::before");
-    expect(css).toContain("pointer-events: auto !important");
-    expect(css).toContain('[data-v53-modal="true"]');
-  });
-
-  it("uses container queries and user preference fallbacks for narrow workspaces", async () => {
-    const css = await readFile("src/styles/experience-v53.css", "utf8");
-    expect(css).toContain("container-type: inline-size");
-    expect(css).toContain("@container workspace-panel (max-width: 350px)");
+  it("keeps modern accessibility fallbacks in the unified shell", async () => {
+    const css = await readFile("src/styles/citizen-shell.css", "utf8");
+    expect(css).toContain("focus-visible");
+    expect(css).toContain("@media (pointer: coarse)");
     expect(css).toContain("prefers-reduced-motion: reduce");
-    expect(css).toContain("prefers-contrast: more");
     expect(css).toContain("forced-colors: active");
-    expect(css).toContain('html[data-reduced-transparency="true"]');
-    expect(css).toContain('html[data-save-data="true"]');
+    expect(css).toContain("overflow-wrap: anywhere");
+    expect(css).toContain("overscroll-behavior: contain");
   });
 
   it("ships modern mobile/PWA launch metadata without changing Ankara branding", async () => {
@@ -81,17 +122,17 @@ describe("v53 unified citizen shell", () => {
     });
   });
 
-  it("ships v53 application and PWA cache generations together", async () => {
+  it("ships v54 application and PWA cache generations together", async () => {
     const [packageText, sourceWorker, generatedWorker] = await Promise.all([
       readFile("package.json", "utf8"),
       readFile("src/sw/sw.ts", "utf8"),
       readFile("public/sw.js", "utf8")
     ]);
 
-    expect(JSON.parse(packageText)).toMatchObject({ version: "53.0.0" });
-    expect(sourceWorker).toContain('altyapi-shell-v53');
-    expect(sourceWorker).toContain('altyapi-data-v53');
-    expect(generatedWorker).toContain('altyapi-shell-v53');
-    expect(generatedWorker).toContain('altyapi-data-v53');
+    expect(JSON.parse(packageText)).toMatchObject({ version: "54.0.0" });
+    expect(sourceWorker).toContain('altyapi-shell-v54');
+    expect(sourceWorker).toContain('altyapi-data-v54');
+    expect(generatedWorker).toContain('altyapi-shell-v54');
+    expect(generatedWorker).toContain('altyapi-data-v54');
   });
 });
