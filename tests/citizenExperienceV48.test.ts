@@ -3,14 +3,17 @@ import { describe, expect, it } from "vitest";
 
 describe("v48 product integrity retained by later releases", () => {
   it("keeps the typed progressive install experience while later releases compose platform notices", async () => {
-    const entry = await readFile("src/main.tsx", "utf8");
-    const statusHost = await readFile("src/components/PlatformStatusHost.tsx", "utf8");
-    const install = await readFile("src/components/InstallPromptHost.tsx", "utf8");
-    const css = await readFile("src/styles/experience-v48.css", "utf8");
+    const [entry, statusHost, install, shellCss, css] = await Promise.all([
+      readFile("src/main.tsx", "utf8"),
+      readFile("src/components/PlatformStatusHost.tsx", "utf8"),
+      readFile("src/components/InstallPromptHost.tsx", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8"),
+      readFile("src/styles/experience-v48.css", "utf8")
+    ]);
 
     expect(entry).toContain("PlatformStatusHost");
     expect(statusHost).toContain("InstallPromptHost");
-    expect(entry).toContain('import "./styles/experience-v48.css"');
+    expect(shellCss).toContain('@import "./experience-v48.css"');
     expect(install).toContain("BeforeInstallPromptEvent");
     expect(install).toContain('window.addEventListener("beforeinstallprompt"');
     expect(install).toContain('(display-mode: standalone)');

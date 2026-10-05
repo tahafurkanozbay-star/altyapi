@@ -16,6 +16,12 @@ const TOOL_PANEL_SELECTOR = ".map-tool-panel";
 const TOOL_CLOSE_SELECTOR = ".map-tool-header button";
 const FOCUS_MODE_BUTTON_SELECTOR = ".top-icon-button[aria-pressed='true'][aria-label='Odak modundan çık']";
 const DIALOG_SELECTOR = "dialog[open]";
+const MOBILE_MODAL_BACKGROUND_SELECTORS = [
+  "#kent-rehberi-map",
+  "#kent-rehberi-tools",
+  ".arcgis-navigation",
+  ".status-bar"
+] as const;
 const FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
   "a[href]",
@@ -75,7 +81,7 @@ function visibleMobilePanel(): HTMLElement | null {
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)]
-    .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true" && !element.inert);
 }
 
 function trapMobilePanelTab(event: KeyboardEvent): boolean {
@@ -112,7 +118,23 @@ function trapMobilePanelTab(event: KeyboardEvent): boolean {
   return false;
 }
 
-function syncMobilePanelSemantics(mobileViewport: boolean): void {
+function setMobileModalBackgroundInert(inert: boolean): void {
+  for (const selector of MOBILE_MODAL_BACKGROUND_SELECTORS) {
+    for (const element of document.querySelectorAll<HTMLElement>(selector)) {
+      if (inert) {
+        if (element.inert) continue;
+        element.inert = true;
+        element.dataset["v54Inert"] = "true";
+        continue;
+      }
+      if (element.dataset["v54Inert"] !== "true") continue;
+      element.inert = false;
+      delete element.dataset["v54Inert"];
+    }
+  }
+}
+
+function syncMobilePanelSemantics(mobileViewport: boolean): HTMLElement | null {
   const panelZone = document.querySelector<HTMLElement>(PANEL_ZONE_SELECTOR);
   const visible = mobileViewport && Boolean(panelZone?.classList.contains("is-mobile-visible"));
   const content = panelZone?.querySelector<HTMLElement>(PANEL_CONTENT_SELECTOR) ?? null;
@@ -122,6 +144,7 @@ function syncMobilePanelSemantics(mobileViewport: boolean): void {
       surface.dataset["v53Modal"] = "true";
       surface.setAttribute("role", "dialog");
       surface.setAttribute("aria-modal", "true");
+      if (!surface.hasAttribute("tabindex")) surface.tabIndex = -1;
       continue;
     }
     if (surface.dataset["v53Modal"] === "true") {
@@ -130,27 +153,79 @@ function syncMobilePanelSemantics(mobileViewport: boolean): void {
       surface.removeAttribute("aria-modal");
     }
   }
+
+  return visible ? content : null;
 }
 
 /**
  * Page-wide interaction supervisor for the public citizen shell.
  *
- * v53 keeps React as the state owner, but normalizes global dismissal semantics
- * above it: one Escape closes exactly one top-most context, the mobile panel
- * backdrop closes only the drawer, and visible mobile drawers expose modal
- * semantics plus a bounded Tab loop without changing desktop navigation.
+ * v54 keeps React as the state owner while making the mobile workspace a truly
+ * isolated modal interaction: background map controls become inert, initial
+ * focus enters the drawer, focus stays bounded there and returns to the opening
+ * control when the drawer is dismissed. Escape still closes exactly one
+ * top-most context and native dialogs remain authoritative.
  */
 export function installCitizenShellSupervisor(): () => void {
   const root = document.documentElement;
   const mobileQuery = window.matchMedia(MOBILE_QUERY);
   const body = document.body ?? root;
   let syncFrame = 0;
+  let modalPanel: HTMLElement | null = null;
+  let focusBeforeModal: HTMLElement | null = null;
+  let focusFrame = 0;
+
+  const cancelFocusFrame = (): void => {
+    if (!focusFrame) return;
+    window.cancelAnimationFrame(focusFrame);
+    focusFrame = 0;
+  };
+
+  const enterMobileModal = (panel: HTMLElement): void => {
+    const active = document.activeElement;
+    focusBeforeModal = active instanceof HTMLElement && active !== body ? active : null;
+    setMobileModalBackgroundInert(true);
+    cancelFocusFrame();
+    focusFrame = window.requestAnimationFrame(() => {
+      focusFrame = 0;
+      if (!panel.isConnected || visibleMobilePanel() !== panel || document.querySelector(DIALOG_SELECTOR)) return;
+      const target = focusableElements(panel)[0] ?? panel;
+      target.focus({ preventScroll: true });
+    });
+  };
+
+  const leaveMobileModal = (): void => {
+    cancelFocusFrame();
+    setMobileModalBackgroundInert(false);
+    const preferred = focusBeforeModal?.isConnected && !focusBeforeModal.inert
+      ? focusBeforeModal
+      : firstEnabledButton(MOBILE_MENU_SELECTOR);
+    focusBeforeModal = null;
+    if (!preferred) return;
+    focusFrame = window.requestAnimationFrame(() => {
+      focusFrame = 0;
+      if (document.querySelector(DIALOG_SELECTOR)) return;
+      preferred.focus({ preventScroll: true });
+    });
+  };
 
   const sync = (): void => {
     syncFrame = 0;
     const snapshot = readCitizenShellSnapshot(mobileQuery.matches);
     root.dataset["shellContext"] = citizenShellContext(snapshot);
-    syncMobilePanelSemantics(mobileQuery.matches);
+    const nextModalPanel = syncMobilePanelSemantics(mobileQuery.matches);
+
+    if (nextModalPanel && !modalPanel) enterMobileModal(nextModalPanel);
+    else if (!nextModalPanel && modalPanel) leaveMobileModal();
+    else if (nextModalPanel && modalPanel !== nextModalPanel) {
+      modalPanel = nextModalPanel;
+      cancelFocusFrame();
+      focusFrame = window.requestAnimationFrame(() => {
+        focusFrame = 0;
+        (focusableElements(nextModalPanel)[0] ?? nextModalPanel).focus({ preventScroll: true });
+      });
+    }
+    modalPanel = nextModalPanel;
   };
 
   const scheduleSync = (): void => {
@@ -218,6 +293,8 @@ export function installCitizenShellSupervisor(): () => void {
     window.removeEventListener("keydown", onKeyDownCapture, true);
     document.removeEventListener("click", onDocumentClickCapture, true);
     if (syncFrame) window.cancelAnimationFrame(syncFrame);
+    cancelFocusFrame();
+    setMobileModalBackgroundInert(false);
     delete root.dataset["shellContext"];
     for (const surface of document.querySelectorAll<HTMLElement>("[data-v53-modal='true']")) {
       delete surface.dataset["v53Modal"];

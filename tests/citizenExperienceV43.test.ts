@@ -1,6 +1,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { shortcutFor } from "../src/platform/citizenActions";
 
 async function sourceFiles(root: string): Promise<string[]> {
   const entries = await readdir(root);
@@ -72,19 +73,19 @@ describe("v43 citizen experience", () => {
     expect(panel).toContain("<Suspense");
     expect(panel).toContain("Hızlı başlangıç");
     expect(panel).toContain("Klavye kısayolları");
-    expect(panel).toContain("Arama alanına git");
-    expect(panel).toContain("Yardımı aç");
+    expect(shortcutFor("search").label).toBe("Arama alanına git");
+    expect(shortcutFor("help").label).toBe("Yardımı aç");
   });
 
-  it("loads the responsive accessibility stylesheet and keeps the current PWA brand asset cached", async () => {
-    const [entry, css, swSource, swBuilt] = await Promise.all([
-      readFile("src/main.tsx", "utf8"),
+  it("loads the responsive accessibility stylesheet through the unified shell and keeps the current PWA brand asset cached", async () => {
+    const [shellCss, css, swSource, swBuilt] = await Promise.all([
+      readFile("src/styles/citizen-shell.css", "utf8"),
       readFile("src/styles/experience-v43.css", "utf8"),
       readFile("src/sw/sw.ts", "utf8"),
       readFile("public/sw.js", "utf8")
     ]);
 
-    expect(entry).toContain('import "./styles/experience-v43.css"');
+    expect(shellCss).toContain('@import "./experience-v43.css"');
     expect(css).toContain("prefers-reduced-motion");
     expect(css).toContain("prefers-contrast: more");
     expect(css).toContain("--v43-touch-target: 44px");

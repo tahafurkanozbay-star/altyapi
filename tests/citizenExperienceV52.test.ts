@@ -1,22 +1,25 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { CITIZEN_SHORTCUTS, shortcutFor } from "../src/platform/citizenActions";
 
 describe("v52 accessible interaction contract", () => {
-  it("installs the typed keyboard supervisor before the responsive experience supervisor", async () => {
-    const [entry, contracts] = await Promise.all([
+  it("keeps the typed keyboard supervisor before the responsive experience supervisor", async () => {
+    const [entry, contracts, shellCss] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
-      readFile("tsconfig.contracts.json", "utf8")
+      readFile("tsconfig.contracts.json", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8")
     ]);
 
     expect(entry).toContain('import { installCitizenKeyboardSupervisor } from "./platform/citizenKeyboardSupervisor"');
-    expect(entry).toContain('import "./styles/experience-v52.css"');
+    expect(shellCss).toContain('@import "./experience-v52.css"');
     expect(entry.indexOf("installCitizenKeyboardSupervisor();")).toBeLessThan(
       entry.indexOf("installCitizenExperienceSupervisor();")
     );
     expect(contracts).toContain("src/platform/citizenKeyboardSupervisor.ts");
+    expect(contracts).toContain("src/platform/citizenActions.ts");
   });
 
-  it("retires bare character shortcuts and exposes explicit modifier commands", async () => {
+  it("retires bare character shortcuts and exposes explicit modifier commands through one registry", async () => {
     const [guard, supervisor, rail, help] = await Promise.all([
       readFile("src/lib/globalShortcutGuard.ts", "utf8"),
       readFile("src/platform/citizenKeyboardSupervisor.ts", "utf8"),
@@ -25,16 +28,19 @@ describe("v52 accessible interaction contract", () => {
     ]);
 
     expect(guard).toContain("resolveCitizenShortcut");
-    expect(guard).toContain('key === "k"');
-    expect(guard).toContain('return "fullscreen"');
+    expect(guard).toContain("CITIZEN_SHORTCUTS.find");
     expect(supervisor).toContain("LEGACY_SINGLE_KEYS");
     expect(supervisor).toContain("stopImmediatePropagation");
-    expect(rail).toContain('shortcut="Alt+L"');
-    expect(rail).toContain('shortcut="Alt+D"');
-    expect(rail).toContain('shortcut="Alt+H"');
-    expect(rail).toContain('shortcut="Control+/"');
-    expect(help).toContain("Ctrl/⌘ + K");
-    expect(help).toContain("çıplak tek-harf kısayolları kaldırıldı");
+    expect(CITIZEN_SHORTCUTS.map((item) => item.command)).toEqual([
+      "layers", "data", "home", "focus-mode", "search", "help", "fullscreen"
+    ]);
+    expect(shortcutFor("layers").ariaKeyShortcuts).toBe("Alt+L");
+    expect(shortcutFor("data").ariaKeyShortcuts).toBe("Alt+D");
+    expect(shortcutFor("home").ariaKeyShortcuts).toBe("Alt+H");
+    expect(shortcutFor("help").ariaKeyShortcuts).toContain("Control+/");
+    expect(rail).toContain("shortcutFor(\"layers\")");
+    expect(help).toContain("CITIZEN_SHORTCUTS.map");
+    expect(help).toContain("Çıplak tek-harf kısayolları kullanılmaz");
   });
 
   it("supports arrow, Home and End navigation across the tool dock", async () => {
@@ -61,12 +67,18 @@ describe("v52 accessible interaction contract", () => {
   });
 
   it("keeps visible focus, forced colors and reduced-motion behavior authoritative", async () => {
-    const css = await readFile("src/styles/experience-v52.css", "utf8");
-    expect(css).toContain(":focus-visible");
-    expect(css).toContain("#kent-rehberi-map:focus-visible");
-    expect(css).toContain("forced-colors: active");
-    expect(css).toContain("prefers-reduced-motion: reduce");
-    expect(css).toContain(".toast-dismiss");
+    const [legacyCss, shellCss] = await Promise.all([
+      readFile("src/styles/experience-v52.css", "utf8"),
+      readFile("src/styles/citizen-shell.css", "utf8")
+    ]);
+    expect(legacyCss).toContain(":focus-visible");
+    expect(legacyCss).toContain("#kent-rehberi-map:focus-visible");
+    expect(legacyCss).toContain("forced-colors: active");
+    expect(legacyCss).toContain("prefers-reduced-motion: reduce");
+    expect(legacyCss).toContain(".toast-dismiss");
+    expect(shellCss).toContain("focus-visible");
+    expect(shellCss).toContain("forced-colors: active");
+    expect(shellCss).toContain("prefers-reduced-motion: reduce");
   });
 
   it("keeps package and service-worker cache generations coherent across later releases", async () => {

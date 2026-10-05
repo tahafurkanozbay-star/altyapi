@@ -1,16 +1,32 @@
 import type { PanelId, ToolDefinition, ToolId } from "../types";
+import { MAP_TOOL_METADATA, shortcutFor } from "../platform/citizenActions";
 import { Icon, type IconName } from "./Icon";
 
-export const mapTools = [
-  { id: "legend", label: "Lejant", icon: "legend", keywords: ["lejant", "sembol"] },
-  { id: "basemap", label: "Harita görünümü", icon: "basemap", keywords: ["altlık", "uydu", "harita"] },
-  { id: "distance", label: "Mesafe ölç", icon: "distance", keywords: ["ölç", "mesafe", "uzunluk"] },
-  { id: "area", label: "Alan ölç", icon: "area", keywords: ["ölç", "alan"] },
-  { id: "daylight", label: "Gün ışığı", icon: "daylight", keywords: ["güneş", "gölge", "saat"] },
-  { id: "slice", label: "3B kesit", icon: "slice", keywords: ["kesit", "slice"] },
-  { id: "lineOfSight", label: "Görüş hattı", icon: "sight", keywords: ["görüş", "hat"] },
-  { id: "elevation", label: "Yükseklik profili", icon: "elevation", keywords: ["profil", "yükseklik", "eğim"] }
-] satisfies ReadonlyArray<ToolDefinition & { icon: IconName }>;
+const TOOL_ICONS = {
+  legend: "legend",
+  basemap: "basemap",
+  distance: "distance",
+  area: "area",
+  daylight: "daylight",
+  slice: "slice",
+  lineOfSight: "sight",
+  elevation: "elevation"
+} as const satisfies Record<Exclude<ToolId, null>, IconName>;
+
+export const mapTools = (Object.entries(MAP_TOOL_METADATA) as Array<[
+  Exclude<ToolId, null>,
+  (typeof MAP_TOOL_METADATA)[Exclude<ToolId, null>]
+]>).map(([id, metadata]) => ({
+  id,
+  label: metadata.label,
+  icon: TOOL_ICONS[id],
+  keywords: [...metadata.keywords]
+})) satisfies ReadonlyArray<ToolDefinition & { icon: IconName }>;
+
+const LAYERS_SHORTCUT = shortcutFor("layers");
+const DATA_SHORTCUT = shortcutFor("data");
+const HOME_SHORTCUT = shortcutFor("home");
+const HELP_SHORTCUT = shortcutFor("help");
 
 interface Props {
   activePanel: PanelId;
@@ -29,14 +45,14 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
 
       <div className="tool-group" role="group" aria-label="İçerik" data-tool-group="content">
         <span className="tool-group-label">İçerik</span>
-        <ToolButton icon="layers" label="Katmanlar" shortcut="Alt+L" panelTarget="layers" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
-        <ToolButton icon="table" label="Harita verisi" shortcut="Alt+D" panelTarget="data" active={activePanel === "data"} onClick={() => onPanel("data")} />
+        <ToolButton icon="layers" label="Katmanlar" shortcut={LAYERS_SHORTCUT} panelTarget="layers" active={activePanel === "layers"} onClick={() => onPanel("layers")} />
+        <ToolButton icon="table" label="Harita verisi" shortcut={DATA_SHORTCUT} panelTarget="data" active={activePanel === "data"} onClick={() => onPanel("data")} />
         <ToolButton icon="bookmark" label="Yer imleri" panelTarget="bookmarks" active={activePanel === "bookmarks"} onClick={() => onPanel("bookmarks")} />
       </div>
 
       <div className="tool-group" role="group" aria-label="Harita konumu" data-tool-group="location">
         <span className="tool-group-label">Konum</span>
-        <ToolButton icon="home" label="Ankara başlangıç görünümü" shortcut="Alt+H" onClick={onHome} />
+        <ToolButton icon="home" label="Ankara başlangıç görünümü" shortcut={HOME_SHORTCUT} onClick={onHome} />
       </div>
 
       <div className="tool-group tool-group-analysis" role="group" aria-label="Harita araçları" data-tool-group="analysis">
@@ -56,16 +72,21 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
       <div className="tool-group tool-group-bottom" role="group" aria-label="Yardımcı araçlar" data-tool-group="utility">
         <span className="tool-group-label">Diğer</span>
         <ToolButton icon="camera" label="Ekran görüntüsü" onClick={onScreenshot} />
-        <ToolButton icon="help" label="Yardım ve kısayollar" shortcut="Control+/" panelTarget="help" active={activePanel === "help"} onClick={() => onPanel("help")} />
+        <ToolButton icon="help" label="Yardım ve kısayollar" shortcut={HELP_SHORTCUT} panelTarget="help" active={activePanel === "help"} onClick={() => onPanel("help")} />
       </div>
     </nav>
   );
 }
 
+interface ShortcutPresentation {
+  display: string;
+  ariaKeyShortcuts: string;
+}
+
 interface ToolButtonProps {
   icon: IconName;
   label: string;
-  shortcut?: string;
+  shortcut?: ShortcutPresentation;
   panelTarget?: Exclude<PanelId, null>;
   toolTarget?: Exclude<ToolId, null>;
   active?: boolean;
@@ -81,19 +102,19 @@ function ToolButton({ icon, label, shortcut, panelTarget, toolTarget, active, on
       onClick={onClick}
       aria-label={label}
       aria-pressed={isToggle ? active : undefined}
-      aria-keyshortcuts={shortcut}
+      aria-keyshortcuts={shortcut?.ariaKeyShortcuts}
       aria-controls={panelTarget ? "kent-rehberi-panels" : undefined}
       aria-expanded={panelTarget ? Boolean(active) : undefined}
       data-panel-target={panelTarget}
       data-tool-target={toolTarget}
       data-toggle={isToggle ? "true" : "false"}
-      title={shortcut ? `${label} (${shortcut})` : label}
+      title={shortcut ? `${label} (${shortcut.display})` : label}
     >
       <Icon name={icon} size={18} />
       <span className="tool-mobile-label" aria-hidden="true">{label}</span>
       <span className="tool-tooltip" aria-hidden="true">
         <strong>{label}</strong>
-        {shortcut && <kbd>{shortcut}</kbd>}
+        {shortcut && <kbd>{shortcut.display}</kbd>}
       </span>
     </button>
   );
