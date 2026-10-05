@@ -25,23 +25,27 @@ export const DEFAULT_LAYER_EXPLORER_STATE: LayerExplorerState = {
 export function parseLayerExplorerState(value: unknown): LayerExplorerState {
   if (!value || typeof value !== "object") return { ...DEFAULT_LAYER_EXPLORER_STATE };
   const candidate = value as Record<string, unknown>;
-  const query = typeof candidate.query === "string" ? candidate.query.slice(0, 160) : "";
-  const kind = typeof candidate.kind === "string" && KINDS.has(candidate.kind as ServiceKind | "all")
-    ? candidate.kind as ServiceKind | "all"
+  const queryValue = candidate["query"];
+  const kindValue = candidate["kind"];
+  const availabilityValue = candidate["availability"];
+  const collapsedGroupsValue = candidate["collapsedGroups"];
+  const query = typeof queryValue === "string" ? queryValue.slice(0, 160) : "";
+  const kind = typeof kindValue === "string" && KINDS.has(kindValue as ServiceKind | "all")
+    ? kindValue as ServiceKind | "all"
     : "all";
-  const availability = typeof candidate.availability === "string"
-    && AVAILABILITY.has(candidate.availability as ServiceAvailability | "all")
-    ? candidate.availability as ServiceAvailability | "all"
+  const availability = typeof availabilityValue === "string"
+    && AVAILABILITY.has(availabilityValue as ServiceAvailability | "all")
+    ? availabilityValue as ServiceAvailability | "all"
     : "all";
-  const collapsedGroups = Array.isArray(candidate.collapsedGroups)
-    ? [...new Set(candidate.collapsedGroups.filter((item): item is string => typeof item === "string" && item.length <= 120))].slice(0, 80)
+  const collapsedGroups = Array.isArray(collapsedGroupsValue)
+    ? [...new Set(collapsedGroupsValue.filter((item): item is string => typeof item === "string" && item.length <= 120))].slice(0, 80)
     : [];
 
   return {
     query,
     kind,
-    activeOnly: candidate.activeOnly === true,
-    favoriteOnly: candidate.favoriteOnly === true,
+    activeOnly: candidate["activeOnly"] === true,
+    favoriteOnly: candidate["favoriteOnly"] === true,
     availability,
     collapsedGroups
   };
