@@ -26,6 +26,8 @@
   "include": [
     "src/platform/runtimeEvents.ts",
     "src/platform/citizenKeyboardSupervisor.ts",
+    "src/platform/citizenShellPolicy.ts",
+    "src/platform/citizenShellSupervisor.ts",
     "src/lib/urlState.ts",
     "src/lib/workspaceView.ts",
     "src/lib/globalShortcutGuard.ts",
