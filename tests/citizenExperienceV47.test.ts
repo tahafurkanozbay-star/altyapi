@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("v47 citizen experience guarantees retained by v48", () => {
+describe("v47 citizen experience guarantees retained by later releases", () => {
   it("keeps the desktop header structurally aligned with its five visible content groups", async () => {
     const css = await readFile("src/styles/experience-v47.css", "utf8");
     expect(css).toContain("grid-template-columns: minmax(270px, 360px) auto auto minmax(260px, 1fr) auto");
@@ -19,7 +19,7 @@ describe("v47 citizen experience guarantees retained by v48", () => {
     expect(supervisor).toContain("prefers-contrast: more");
     expect(supervisor).toContain("forced-colors: active");
     expect(supervisor).toContain("display-mode: standalone");
-    expect(supervisor).toContain('root.dataset.experience = "v48"');
+    expect(supervisor).toContain("root.dataset.experience");
     expect(supervisor).toContain("event.composedPath()");
     expect(css).toContain('html[data-reduced-motion="true"]');
     expect(css).toContain('html[data-input-modality="keyboard"]');

@@ -46,13 +46,13 @@ describe("v50 citizen experience", () => {
     expect(app).not.toContain('className="workspace-summary" role="status"');
   });
 
-  it("ships responsive, reduced-motion and forced-colors v50 styling", async () => {
+  it("keeps responsive, reduced-motion and forced-colors v50 foundations loaded", async () => {
     const [entry, css] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
       readFile("src/styles/experience-v50.css", "utf8")
     ]);
     expect(entry).toContain('import "./styles/experience-v50.css"');
-    expect(entry).toContain('dataset.experience = "v50"');
+    expect(entry).toContain("dataset.experience");
     expect(css).toContain(".status-readiness");
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("prefers-reduced-motion");
@@ -60,16 +60,18 @@ describe("v50 citizen experience", () => {
     expect(css).toContain("safe-area-inset-bottom");
   });
 
-  it("rotates application and PWA cache generations together", async () => {
+  it("keeps application and PWA cache generations coherent after v50", async () => {
     const [packageText, sourceWorker, generatedWorker] = await Promise.all([
       readFile("package.json", "utf8"),
       readFile("src/sw/sw.ts", "utf8"),
       readFile("public/sw.js", "utf8")
     ]);
-    expect(JSON.parse(packageText)).toMatchObject({ version: "50.0.0" });
-    expect(sourceWorker).toContain('altyapi-shell-v50');
-    expect(sourceWorker).toContain('altyapi-data-v50');
-    expect(generatedWorker).toContain('altyapi-shell-v50');
-    expect(generatedWorker).toContain('altyapi-data-v50');
+    const packageJson = JSON.parse(packageText) as { version: string };
+    const generation = Number(packageJson.version.split(".")[0]);
+    expect(generation).toBeGreaterThanOrEqual(50);
+    expect(sourceWorker).toContain(`altyapi-shell-v${generation}`);
+    expect(sourceWorker).toContain(`altyapi-data-v${generation}`);
+    expect(generatedWorker).toContain(`altyapi-shell-v${generation}`);
+    expect(generatedWorker).toContain(`altyapi-data-v${generation}`);
   });
 });

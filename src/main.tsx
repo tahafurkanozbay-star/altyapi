@@ -24,6 +24,7 @@ import "./styles/experience-v47.css";
 import "./styles/experience-v48.css";
 import "./styles/experience-v49.css";
 import "./styles/experience-v50.css";
+import "./styles/experience-v51.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root bulunamadı.");
@@ -52,7 +53,7 @@ window.addEventListener("unhandledrejection", (event) => {
 installRuntimeEventDomBridge();
 installRuntimePressureMonitor();
 installCitizenExperienceSupervisor();
-document.documentElement.dataset.experience = "v50";
+document.documentElement.dataset.experience = "v51";
 installLayerRenderHealthStore();
 installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();

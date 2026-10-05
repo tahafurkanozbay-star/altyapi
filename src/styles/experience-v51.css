@@ -1,0 +1,495 @@
+/* v51 citizen workspace: one usable responsive shell from desktop to phone. */
+
+:root {
+  --v51-safe-top: max(8px, env(safe-area-inset-top));
+  --v51-safe-right: max(8px, env(safe-area-inset-right));
+  --v51-safe-bottom: max(8px, env(safe-area-inset-bottom));
+  --v51-safe-left: max(8px, env(safe-area-inset-left));
+  --v51-touch-target: 44px;
+}
+
+.app-shell,
+.main-panel,
+.operations-panel,
+.map-tool-panel,
+.details-drawer,
+.attribute-table-wrap,
+.layer-groups {
+  overscroll-behavior: contain;
+}
+
+.main-panel,
+.operations-panel,
+.map-tool-panel,
+.details-drawer {
+  scrollbar-gutter: stable;
+}
+
+.panel-heading h2,
+.operations-heading h2,
+.help-hero h3,
+.help-section h4 {
+  text-wrap: balance;
+}
+
+.panel-heading p,
+.section-note,
+.health-note span,
+.help-steps span,
+.empty-state span {
+  text-wrap: pretty;
+}
+
+/* Keep direct interaction targets comfortable on touch hardware without inflating desktop density. */
+html[data-pointer="coarse"] :is(
+  .visibility-button,
+  .icon-ghost,
+  .top-icon-button,
+  .mobile-menu,
+  .catalog-action,
+  .filter-chip,
+  .availability-chip
+) {
+  min-width: var(--v51-touch-target);
+  min-height: var(--v51-touch-target);
+}
+
+/* Reduce GPU-heavy translucency when the user/device explicitly asks for it. */
+html[data-reduced-transparency="true"] :is(
+  .topbar .brand,
+  .top-actions,
+  .global-search .esri-search__container,
+  .tool-rail,
+  .main-panel,
+  .operations-panel,
+  .map-tool-panel,
+  .details-drawer,
+  .status-bar
+),
+html[data-save-data="true"] :is(
+  .topbar .brand,
+  .top-actions,
+  .global-search .esri-search__container,
+  .tool-rail,
+  .main-panel,
+  .operations-panel,
+  .map-tool-panel,
+  .details-drawer,
+  .status-bar
+) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-save-data="true"] .map-vignette {
+  display: none;
+}
+
+/* Compact/mobile workspace: the map keeps the largest possible usable canvas. */
+@media (max-width: 760px) {
+  :root {
+    --v51-mobile-topbar-height: 104px;
+    --v51-mobile-rail-height: 62px;
+    --v51-mobile-status-height: 44px;
+  }
+
+  .topbar {
+    top: var(--v51-safe-top) !important;
+    right: var(--v51-safe-right) !important;
+    left: var(--v51-safe-left) !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "menu brand actions"
+      "search search search" !important;
+    gap: 6px 8px !important;
+    align-items: center;
+  }
+
+  .mobile-menu {
+    grid-area: menu;
+    display: grid !important;
+    place-items: center;
+    width: var(--v51-touch-target);
+    height: var(--v51-touch-target);
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel-solid) 94%, transparent);
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+  }
+
+  .brand {
+    grid-area: brand;
+    width: 100%;
+    height: 44px !important;
+    min-width: 0;
+    padding: 4px 10px 4px 6px !important;
+    border-radius: 14px !important;
+  }
+
+  .brand-symbol {
+    width: 28px !important;
+    height: 36px !important;
+    flex: 0 0 28px !important;
+  }
+
+  .brand strong {
+    font-size: 11.5px !important;
+  }
+
+  .brand span {
+    display: none !important;
+  }
+
+  .live-chip,
+  .workspace-summary {
+    display: none !important;
+  }
+
+  .global-search {
+    grid-area: search;
+    display: block !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .global-search .esri-search__container {
+    height: 46px !important;
+    border-radius: 14px !important;
+  }
+
+  .global-search .esri-input {
+    height: 44px !important;
+    font-size: 14px !important;
+  }
+
+  .top-actions {
+    grid-area: actions;
+    height: 44px !important;
+    padding: 3px !important;
+    border-radius: 14px !important;
+  }
+
+  .top-actions .compact-select,
+  .top-actions .top-icon-button {
+    display: none !important;
+  }
+
+  .share-button {
+    width: var(--v51-touch-target) !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+    font-size: 0 !important;
+    border-radius: 11px !important;
+  }
+
+  .share-button svg {
+    margin: 0 !important;
+  }
+
+  /* The dense vertical rail becomes a discoverable horizontal, scroll-snap tool dock. */
+  .tool-rail {
+    top: auto !important;
+    right: var(--v51-safe-right) !important;
+    bottom: var(--v51-safe-bottom) !important;
+    left: var(--v51-safe-left) !important;
+    width: auto !important;
+    height: var(--v51-mobile-rail-height) !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 4px !important;
+    padding: 5px 6px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    border-radius: 18px !important;
+  }
+
+  .tool-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tool-rail-mark,
+  .tool-group-label {
+    display: none !important;
+  }
+
+  .tool-rail .tool-group {
+    flex: 0 0 auto;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 3px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  .tool-rail .tool-group + .tool-group {
+    padding-left: 4px !important;
+    border-left: 1px solid var(--line) !important;
+  }
+
+  .tool-rail .tool-group-bottom {
+    margin-top: 0 !important;
+  }
+
+  .tool-button {
+    width: 58px !important;
+    height: 50px !important;
+    min-width: 58px;
+    flex: 0 0 58px !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 3px 4px !important;
+    scroll-snap-align: center;
+    border-radius: 12px !important;
+  }
+
+  .tool-mobile-label {
+    display: block !important;
+    width: 100%;
+    overflow: hidden;
+    color: currentColor;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tool-tooltip {
+    display: none !important;
+  }
+
+  .panel-zone {
+    top: calc(var(--v51-safe-top) + var(--v51-mobile-topbar-height) + 8px) !important;
+    right: var(--v51-safe-right) !important;
+    bottom: calc(var(--v51-safe-bottom) + var(--v51-mobile-rail-height) + var(--v51-mobile-status-height) + 12px) !important;
+    left: var(--v51-safe-left) !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: translateY(12px) scale(.985) !important;
+    transform-origin: bottom center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 160ms ease, transform 180ms ease, visibility 180ms step-end !important;
+  }
+
+  .panel-zone.is-mobile-visible {
+    transform: none !important;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 160ms ease, transform 180ms ease, visibility 0ms !important;
+  }
+
+  .main-panel,
+  .operations-panel {
+    border-radius: 20px !important;
+  }
+
+  .panel-content,
+  .operations-body {
+    padding-bottom: 18px;
+  }
+
+  .mobile-panel-close {
+    display: grid !important;
+    min-width: var(--v51-touch-target) !important;
+    min-height: var(--v51-touch-target) !important;
+  }
+
+  .arcgis-navigation {
+    top: calc(var(--v51-safe-top) + var(--v51-mobile-topbar-height) + 10px) !important;
+    right: calc(var(--v51-safe-right) + 2px) !important;
+  }
+
+  .map-tool-panel {
+    top: calc(var(--v51-safe-top) + var(--v51-mobile-topbar-height) + 8px) !important;
+    right: var(--v51-safe-right) !important;
+    bottom: calc(var(--v51-safe-bottom) + var(--v51-mobile-rail-height) + var(--v51-mobile-status-height) + 12px) !important;
+    left: var(--v51-safe-left) !important;
+    width: auto !important;
+    max-height: none !important;
+  }
+
+  .details-drawer {
+    right: var(--v51-safe-right) !important;
+    bottom: calc(var(--v51-safe-bottom) + var(--v51-mobile-rail-height) + var(--v51-mobile-status-height) + 12px) !important;
+    left: var(--v51-safe-left) !important;
+    width: auto !important;
+    max-height: min(46vh, 430px) !important;
+  }
+
+  .status-bar {
+    right: var(--v51-safe-right) !important;
+    bottom: calc(var(--v51-safe-bottom) + var(--v51-mobile-rail-height) + 6px) !important;
+    left: var(--v51-safe-left) !important;
+    min-height: var(--v51-mobile-status-height) !important;
+    padding: 5px 10px !important;
+    border-radius: 14px !important;
+  }
+
+  .status-readiness-copy > span {
+    display: none !important;
+  }
+
+  .toast-stack {
+    right: var(--v51-safe-right) !important;
+    bottom: calc(var(--v51-safe-bottom) + var(--v51-mobile-rail-height) + var(--v51-mobile-status-height) + 18px) !important;
+    left: var(--v51-safe-left) !important;
+    width: auto !important;
+  }
+
+  .offline-banner {
+    right: var(--v51-safe-right) !important;
+    bottom: calc(var(--v51-safe-bottom) + var(--v51-mobile-rail-height) + var(--v51-mobile-status-height) + 18px) !important;
+    left: var(--v51-safe-left) !important;
+    width: auto !important;
+  }
+
+  .attribute-table-wrap {
+    max-height: min(42vh, 360px) !important;
+  }
+
+  .data-controls,
+  .server-query-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .data-load-button {
+    grid-column: auto !important;
+  }
+}
+
+@media (max-width: 520px) {
+  :root {
+    --v51-mobile-topbar-height: 102px;
+  }
+
+  .brand > div:last-child {
+    min-width: 0;
+  }
+
+  .brand strong {
+    font-size: 11px !important;
+  }
+
+  .panel-heading-rich {
+    align-items: flex-start;
+  }
+
+  .catalog-overview,
+  .data-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .catalog-actions,
+  .server-query-actions,
+  .data-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .layer-stack-item {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+  }
+
+  .layer-stack-item .kind-pill {
+    display: none;
+  }
+
+  .status-service-summary {
+    display: none !important;
+  }
+}
+
+/* Short landscape phones get map space back without losing search or the primary status. */
+@media (max-width: 760px) and (max-height: 560px) {
+  :root {
+    --v51-mobile-topbar-height: 52px;
+    --v51-mobile-status-height: 38px;
+    --v51-mobile-rail-height: 56px;
+  }
+
+  .topbar {
+    grid-template-areas: "menu brand actions" !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+  }
+
+  .global-search {
+    position: fixed;
+    top: calc(var(--v51-safe-top) + 54px);
+    right: var(--v51-safe-right);
+    left: var(--v51-safe-left);
+    display: none !important;
+  }
+
+  .tool-button {
+    width: 54px !important;
+    min-width: 54px !important;
+    height: 44px !important;
+    flex-basis: 54px !important;
+  }
+
+  .tool-mobile-label {
+    font-size: 7.5px;
+  }
+}
+
+/* When the on-screen keyboard is open, interactive panels own the remaining visual viewport. */
+@media (max-width: 760px) {
+  html[data-virtual-keyboard="open"] .tool-rail,
+  html[data-virtual-keyboard="open"] .status-bar {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  html[data-virtual-keyboard="open"] .panel-zone,
+  html[data-virtual-keyboard="open"] .map-tool-panel,
+  html[data-virtual-keyboard="open"] .details-drawer {
+    bottom: calc(var(--v51-safe-bottom) + 6px) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-zone,
+  .tool-rail,
+  .tool-button {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .mobile-menu,
+  .tool-rail,
+  .topbar .brand,
+  .top-actions,
+  .global-search .esri-search__container,
+  .main-panel,
+  .operations-panel,
+  .map-tool-panel,
+  .status-bar {
+    border: 1px solid CanvasText !important;
+    background: Canvas !important;
+    box-shadow: none !important;
+  }
+
+  .tool-button.is-active,
+  .mobile-menu[aria-expanded="true"] {
+    outline: 2px solid Highlight !important;
+    outline-offset: -2px;
+  }
+}
