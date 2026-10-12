@@ -90,6 +90,7 @@ type ArcGISSceneElement = HTMLElement & {
   spatialReference?: SpatialReference;
   popupDisabled?: boolean;
   map?: ArcGISMap | null;
+  center?: MapPointLike | null;
   scale?: number;
   extent?: ExtentLike | null;
   fatalError?: Error | null;
@@ -176,6 +177,7 @@ export class ArcGISRuntime {
   private cameraTimer = 0;
   private scaleGuardTimer = 0;
   private telemetryFrame = 0;
+  private telemetryPointer?: ScenePointerDetail;
   private profile: PerformanceProfile;
   private destroyed = false;
   private recoveringGraphics = false;
@@ -683,6 +685,8 @@ export class ArcGISRuntime {
     window.clearTimeout(this.cameraTimer);
     window.clearTimeout(this.scaleGuardTimer);
     cancelAnimationFrame(this.telemetryFrame);
+    this.telemetryFrame = 0;
+    this.telemetryPointer = undefined;
     this.closeTool();
     this.disposeComponent(this.searchWidget);
     this.searchWidget = undefined;
@@ -1148,9 +1152,36 @@ export class ArcGISRuntime {
     if (component.destroy) void component.destroy().catch(() => undefined);
   }
 
+  private scheduleTelemetry(pointer?: ScenePointerDetail): void {
+    if (!this.scene || this.destroyed || document.hidden) return;
+    this.telemetryPointer = pointer;
+    if (this.telemetryFrame) return;
+
+    // Read the latest scene once per frame. Camera changes and touch gestures
+    // must update the footer even when no mouse ever enters the map.
+    this.telemetryFrame = requestAnimationFrame(() => {
+      this.telemetryFrame = 0;
+      const scene = this.scene;
+      if (!scene || this.destroyed || document.hidden) return;
+      const camera = scene.camera;
+      const point = (this.telemetryPointer ? scene.toMap?.(this.telemetryPointer) : undefined)
+        ?? scene.center
+        ?? camera?.position;
+      this.callbacks.onTelemetry?.({
+        latitude: point?.latitude ?? undefined,
+        longitude: point?.longitude ?? undefined,
+        altitude: camera?.position.z ?? 0,
+        tilt: camera?.tilt ?? 0,
+        heading: camera?.heading ?? 0,
+        scale: scene.scale
+      });
+    });
+  }
+
   private installSceneEvents(): void {
     const scene = this.scene;
     if (!scene) return;
+    this.scheduleTelemetry();
 
     this.handles.push(
       domHandle(scene, "arcgisViewClick", async (event) => {
@@ -1185,26 +1216,19 @@ export class ArcGISRuntime {
         if (!this.scene || this.destroyed || document.hidden || !this.scene.toMap) return;
         const detail = event instanceof CustomEvent ? event.detail as ScenePointerDetail : undefined;
         if (!detail || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) return;
-        cancelAnimationFrame(this.telemetryFrame);
-        this.telemetryFrame = requestAnimationFrame(() => {
-          if (!this.scene || this.destroyed || !this.scene.toMap) return;
-          const point = this.scene.toMap({ x: detail.x, y: detail.y });
-          const camera = this.scene.camera;
-          this.callbacks.onTelemetry?.({
-            latitude: point?.latitude ?? undefined,
-            longitude: point?.longitude ?? undefined,
-            altitude: camera?.position.z ?? 0,
-            tilt: camera?.tilt ?? 0,
-            heading: camera?.heading ?? 0,
-            scale: this.scene.scale
-          });
-        });
+        this.scheduleTelemetry(detail);
       })
+    );
+
+    this.handles.push(
+      domHandle(scene, "arcgisViewPointerLeave", () => this.scheduleTelemetry()),
+      domHandle(document, "visibilitychange", () => this.scheduleTelemetry())
     );
 
     this.handles.push(
       domHandle(scene, "arcgisViewChange", () => {
         if (this.destroyed) return;
+        this.scheduleTelemetry();
         this.scheduleScaleGuard();
         window.clearTimeout(this.cameraTimer);
         this.cameraTimer = window.setTimeout(() => {

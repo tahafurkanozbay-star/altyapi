@@ -1,6 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import type { RawServiceDefinition } from "../src/types";
+
+async function expectCurrentSceneScale(page: Page) {
+  await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => {
+    const scale = (element as unknown as { scale: number }).scale;
+    return Number.isFinite(scale) && scale > 0
+      && document.querySelector(".status-scale strong")?.textContent === "1:" + Math.round(scale).toLocaleString("tr-TR");
+  })).toBe(true);
+}
 
 test("production scene renders all public layers and reopens cached layers", async ({ page }, info) => {
   const runtimeErrors: string[] = [];
@@ -13,6 +21,9 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(page.locator(".boot-screen")).toHaveCount(0);
   await expect(page.locator(".fatal-screen")).toHaveCount(0);
   await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => (element as unknown as { ready: boolean }).ready)).toBe(true);
+  // A touch user has no pointer-move event to initialize the footer. Read the
+  // real SDK scale and verify it is published before any map interaction.
+  await expectCurrentSceneScale(page);
 
   // The default startup boundary is a real citizen-visible layer. Verify that
   // initial Scene/SDK pressure does not trigger a destructive recycle loop
@@ -51,6 +62,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     await toggle.click();
     await expect(card).toHaveAttribute("data-render-state", "ready");
     await expect(card).not.toHaveClass(/status-error/);
+    await expectCurrentSceneScale(page);
     const firstReadyMs = Date.now() - started;
     const state = await page.locator("arcgis-scene").evaluate(async (element, id) => {
       const scene = element as unknown as {
