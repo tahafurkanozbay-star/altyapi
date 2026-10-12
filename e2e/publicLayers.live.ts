@@ -14,9 +14,18 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(page.locator(".fatal-screen")).toHaveCount(0);
   await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => (element as unknown as { ready: boolean }).ready)).toBe(true);
 
-  // Neutralize the default startup view before per-layer verification. Waiting
-  // for the startup layer here would let one slow provider prevent the test
-  // from ever identifying which of the ten public layers actually fails.
+  // The default startup boundary is a real citizen-visible layer. Verify that
+  // initial Scene/SDK pressure does not trigger a destructive recycle loop
+  // before moving on to the isolated ten-layer matrix below.
+  const startupReadyAt = Date.now();
+  const startupLayer = page.locator(".layer-card.is-active");
+  await expect(startupLayer).toHaveCount(1);
+  await expect(startupLayer).toHaveAttribute("data-render-state", "ready", { timeout: 90_000 });
+  await expect(page.locator(".status-readiness")).toHaveAttribute("data-tone", "ready", { timeout: 5_000 });
+  const startupReadyMs = Date.now() - startupReadyAt;
+
+  // Neutralize the startup view so each public provider is then measured from
+  // the same isolated baseline.
   await page.locator(".advanced-layer-filters > summary").click();
   const closeAll = page.getByRole("button", { name: "Açık katmanları kapat", exact: true });
   if (await closeAll.isEnabled()) await closeAll.click();
@@ -71,7 +80,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     page.off("response", onResponse);
     await toggle.click();
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), metrics, runtimeErrors, failedSdkAssets }, null, 2));
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, metrics, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);
