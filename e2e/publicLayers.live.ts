@@ -13,15 +13,19 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(page.locator(".boot-screen")).toHaveCount(0);
   await expect(page.locator(".fatal-screen")).toHaveCount(0);
   await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => (element as unknown as { ready: boolean }).ready)).toBe(true);
-  await expect(page.locator(".status-readiness")).toHaveAttribute("data-tone", "ready");
-  const catalog = await page.request.get("/services.json").then((response) => response.json()) as { services: RawServiceDefinition[] };
-  const publicLayers = catalog.services.filter((service) => !service.tokenUrl.includes("/__runtime__/"));
-  expect(publicLayers).toHaveLength(10);
-  const metrics: Array<{ name: string; kind: string; firstReadyMs: number; cachedReadyMs: number; dataResponses: number }> = [];
+
+  // Neutralize the default startup view before per-layer verification. Waiting
+  // for the startup layer here would let one slow provider prevent the test
+  // from ever identifying which of the ten public layers actually fails.
   await page.locator(".advanced-layer-filters > summary").click();
   const closeAll = page.getByRole("button", { name: "Açık katmanları kapat", exact: true });
   if (await closeAll.isEnabled()) await closeAll.click();
   await page.locator(".advanced-layer-filters > summary").click();
+
+  const catalog = await page.request.get("/services.json").then((response) => response.json()) as { services: RawServiceDefinition[] };
+  const publicLayers = catalog.services.filter((service) => !service.tokenUrl.includes("/__runtime__/"));
+  expect(publicLayers).toHaveLength(10);
+  const metrics: Array<{ name: string; kind: string; firstReadyMs: number; cachedReadyMs: number; dataResponses: number }> = [];
 
   for (const service of publicLayers) {
     const card = page.locator(".layer-card").filter({ has: page.getByText(service.cografiVeriKatmanAdi, { exact: true }) });
