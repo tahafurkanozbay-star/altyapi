@@ -24,6 +24,10 @@ Altlık galerisindeki altı seçenek, üst bölüm, yer imleri ve paylaşım ter
 
 ## Teknoloji ve doğrulama
 
+Haritada nesne seçimi son tıklamaya aittir. Önceki tıklamanın geç tamamlanan sonucu veya hatası yeni seçimi değiştiremez. Detay penceresi kapatıldığında, kamera hareket ettiğinde, sekme değiştiğinde veya harita oturumu kapandığında bekleyen seçim geçersiz olur. Mesafe/alan, kesit, görüş hattı ve profil araçları harita tıklamasını kullanırken nesne sorgusu başlatılmaz; bu koruma araç yüklenirken de geçerlidir. Pasif araç açıkken nesne seçmek detayları açar ve araç penceresini kapatır. Dar ekranda detaylar çalışma paneliyle çakışmaz.
+
+Nesne detaylarındaki arama alan adı ve değer içinde Türkçe büyük/küçük harf duyarlılığı olmadan çalışır. Eşleşen alan sayısı ve boş arama sonucu erişilebilir şekilde gösterilir; yeni nesne seçildiğinde arama sıfırlanır.
+
 Açılışta küçük TypeScript bootstrap önce görünür; ağır uygulama modülü dinamik yüklenir. 4,5 saniyelik gecikme hata olarak gösterilmez, anlaşılır bekleme mesajı sunulur. Gerçek modül yükleme hatası veya 60 saniyelik süre aşımında bağlantı açıklaması ve erişilebilir yeniden yükleme düğmesi gösterilir. Sayfa açıldığında zamanlayıcı temizlenir. Gecikme, gerçek modül hatası ve yeniden yükleyerek kurtarma arayüz testinde doğrulanır.
 
 - React 19, TypeScript 7 ve Vite 8 mimarisi korunur; uygulamanın yanında bütün birim testleri de strict TypeScript kontrolüne alınır.

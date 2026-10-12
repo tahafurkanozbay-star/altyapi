@@ -166,6 +166,7 @@ const HOME_CAMERA: CameraState = {
 };
 
 const LAYER_VIEW_ACTIVATION_WAIT_MS = 720;
+const MAP_DRAWING_TOOLS = new Set<ToolId>(["distance", "area", "slice", "lineOfSight", "elevation"]);
 
 export class ArcGISRuntime {
   private map?: ArcGISMap;
@@ -179,6 +180,8 @@ export class ArcGISRuntime {
   private activeWidget?: ArcGISComponentElement;
   private toolGeneration = 0;
   private toolController?: AbortController;
+  private activeToolId: ToolId = null;
+  private identifyGeneration = 0;
   private readonly visibilityIntents = new LayerIntentTracker();
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
@@ -634,6 +637,8 @@ export class ArcGISRuntime {
   async openTool(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<void> {
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
     this.closeTool();
+    this.activeToolId = tool;
+    this.clearIdentify();
     const generation = this.toolGeneration;
     const controller = new AbortController();
     this.toolController = controller;
@@ -642,7 +647,10 @@ export class ArcGISRuntime {
     try {
       widget = await this.createToolWidget(tool, container, controller.signal);
     } catch (error) {
-      if (this.toolController === controller) this.toolController = undefined;
+      if (this.toolController === controller) {
+        this.toolController = undefined;
+        this.activeToolId = null;
+      }
       if (controller.signal.aborted) return;
       throw error;
     }
@@ -654,11 +662,18 @@ export class ArcGISRuntime {
   }
 
   closeTool(): void {
+    this.identifyGeneration += 1;
+    this.activeToolId = null;
     this.toolGeneration += 1;
     this.toolController?.abort();
     this.toolController = undefined;
     this.disposeComponent(this.activeWidget);
     this.activeWidget = undefined;
+  }
+
+  clearIdentify(): void {
+    this.identifyGeneration += 1;
+    this.callbacks.onIdentify?.(null);
   }
 
   async goHome(): Promise<void> {
@@ -1227,11 +1242,14 @@ export class ArcGISRuntime {
 
     this.handles.push(
       domHandle(scene, "arcgisViewClick", async (event) => {
-        if (!this.scene || this.destroyed || !this.scene.hitTest) return;
+        if (this.scene !== scene || this.destroyed || document.hidden || !scene.hitTest || MAP_DRAWING_TOOLS.has(this.activeToolId)) return;
+        const generation = ++this.identifyGeneration;
+        const isCurrent = () => generation === this.identifyGeneration && this.scene === scene
+          && !this.destroyed && !document.hidden && !MAP_DRAWING_TOOLS.has(this.activeToolId);
         try {
           const detail = event instanceof CustomEvent ? event.detail : undefined;
-          const hit = await this.scene.hitTest(detail);
-          if (this.destroyed) return;
+          const hit = await scene.hitTest(detail);
+          if (!isCurrent()) return;
           const graphicHit = hit.results.find((result): result is GraphicHit => result.type === "graphic");
           if (!graphicHit) {
             this.callbacks.onIdentify?.(null);
@@ -1248,7 +1266,7 @@ export class ArcGISRuntime {
             attributes
           });
         } catch {
-          if (!this.destroyed) this.callbacks.onIdentify?.(null);
+          if (isCurrent()) this.callbacks.onIdentify?.(null);
         }
       })
     );
@@ -1264,12 +1282,16 @@ export class ArcGISRuntime {
 
     this.handles.push(
       domHandle(scene, "arcgisViewPointerLeave", () => this.scheduleTelemetry()),
-      domHandle(document, "visibilitychange", () => this.scheduleTelemetry())
+      domHandle(document, "visibilitychange", () => {
+        this.identifyGeneration += 1;
+        this.scheduleTelemetry();
+      })
     );
 
     this.handles.push(
       domHandle(scene, "arcgisViewChange", () => {
         if (this.destroyed) return;
+        this.identifyGeneration += 1;
         this.scheduleTelemetry();
         this.scheduleScaleGuard();
         window.clearTimeout(this.cameraTimer);

@@ -80,6 +80,10 @@ export default function App() {
   const toolHostRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<ArcGISRuntime | null>(null);
   const navigationCleanupRef = useRef<(() => void) | null>(null);
+  const closeIdentify = useCallback(() => {
+    runtimeRef.current?.clearIdentify();
+    setIdentify(null);
+  }, []);
   const servicesRef = useRef<ServiceDefinition[]>([]);
   const layerIntents = useRef(new LayerIntentTracker());
   const incidentsRef = useRef<RuntimeIncident[]>(loadIncidentJournal());
@@ -226,7 +230,13 @@ export default function App() {
           share?.camera ?? initialPreferences.camera ?? DEFAULT_CAMERA,
           restoredBasemap,
           {
-            onIdentify: setIdentify,
+            onIdentify: (result) => {
+              setIdentify(result);
+              if (result) {
+                setActiveTool(null);
+                if (window.matchMedia("(max-width: 1100px)").matches) setPanel(null);
+              }
+            },
             onTelemetry: setTelemetry,
             onBasemapChange: (basemap) => setPreferences((current) => {
               if (current.basemap === basemap) return current;
@@ -510,6 +520,7 @@ export default function App() {
   }, [recordIncident]);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
+    closeIdentify();
     setFocusMode(false);
     if (window.matchMedia("(max-width: 1100px)").matches) {
       setActiveTool(null);
@@ -518,14 +529,15 @@ export default function App() {
     const hiddenPanel = focusMode || (window.matchMedia("(max-width: 760px)").matches && !mobilePanelsVisible);
     setPanel((current) => current === nextPanel && !hiddenPanel ? null : nextPanel);
     setMobilePanelsVisible(true);
-  }, [focusMode, mobilePanelsVisible]);
+  }, [closeIdentify, focusMode, mobilePanelsVisible]);
 
   const selectTool = useCallback((tool: Exclude<ToolId, null>) => {
+    closeIdentify();
     setFocusMode(false);
     if (window.matchMedia("(max-width: 1100px)").matches) setPanel(null);
     setToolPhase("loading");
     setActiveTool((current) => current === tool ? null : tool);
-  }, []);
+  }, [closeIdentify]);
 
   const changeBasemap = useCallback((basemap: string) => {
     runtimeRef.current?.setBasemap(basemap);
@@ -840,7 +852,7 @@ export default function App() {
         </aside>
       )}
 
-      <DetailsPanel result={identify} onClose={() => setIdentify(null)} />
+      <DetailsPanel result={identify} onClose={closeIdentify} />
       <StatusBar telemetry={telemetry} services={services} />
       <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
       <BookmarkDialog
