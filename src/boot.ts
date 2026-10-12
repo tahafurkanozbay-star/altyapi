@@ -1,10 +1,12 @@
-const BOOT_TIMEOUT_MS = 4_500;
+const SLOW_BOOT_NOTICE_MS = 4_500;
+const BOOT_TIMEOUT_MS = 60_000;
 
 function renderBootFailure(): void {
   if (document.documentElement.dataset.appReady === "true") return;
   const root = document.getElementById("root");
   if (!root) return;
 
+  finishBoot();
   root.replaceChildren(createBootFailureCard());
 }
 
@@ -22,20 +24,34 @@ function createBootFailureCard(): HTMLElement {
   title.style.cssText = "display:block;font-size:20px;margin-bottom:10px";
 
   const explanation = document.createElement("p");
-  explanation.textContent = "Uygulama kaynak dosya olarak değil, Vite geliştirme sunucusu veya üretim çıktısı üzerinden çalıştırılmalıdır.";
+  explanation.textContent = "Harita kaynakları yüklenemedi. Bağlantınızı kontrol edip sayfayı yeniden yükleyebilirsiniz.";
   explanation.style.cssText = "margin:0 0 12px;color:#617987";
 
-  const commands = document.createElement("code");
-  commands.textContent = "npm install\nnpm run dev";
-  commands.style.cssText = "display:block;white-space:pre-wrap;border-radius:10px;background:#eef4f7;padding:12px;color:#24485c;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Sayfayı yeniden yükle";
+  retry.style.cssText = "min-height:44px;border:0;border-radius:10px;background:#0b6dca;color:#fff;padding:10px 16px;font:inherit;cursor:pointer";
+  retry.addEventListener("click", () => window.location.reload());
 
-  const hint = document.createElement("p");
-  hint.textContent = "Üretim kullanımı için npm run build komutundan sonra dist/ klasörünü servis edin.";
-  hint.style.cssText = "margin:12px 0 0;color:#617987";
-
-  card.append(title, explanation, commands, hint);
+  card.append(title, explanation, retry);
   screen.append(card);
   return screen;
 }
 
-window.__ALTYAPI_BOOT_TIMER__ = window.setTimeout(renderBootFailure, BOOT_TIMEOUT_MS);
+export function finishBoot(): void {
+  if (window.__ALTYAPI_BOOT_TIMER__ !== undefined) {
+    window.clearTimeout(window.__ALTYAPI_BOOT_TIMER__);
+    delete window.__ALTYAPI_BOOT_TIMER__;
+  }
+}
+
+window.__ALTYAPI_BOOT_TIMER__ = window.setTimeout(() => {
+  if (document.documentElement.dataset.appReady === "true") return;
+  const fallback = document.getElementById("static-boot-fallback");
+  const notice = fallback?.querySelector("strong + div");
+  if (notice) notice.textContent = "Hazırlık beklenenden uzun sürüyor. Bağlantınız yavaşsa biraz daha bekleyebilirsiniz.";
+  window.__ALTYAPI_BOOT_TIMER__ = window.setTimeout(renderBootFailure, BOOT_TIMEOUT_MS - SLOW_BOOT_NOTICE_MS);
+}, SLOW_BOOT_NOTICE_MS);
+
+// Load the heavy app after this small, independent recovery shell is visible.
+void import("./main").catch(renderBootFailure);

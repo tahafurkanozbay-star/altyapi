@@ -17,7 +17,7 @@ Uygulama, worker'lar, testler ve servis bakım/audit araçlarının first-party 
 
 ## Güncel çalışma alanı
 
-v57; etiketli araçlar, sade katman paneli, mobilde doğrudan harita erişimi, iptal edilebilir yükleme, yarış korumaları ve yerel SDK kaynakları sağlar. Ayrıntılar: [WORKSPACE_V57](docs/WORKSPACE_V57.md).
+v60; görünür alandaki ilk veriyi doğrulayan katman hazırlığı, iptal edilebilir SDK araç açılışı, Türkçe kullanım yönergeleri ve yeniden deneme akışı sağlar. Uygulama, worker, mühendislik araçları ve bütün test kaynakları strict TypeScript ile kontrol edilir. ArcGIS paketleri birlikte 5.1.27 sürümüne sabitlenmiştir. Ayrıntılar: [WORKSPACE_V60](docs/WORKSPACE_V60.md).
 
 ```bash
 npm ci

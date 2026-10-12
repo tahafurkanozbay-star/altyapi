@@ -103,15 +103,15 @@ export const PANEL_LABELS = {
 } as const satisfies Record<CitizenPanelId, string>;
 
 export const MAP_TOOL_METADATA = {
-  legend: { label: "Lejant", keywords: ["lejant", "sembol"] },
-  basemap: { label: "Harita görünümü", keywords: ["altlık", "uydu", "harita"] },
-  distance: { label: "Mesafe ölç", keywords: ["ölç", "mesafe", "uzunluk"] },
-  area: { label: "Alan ölç", keywords: ["ölç", "alan"] },
-  daylight: { label: "Gün ışığı", keywords: ["güneş", "gölge", "saat"] },
-  slice: { label: "3B kesit", keywords: ["kesit", "slice"] },
-  lineOfSight: { label: "Görüş hattı", keywords: ["görüş", "hat"] },
-  elevation: { label: "Yükseklik profili", keywords: ["profil", "yükseklik", "eğim"] }
-} as const satisfies Record<Exclude<ToolId, null>, { label: string; keywords: readonly string[] }>;
+  legend: { label: "Lejant", keywords: ["lejant", "sembol"], instructions: "Açık katmanların renk ve sembollerini inceleyin. Lejant görmek için bir katman açın." },
+  basemap: { label: "Harita görünümü", keywords: ["altlık", "uydu", "harita"], instructions: "Bir harita görünümü seçin. Seçiminiz üst menüye, yer imlerine ve paylaşılan görünüme yansır." },
+  distance: { label: "Mesafe ölç", keywords: ["ölç", "mesafe", "uzunluk"], instructions: "Yeni ölçüm düğmesine basın; haritada başlangıç ve bitiş noktalarını seçin." },
+  area: { label: "Alan ölç", keywords: ["ölç", "alan"], instructions: "Yeni ölçüm başlatın; haritada alanın köşelerini seçin ve son noktaya çift tıklayarak tamamlayın." },
+  daylight: { label: "Gün ışığı", keywords: ["güneş", "gölge", "saat"], instructions: "Tarih ve saati değiştirerek gün ışığını inceleyin. Yapı gölgeleri için 3B yapı katmanını açın." },
+  slice: { label: "3B kesit", keywords: ["kesit", "slice"], instructions: "Önce bir 3B yapı katmanı açın. Yeni kesit başlatıp kesit düzlemini haritada konumlandırın." },
+  lineOfSight: { label: "Görüş hattı", keywords: ["görüş", "hat"], instructions: "Yeni analiz başlatın; haritada gözlemci ve hedef noktalarını seçin. Engelleri görmek için 3B yapı katmanını açın." },
+  elevation: { label: "Yükseklik profili", keywords: ["profil", "yükseklik", "eğim"], instructions: "Yeni profil düğmesine basın; haritada bir çizgi çizin ve çift tıklayarak tamamlayın." }
+} as const satisfies Record<Exclude<ToolId, null>, { label: string; keywords: readonly string[]; instructions: string }>;
 
 export const STATIC_HELP_SHORTCUTS = [
   { display: "Esc", label: "En üstteki açık aracı veya paneli kapat" },

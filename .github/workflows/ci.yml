@@ -47,7 +47,7 @@ jobs:
         run: npm run test:live
       - name: Probe public providers without protected TUCBS credentials
         run: npm run probe:services && npm run validate:health && npm run audit:scales && npm run validate:scale-audit && npm run summary:observability >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: browser-and-service-verification

@@ -13,6 +13,7 @@ const errors: string[] = [];
 
 const arcgisCore = dependencies["@arcgis/core"];
 const arcgisComponents = dependencies["@arcgis/map-components"];
+const arcgisCommon = dependencies["@arcgis/common-components"];
 if (!isExactStableVersion(arcgisCore)) {
   errors.push("@arcgis/core tam ve stabil bir sürüme sabitlenmelidir.");
 }
@@ -21,6 +22,9 @@ if (!isExactStableVersion(arcgisComponents)) {
 }
 if (arcgisCore !== arcgisComponents) {
   errors.push("@arcgis/core ile @arcgis/map-components aynı sürümde olmalıdır.");
+}
+if (!isExactStableVersion(arcgisCommon) || arcgisCommon !== arcgisCore) {
+  errors.push("@arcgis/common-components aynı tam ve stabil ArcGIS sürümüne sabitlenmelidir.");
 }
 
 const react = stableVersion(dependencies.react);
