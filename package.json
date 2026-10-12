@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "59.0.0",
+  "version": "60.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, TypeScript-only first-party kaynak sözleşmesi, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, tek kaynaklı vatandaş komut/kısayol sözleşmesi, shadow-DOM-aware typed citizen action executor, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-topology farkındalıklı gateway izolasyonu ve gözlemlenebilirlik, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması, render-aware vatandaş hazır olma modeli, pressure-aware LayerView recovery ve ölçümlü ilk-render sağlık hafızası, telefon/tablet/masaüstü responsive çalışma kabuğu, inert mobil modal arka planı, focus restoration, modifier-tabanlı erişilebilir klavye sözleşmesi ve v55 tek citizen-shell stil giriş noktası sunan profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi: React 19, strict TypeScript 7 ve ArcGIS 5.1 ile erişilebilir 3B harita; iptal edilebilir katman yükleme, görünüm verisiyle doğrulanan hazırlık, dayanıklı servis erişimi, Türkçe harita araçları ve çevrimdışı çalışma.",
   "scripts": {
     "dev": "npm run prepare:assets && vite --host 127.0.0.1 --port 4173",
     "dev:host": "npm run prepare:assets && vite --host 0.0.0.0 --port 4173",
@@ -13,7 +13,7 @@
     "build:watch": "npm run prepare:assets && npm run build:sw && vite build --watch",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "preview:host": "vite preview --host 0.0.0.0 --port 4173",
-    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.contracts.json --pretty false && tsc -p tsconfig.sw.json --pretty false && tsc -p tsconfig.worker.json --pretty false && tsc -p tsconfig.e2e.json --pretty false && tsc -p tsconfig.tooling.json --pretty false",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.contracts.json --pretty false && tsc -p tsconfig.sw.json --pretty false && tsc -p tsconfig.worker.json --pretty false && tsc -p tsconfig.e2e.json --pretty false && tsc -p tsconfig.tooling.json --pretty false && tsc -p tsconfig.tests.json --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:dependencies": "node --import tsx scripts/validate-dependencies.ts",
@@ -32,9 +32,9 @@
     "test:live": "playwright test --config playwright.live.config.ts"
   },
   "dependencies": {
-    "@arcgis/common-components": "5.1.26",
-    "@arcgis/core": "5.1.26",
-    "@arcgis/map-components": "5.1.26",
+    "@arcgis/common-components": "5.1.27",
+    "@arcgis/core": "5.1.27",
+    "@arcgis/map-components": "5.1.27",
     "@esri/calcite-components": "^5.1.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
@@ -49,7 +49,7 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -11,6 +11,24 @@ async function expectCurrentSceneScale(page: Page) {
   })).toMatchObject({ matches: true });
 }
 
+async function readLayerDrawing(page: Page, id: string) {
+  return page.locator("arcgis-scene").evaluate(async (element, serviceId) => {
+    const scene = element as unknown as {
+      extent: unknown;
+      map: { layers: { toArray(): Array<{ id: string; visible: boolean; loaded: boolean }> } };
+      whenLayerView(layer: unknown): Promise<{ updating: boolean; dataUpdating?: boolean; hasAllFeaturesInView?: boolean; visible: boolean; visibleAtCurrentScale: boolean; suspended: boolean; queryFeatureCount?(query: { geometry: unknown }): Promise<number> }>;
+    };
+    const layer = scene.map.layers.toArray().find((candidate) => candidate.id === "svc-" + serviceId);
+    if (!layer) return null;
+    const view = await scene.whenLayerView(layer);
+    const settled = !view.updating;
+    const count = !settled && view.dataUpdating === false && view.hasAllFeaturesInView !== false && view.queryFeatureCount
+      ? await view.queryFeatureCount({ geometry: scene.extent }) : 0;
+    const visible = layer.visible && view.visible && view.visibleAtCurrentScale && !view.suspended;
+    return { loaded: layer.loaded, visible, settled, dataUpdating: view.dataUpdating, viewportCount: count, drawable: visible && (settled || Number.isFinite(count) && count > 0) };
+  }, id);
+}
+
 test("production scene renders all public layers and reopens cached layers", async ({ page }, info) => {
   const runtimeErrors: string[] = [];
   const failedSdkAssets: string[] = [];
@@ -35,6 +53,10 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(startupLayer).toHaveAttribute("data-render-state", "ready", { timeout: 90_000 });
   await expect(page.locator(".status-readiness")).toHaveAttribute("data-tone", "ready", { timeout: 5_000 });
   const startupReadyMs = Date.now() - startupReadyAt;
+  const startupId = await startupLayer.getAttribute("data-service-id");
+  await expect.poll(() => readLayerDrawing(page, startupId!)).toMatchObject({ loaded: true, visible: true, drawable: true });
+  const startupEvidence = await readLayerDrawing(page, startupId!);
+  await page.screenshot({ path: info.outputPath("startup-first-draw.png"), animations: "disabled" });
 
   // Neutralize the startup view so each public provider is then measured from
   // the same isolated baseline.
@@ -65,6 +87,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     await expect(card).not.toHaveClass(/status-error/);
     await expectCurrentSceneScale(page);
     const firstReadyMs = Date.now() - started;
+    await expect.poll(() => readLayerDrawing(page, serviceId!)).toMatchObject({ loaded: true, visible: true, drawable: true });
     const state = await page.locator("arcgis-scene").evaluate(async (element, id) => {
       const scene = element as unknown as {
         map: { layers: { toArray(): Array<{ id: string; visible: boolean; loaded: boolean }> } };
@@ -77,7 +100,9 @@ test("production scene renders all public layers and reopens cached layers", asy
       const screenshot = await scene.takeScreenshot({ format: "png" });
       return { loaded: layer.loaded, visible: layer.visible, inScale: layerView.visibleAtCurrentScale, settled: !layerView.updating, screenshotBytes: screenshot.dataUrl.length };
     }, serviceId);
-    expect(state).toMatchObject({ loaded: true, visible: true, inScale: true, settled: true });
+    expect(state).toMatchObject({ loaded: true, visible: true, inScale: true });
+    // Fully settled rendering or complete, queryable viewport data is required
+    // independently of the app's readiness label above.
     expect(state!.screenshotBytes).toBeGreaterThan(1000);
     await page.screenshot({ path: info.outputPath(service.servisTuruAdi + "-" + metrics.length + ".png"), animations: "disabled" });
     await toggle.click();
@@ -118,6 +143,8 @@ test("production scene renders all public layers and reopens cached layers", asy
     const component = page.locator(".map-tool-host " + tag);
     await expect(component).toBeVisible();
     await expect(component).toHaveAttribute("data-live-component-ready", "true");
+    await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "ready");
+    await expect(page.locator(".map-tool-guidance")).not.toBeEmpty();
     expect(await component.evaluate((element) => (element as unknown as { referenceElement: Element }).referenceElement === document.querySelector("arcgis-scene"))).toBe(true);
     if (tool === "basemap") {
       await expect(component.getByRole("radio")).toHaveCount(6);
@@ -132,13 +159,20 @@ test("production scene renders all public layers and reopens cached layers", asy
       await page.getByRole("combobox", { name: "Harita görünümü", exact: true }).selectOption("hybrid");
       await expect(component.getByRole("radio", { name: "Hibrit", exact: true })).toHaveAttribute("aria-checked", "true");
     }
+    if (tool === "distance") {
+      await component.getByRole("button", { name: "Yeni ölçüm", exact: true }).click();
+      await expect.poll(() => component.evaluate((element) => (element as unknown as { state: string }).state)).toBe("measuring");
+      await page.mouse.click(650, 450);
+      await page.mouse.click(880, 510);
+      await expect.poll(() => component.evaluate((element) => (element as unknown as { state: string }).state)).toBe("measured");
+    }
     toolMetrics.push({ tool, readyMs: Date.now() - openedAt });
     await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
     await page.locator(".map-tool-header button").click();
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
     await expect(component).toHaveCount(0);
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, metrics, toolMetrics, runtimeErrors, failedSdkAssets }, null, 2));
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupEvidence, metrics, toolMetrics, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);

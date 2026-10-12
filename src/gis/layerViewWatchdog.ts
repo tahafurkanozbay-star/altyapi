@@ -1,6 +1,7 @@
 import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
 import { runtimeScaleRangeFromLoadedLayer } from "../lib/runtimeScale";
 import { getRuntimePressureSnapshot, type RuntimePressureLevel } from "../platform/runtimePressure";
+import { FirstRenderProbe, waitForRenderFrames } from "./firstRenderProbe";
 import {
   ATOMIC_LAYER_ACTIVATION_EVENT,
   isAtomicLayerActivationPending
@@ -35,7 +36,9 @@ type LayerViewLike = {
   visibleAtCurrentScale?: boolean;
   suspended?: boolean;
   updating?: boolean;
-  queryFeatureCount?: () => Promise<number>;
+  dataUpdating?: boolean;
+  hasAllFeaturesInView?: boolean;
+  queryFeatureCount?: (query?: { geometry?: unknown }, options?: { signal?: AbortSignal }) => Promise<number>;
 };
 
 type LayerViewEventDetail = {
@@ -58,8 +61,30 @@ type SceneLike = HTMLElement & {
   scale?: number;
   stationary?: boolean;
   updating?: boolean;
+  extent?: ViewExtent | null;
   map?: MapLike | null;
 };
+
+interface ViewExtent {
+  xmin: number;
+  ymin: number;
+  xmax: number;
+  ymax: number;
+  clone?(): ViewExtent;
+}
+
+export function sameViewExtent(left: ViewExtent | null | undefined, right: ViewExtent | null | undefined): boolean {
+  return Boolean(left && right && ["xmin", "ymin", "xmax", "ymax"].every((key) => {
+    const field = key as keyof Pick<ViewExtent, "xmin" | "ymin" | "xmax" | "ymax">;
+    return Number.isFinite(left[field]) && left[field] === right[field];
+  }));
+}
+
+export function canProbeFirstRender(layerView: LayerViewLike): boolean {
+  return layerView.layer?.visible !== false && isLayerViewRenderable(layerView)
+    && layerView.updating === true && layerView.dataUpdating === false
+    && layerView.hasAllFeaturesInView !== false && typeof layerView.queryFeatureCount === "function";
+}
 
 export interface LayerViewRecoveryContext {
   stationary?: boolean;
@@ -167,12 +192,14 @@ export function isLayerViewRenderStable(
  * first render is usable instead of treating background refinement as failure.
  */
 export async function layerViewHasRenderableData(
-  layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "suspended" | "queryFeatureCount">
+  layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "suspended" | "queryFeatureCount">,
+  geometry?: unknown,
+  signal?: AbortSignal
 ): Promise<boolean> {
   if (!isLayerViewRenderable(layerView) || typeof layerView.queryFeatureCount !== "function") return false;
   try {
-    const count = await layerView.queryFeatureCount();
-    return Number.isFinite(count) && count > 0;
+    const count = await layerView.queryFeatureCount(geometry ? { geometry } : undefined, signal ? { signal } : undefined);
+    return !signal?.aborted && isLayerViewRenderable(layerView) && Number.isFinite(count) && count > 0;
   } catch {
     return false;
   }
@@ -249,6 +276,8 @@ export function installSceneLayerWatchdog(): () => void {
   const scaleRepairCounts = new Map<string, number>();
   const recycleCounts = new Map<string, number>();
   const recyclePending = new Set<string>();
+  const recycleTimers = new Set<number>();
+  let disposed = false;
   let auditTimer = 0;
   let lastScaleRepairAt = 0;
 
@@ -276,7 +305,7 @@ export function installSceneLayerWatchdog(): () => void {
   const markStable = (layerId: string, layerView: LayerViewLike) => {
     const renderReady = isLayerViewRenderStable(layerView)
       || (dataReadyLayerIds.has(layerId) && isLayerViewRenderable(layerView));
-    if (layerView.layer?.visible === false || !renderReady || stableLayerIds.has(layerId)) return;
+    if (disposed || layerView.layer?.visible === false || !renderReady || stableLayerIds.has(layerId)) return;
     const startedAt = renderStartedAt.get(layerId);
     stableLayerIds.add(layerId);
     clearStallTimer(layerId);
@@ -288,12 +317,33 @@ export function installSceneLayerWatchdog(): () => void {
   };
 
   const scheduleAudit = (scene: SceneLike, delay = 80) => {
+    if (disposed) return;
     window.clearTimeout(auditTimer);
     auditTimer = window.setTimeout(() => audit(scene), delay);
   };
 
+  const firstRender = new FirstRenderProbe<{ scene: SceneLike; layerView: LayerViewLike; extent: ViewExtent }>({
+    same: (left, right) => left.layerView === right.layerView && sameViewExtent(left.extent, right.extent),
+    isCurrent: (layerId, value) => !disposed && !document.hidden && value.scene.isConnected
+      && layerViews.get(layerId) === value.layerView && canProbeFirstRender(value.layerView)
+      && sameViewExtent(value.extent, value.scene.extent),
+    read: async ({ layerView, extent }, signal) => {
+      if (!await layerViewHasRenderableData(layerView, extent, signal)) return false;
+      return waitForRenderFrames(signal);
+    },
+    onReady: (layerId, { layerView }) => {
+      dataReadyLayerIds.add(layerId);
+      markStable(layerId, layerView);
+    }
+  });
+  const probeFirstRender = (scene: SceneLike, layerId: string, layerView: LayerViewLike) => {
+    if (stableLayerIds.has(layerId) || !canProbeFirstRender(layerView) || !scene.extent) return;
+    const extent = scene.extent.clone?.() ?? { ...scene.extent };
+    void firstRender.request(layerId, { scene, layerView, extent });
+  };
+
   const requestRecycle = (scene: SceneLike, layerId: string, layer: LayerLike) => {
-    if (layer.visible === false) return;
+    if (disposed || layer.visible === false) return;
     const recycleCount = recycleCounts.get(layerId) ?? 0;
     if (recycleCount >= MAX_LAYER_VIEW_RECYCLES) {
       recyclePending.delete(layerId);
@@ -307,11 +357,13 @@ export function installSceneLayerWatchdog(): () => void {
     recyclePending.add(layerId);
     stableLayerIds.delete(layerId);
     dataReadyLayerIds.delete(layerId);
+    firstRender.cancel(layerId);
     clearStallTimer(layerId);
     emitHealth(layerId, "recycle-attempt", { attempt });
 
-    window.setTimeout(() => {
-      if (layer.visible === false || !scene.isConnected) {
+    const recycleTimer = window.setTimeout(() => {
+      recycleTimers.delete(recycleTimer);
+      if (disposed || layer.visible === false || !scene.isConnected) {
         recyclePending.delete(layerId);
         return;
       }
@@ -320,13 +372,14 @@ export function installSceneLayerWatchdog(): () => void {
         recyclePending.delete(layerId);
         renderStartedAt.delete(layerId);
         emitHealth(layerId, "recovery-exhausted", { attempt });
-      });
+      }, () => !disposed);
       if (!scheduled) {
         recyclePending.delete(layerId);
         renderStartedAt.delete(layerId);
         emitHealth(layerId, "recovery-exhausted", { attempt });
       }
     }, layerViewRecoveryDelayMs(attempt));
+    recycleTimers.add(recycleTimer);
   };
 
   const armStallTimer = (
@@ -361,7 +414,7 @@ export function installSceneLayerWatchdog(): () => void {
       // background tiles refine even though features are already queryable and
       // visible. Prove usable data before any destructive map remove/add cycle.
       void layerViewHasRenderableData(layerView).then((hasRenderableData) => {
-        if (layerViews.get(layerId) !== layerView || stableLayerIds.has(layerId)) return;
+        if (disposed || layerView.layer?.visible === false || layerViews.get(layerId) !== layerView || stableLayerIds.has(layerId)) return;
         if (hasRenderableData) {
           dataReadyLayerIds.add(layerId);
           markStable(layerId, layerView);
@@ -391,9 +444,15 @@ export function installSceneLayerWatchdog(): () => void {
           layerView.updating,
           layerView.suspended,
           layerView.visible,
-          layerView.layer?.visible
+          layerView.layer?.visible,
+          layerView.dataUpdating,
+          layerView.hasAllFeaturesInView
         ] as const,
         () => {
+          if (layerView.dataUpdating === true || !isLayerViewRenderable(layerView) || layerView.layer?.visible === false) {
+            dataReadyLayerIds.delete(layerId);
+            firstRender.cancel(layerId);
+          }
           const stable = layerView.layer?.visible !== false && (
             isLayerViewRenderStable(layerView)
             || (dataReadyLayerIds.has(layerId) && isLayerViewRenderable(layerView))
@@ -409,6 +468,7 @@ export function installSceneLayerWatchdog(): () => void {
           }
 
           markStable(layerId, layerView);
+          probeFirstRender(scene, layerId, layerView);
           scheduleAudit(scene, 35);
         },
         { initial: true }
@@ -434,6 +494,7 @@ export function installSceneLayerWatchdog(): () => void {
       }
       if (layerView.visibleAtCurrentScale === false) clearStallTimer(layerId);
       markStable(layerId, layerView);
+      probeFirstRender(scene, layerId, layerView);
     }
 
     const state = layerViewScaleIntersection(layerViews.values());
@@ -502,6 +563,7 @@ export function installSceneLayerWatchdog(): () => void {
     const recovering = recyclePending.has(layerId) && layer?.visible !== false;
     clearLayerViewHandles(layerId);
     clearStallTimer(layerId);
+    firstRender.cancel(layerId);
     layerViews.delete(layerId);
     stableLayerIds.delete(layerId);
     dataReadyLayerIds.delete(layerId);
@@ -555,6 +617,10 @@ export function installSceneLayerWatchdog(): () => void {
   window.addEventListener(ATOMIC_LAYER_ACTIVATION_EVENT, onAtomicActivationComplete);
 
   return () => {
+    disposed = true;
+    firstRender.dispose();
+    for (const timer of recycleTimers) window.clearTimeout(timer);
+    recycleTimers.clear();
     window.clearTimeout(auditTimer);
     document.removeEventListener("arcgisViewLayerviewCreate", onLayerViewCreate as EventListener);
     document.removeEventListener("arcgisViewLayerviewDestroy", onLayerViewDestroy as EventListener);
@@ -592,14 +658,16 @@ function customDetail(event: Event): LayerViewEventDetail | undefined {
     : undefined;
 }
 
-function recycleLayer(scene: SceneLike, layer: LayerLike, onFailure: () => void): boolean {
+function recycleLayer(scene: SceneLike, layer: LayerLike, onFailure: () => void, isAlive: () => boolean): boolean {
   if (!scene.isConnected || layer.visible === false || !scene.map) return false;
   const map = scene.map;
   const currentIndex = map.layers?.indexOf?.(layer) ?? -1;
   try {
     map.remove(layer);
     queueMicrotask(() => {
-      if (!scene.isConnected || layer.visible === false) return;
+      // Reattach a layer hidden during recovery so the runtime's cached layer
+      // remains reusable. Reattachment preserves its current visibility.
+      if (!scene.isConnected || !isAlive()) return;
       try {
         if (currentIndex >= 0) map.add(layer, currentIndex);
         else map.add(layer);

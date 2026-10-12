@@ -7,6 +7,7 @@ import {
   loadHealthRank
 } from "../src/gis/layerLoadScheduler";
 import type { ServiceDefinition, ServiceKind } from "../src/types";
+import type { LayerLoadResult } from "../src/gis/ArcGISRuntime";
 
 function service(
   id: string,
@@ -232,23 +233,23 @@ describe("LayerLoadScheduler", () => {
     );
     const order: string[] = [];
 
-    await scheduler.schedule(proxyA, "interactive", async () => ({
+    await scheduler.schedule<LayerLoadResult>(proxyA, "interactive", async () => ({
       ok: false,
       failureClass: "network" as const,
       error: "network"
     }), { ok: false });
-    await scheduler.schedule(proxyB, "interactive", async () => ({
+    await scheduler.schedule<LayerLoadResult>(proxyB, "interactive", async () => ({
       ok: false,
       failureClass: "timeout" as const,
       error: "timeout"
     }), { ok: false });
 
-    const blockedProxy = scheduler.schedule(proxyRecovery, "restore", async () => {
+    const blockedProxy = scheduler.schedule<LayerLoadResult>(proxyRecovery, "restore", async () => {
       order.push("proxy-recovery:start");
       return { ok: true };
     }, { ok: false, superseded: true });
 
-    const directJob = scheduler.schedule(direct, "interactive", async () => {
+    const directJob = scheduler.schedule<LayerLoadResult>(direct, "interactive", async () => {
       order.push("direct:start");
       return { ok: true };
     }, { ok: false, superseded: true });

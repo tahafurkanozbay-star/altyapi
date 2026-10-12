@@ -103,3 +103,30 @@ test("local SDK assets and authorized-access dialog work without the SDK CDN", a
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
 });
+
+test("failed map tools explain recovery and can be retried", async ({ page }, info) => {
+  const recoveringFixture = runtimeFixture.replace("container.textContent = tool + ' aracı';", "if (tool === 'area' && !this.retried) { this.retried = true; throw new Error('temporary tool failure'); } container.textContent = tool + ' aracı';");
+  await page.route(/\/src\/gis\/ArcGISRuntime\.ts(?:\?.*)?$/, (route) => route.fulfill({ contentType: "text/javascript", body: recoveringFixture }));
+  await page.reload();
+  await expect(page.locator(".boot-screen")).toHaveCount(0);
+  await layers(page);
+  await page.getByRole("button", { name: "Katmanlar panelini kapat", exact: true }).click();
+  await page.locator('[data-tool-target="area"]').click();
+  await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "error");
+  await expect(page.locator(".map-tool-error")).toContainText("Bağlantınızı kontrol");
+  await expect(page.locator(".map-tool-guidance")).toContainText("köşelerini");
+  const accessibility = await new AxeBuilder({ page }).include(".map-tool-panel").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(accessibility.violations.map((violation) => violation.id)).toEqual([]);
+  const bounds = await page.locator(".map-tool-panel").boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+  await page.screenshot({ path: info.outputPath("tool-recovery.png"), animations: "disabled" });
+  await page.getByRole("button", { name: "Aracı yeniden dene", exact: true }).click();
+  await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "ready");
+  await expect(page.locator(".map-tool-host")).toContainText("area aracı");
+  await page.locator(".map-tool-header button").click();
+  await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+});

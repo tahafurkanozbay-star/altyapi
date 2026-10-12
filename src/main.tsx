@@ -52,7 +52,7 @@ installRuntimePressureMonitor();
 installCitizenKeyboardSupervisor();
 installCitizenExperienceSupervisor();
 installCitizenShellSupervisor();
-document.documentElement.dataset.experience = "v59";
+document.documentElement.dataset.experience = "v60";
 installLayerRenderHealthStore();
 installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();
