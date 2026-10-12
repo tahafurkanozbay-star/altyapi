@@ -56,6 +56,11 @@ describe("LayerLoadScheduler", () => {
     expect(laneLimitFor("high", { kind: "WMS" })).toBe(1);
     expect(laneLimitFor("high", { kind: "WFS" })).toBe(1);
     expect(laneLimitFor("high", { kind: "MapServer", availability: "verified" })).toBe(2);
+    expect(laneLimitFor("high", {
+      kind: "MapServer",
+      availability: "verified",
+      url: "https://abb.example/portal/sharing/servers/abc/rest/services/ttt/a/MapServer/0"
+    })).toBe(1);
     expect(laneLimitFor("high", { kind: "MapServer", availability: "degraded" })).toBe(1);
     expect(laneLimitFor("high", { kind: "MapServer", verificationLatencyMs: 9_000 })).toBe(1);
     expect(laneLimitFor("balanced", { kind: "MapServer" })).toBe(1);
@@ -201,6 +206,59 @@ describe("LayerLoadScheduler", () => {
     await expect(first).resolves.toBe("wms");
     await expect(sameHost).resolves.toBe("wfs");
     expect(order).toEqual(["wms:start", "other:start", "wfs:start"]);
+  });
+
+  it("keeps direct ArcGIS REST responsive when the same host's sharing proxy circuit opens", async () => {
+    const scheduler = new LayerLoadScheduler("high");
+    const proxyA = service(
+      "proxy-a",
+      "MapServer",
+      "https://abb.example/portal/sharing/servers/a/rest/services/ttt/a/MapServer/0"
+    );
+    const proxyB = service(
+      "proxy-b",
+      "MapServer",
+      "https://abb.example/portal/sharing/servers/b/rest/services/ttt/b/MapServer/0"
+    );
+    const proxyRecovery = service(
+      "proxy-c",
+      "MapServer",
+      "https://abb.example/portal/sharing/servers/c/rest/services/ttt/c/MapServer/0"
+    );
+    const direct = service(
+      "direct",
+      "FeatureServer",
+      "https://abb.example/server/rest/services/Hosted/direct/FeatureServer/1"
+    );
+    const order: string[] = [];
+
+    await scheduler.schedule(proxyA, "interactive", async () => ({
+      ok: false,
+      failureClass: "network" as const,
+      error: "network"
+    }), { ok: false });
+    await scheduler.schedule(proxyB, "interactive", async () => ({
+      ok: false,
+      failureClass: "timeout" as const,
+      error: "timeout"
+    }), { ok: false });
+
+    const blockedProxy = scheduler.schedule(proxyRecovery, "restore", async () => {
+      order.push("proxy-recovery:start");
+      return { ok: true };
+    }, { ok: false, superseded: true });
+
+    const directJob = scheduler.schedule(direct, "interactive", async () => {
+      order.push("direct:start");
+      return { ok: true };
+    }, { ok: false, superseded: true });
+
+    await tick();
+    expect(order).toEqual(["direct:start"]);
+    await expect(directJob).resolves.toEqual({ ok: true });
+
+    scheduler.dispose();
+    await expect(blockedProxy).resolves.toEqual({ ok: false, superseded: true });
   });
 
   it("resolves queued work with its superseded value when cancelled", async () => {
