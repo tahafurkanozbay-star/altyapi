@@ -15,6 +15,7 @@ const MAX_LAYER_VIEW_RECYCLES = 2;
 const LAYER_VIEW_RECYCLE_DELAYS_MS = [320, 900] as const;
 const DEFAULT_RENDER_STALL_TIMEOUT_MS = 25_000;
 const STALL_PRESSURE_RECHECK_MS = 2_000;
+const SCENE_UPDATE_GRACE_MS = 45_000;
 const MAX_STALL_GRACE_MS = 90_000;
 
 type Removable = { remove(): void };
@@ -175,7 +176,8 @@ export function shouldDeferLayerViewRecovery(
   elapsedMs: number
 ): boolean {
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= MAX_STALL_GRACE_MS) return false;
-  return scene.stationary === false || scene.updating === true || pressureLevel !== "normal";
+  if (scene.stationary === false || pressureLevel !== "normal") return true;
+  return scene.updating === true && elapsedMs < SCENE_UPDATE_GRACE_MS;
 }
 
 export function layerViewRecoveryDelayMs(attempt: number): number {
@@ -285,10 +287,12 @@ export function installSceneLayerWatchdog(): () => void {
       const scheduled = recycleLayer(scene, layer, () => {
         if (layer.visible === false) return;
         recyclePending.delete(layerId);
+        renderStartedAt.delete(layerId);
         emitHealth(layerId, "recovery-exhausted", { attempt });
       });
       if (!scheduled) {
         recyclePending.delete(layerId);
+        renderStartedAt.delete(layerId);
         emitHealth(layerId, "recovery-exhausted", { attempt });
       }
     }, layerViewRecoveryDelayMs(attempt));
