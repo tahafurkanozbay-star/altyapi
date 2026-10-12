@@ -33,7 +33,22 @@ Başlıklar ve katman adları eski sürümlere göre büyütülmüştür. Yardı
 
 ## Harita odak modu
 
-`M` tuşu veya üst bardaki göz simgesi sağ panel, detay çekmecesi ve status dock'u geri çekerek 3B sahneye daha fazla alan verir. Tekrar `M` ile operasyon yüzeyi geri gelir.
+Üst bardaki göz simgesi veya Yardım bölümünde gösterilen modifier kısayolu çalışma panelini, detay çekmecesini ve durum çubuğunu geri çeker. Escape ile odak modundan çıkılır ve mevcut panel korunur. Bir panel seçmek de odak modundan çıkar.
+
+## Güncel çalışma alanı
+
+- `citizen-shell.css` güncel yerleşim, tipografi ve etkileşim ölçülerinin tek sahibidir. Yeni sürüm için ek bir CSS düzeltme dosyası oluşturulmaz.
+- Üst menünün gerçek yüksekliği `ResizeObserver` ile ölçülür. Paneller, araçlar ve harita gezinme kontrolleri bu yüksekliği kullanır.
+- Katman başlığı, sayaçları ve araması sabittir; filtreler, katman listesi ve ayrıntılar kendi bölgesinde kaydırılır. Panel kapatma düğmesi her zaman ulaşılabilir kalır.
+- Masaüstünde katman ve harita araçları iki ayrı bölgede açılabilir. 1100 px ve altında araç/panel seçimleri tek çalışma yüzeyini gösterir; ekran daraldığında açık araç korunur.
+- Telefon paneli, üst menü ile alt araç çubuğu arasına sığar. Yatay ve kısa ekranlarda başlık özeti küçülür; içerik kaydırılarak erişilir. Açık mobil panelin arka planı inert ve klavye odağı sınırlandırılmıştır.
+- Ana simge düğmeleri en az 44×44 CSS px olur. Katman adı ve durum metni satır kırabilir; opaklık yüzdesi tek satırda kalır.
+- Veri paneli masaüstünde daha geniştir. Sonuç tablosu bağımsız yatay kaydırma ve klavye odağı sunar. Sorgu ayrıntıları isteğe bağlı açılır; boş sonuç aralığı 0–0 olarak gösterilir.
+- Yer imi ve yetkili erişim pencereleri kullanılabilir ekran yüksekliğine sığar. Azaltılmış hareket, yüksek kontrast ve zorunlu renkler desteklenir.
+
+## Tarayıcı doğrulaması
+
+`e2e/layout.pw.ts`, sabit arama, son katman kontrolüne erişim, tüm araçlara klavye ile ilerleme, panel/dock çakışmaları, 320 px telefon ve kısa yatay ekran, veri tablosu kaydırma/arama, odak modundan geri dönüş ve native pencere sınırlarını kontrol eder. Katman kabuğu, yüklenmiş veri paneli ve kaydetme penceresinde axe erişilebilirlik analizi çalışır. Bu testlerde GIS transport fixture kullanılır; gerçek servis ve SDK doğrulaması ayrı `test:live` kapısında yapılır.
 
 ## ArcGIS Web Components
 

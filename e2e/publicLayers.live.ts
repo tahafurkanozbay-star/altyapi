@@ -186,7 +186,7 @@ test("production scene renders all public layers and reopens cached layers", asy
   }
   // Verify the SDK's minimum-width controls also fit actual tablet/phone
   // panels, and leave the map usable when the layer panel was open.
-  for (const [screen, width, height] of [["tablet", 820, 1180], ["mobile", 390, 844]] as const) {
+  for (const [screen, width, height] of [["tablet", 820, 1180], ["mobile", 390, 844], ["small-mobile", 320, 640]] as const) {
     await page.setViewportSize({ width, height });
     await page.locator('[data-tool-target="area"]').click();
     await expect(page.locator(".main-panel")).toHaveCount(0);
