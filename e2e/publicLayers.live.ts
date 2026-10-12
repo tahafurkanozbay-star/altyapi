@@ -2,6 +2,18 @@ import { expect, test, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import type { RawServiceDefinition } from "../src/types";
 
+async function closeMapTool(page: Page) {
+  const close = page.locator(".map-tool-header button");
+  // Prove the close control owns the pointer hit, without forcing a click.
+  // SwiftShader frames can pause for over 10s after switching a basemap;
+  // use the existing SDK assertion deadline for normal click actionability.
+  await expect.poll(() => close.evaluate((button) => {
+    const box = button.getBoundingClientRect();
+    return button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  })).toBe(true);
+  await close.click({ timeout: 60_000 });
+}
+
 async function expectCurrentSceneScale(page: Page) {
   await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => {
     const scale = (element as unknown as { scale: number }).scale;
@@ -195,7 +207,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     }
     toolMetrics.push({ tool, readyMs, completedMs: Date.now() - openedAt });
     await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
-    await page.locator(".map-tool-header button").click({ timeout: 10_000 });
+    await closeMapTool(page);
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
     await expect(component).toHaveCount(0);
   }
@@ -211,7 +223,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     expect(await host.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await expect(host.getByRole("button", { name: "Yeni ölçüm", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("tool-area-" + screen + ".png"), animations: "disabled" });
-    await page.locator(".map-tool-header button").click({ timeout: 10_000 });
+    await closeMapTool(page);
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
   }
   await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));
