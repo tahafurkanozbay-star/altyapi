@@ -35,6 +35,7 @@ type LayerViewLike = {
   visibleAtCurrentScale?: boolean;
   suspended?: boolean;
   updating?: boolean;
+  queryFeatureCount?: () => Promise<number>;
 };
 
 type LayerViewEventDetail = {
@@ -147,8 +148,34 @@ export function layerViewRecoveryScale(
   return undefined;
 }
 
-export function isLayerViewRenderStable(layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "updating" | "suspended">): boolean {
-  return layerView.visible !== false && layerView.visibleAtCurrentScale !== false && layerView.suspended !== true && layerView.updating === false;
+export function isLayerViewRenderable(
+  layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "suspended">
+): boolean {
+  return layerView.visible !== false && layerView.visibleAtCurrentScale !== false && layerView.suspended !== true;
+}
+
+export function isLayerViewRenderStable(
+  layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "updating" | "suspended">
+): boolean {
+  return isLayerViewRenderable(layerView) && layerView.updating === false;
+}
+
+/**
+ * ArcGIS FeatureLayerView can keep `updating=true` while it streams/refines
+ * additional tiles even after real features are queryable and already painted.
+ * Before destructive recycle, use queryability as positive evidence that the
+ * first render is usable instead of treating background refinement as failure.
+ */
+export async function layerViewHasRenderableData(
+  layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "suspended" | "queryFeatureCount">
+): Promise<boolean> {
+  if (!isLayerViewRenderable(layerView) || typeof layerView.queryFeatureCount !== "function") return false;
+  try {
+    const count = await layerView.queryFeatureCount();
+    return Number.isFinite(count) && count > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function layerViewStallTimeoutMs(layer?: Pick<LayerLike, "type">): number {
@@ -218,6 +245,7 @@ export function installSceneLayerWatchdog(): () => void {
   const stallTimers = new Map<string, number>();
   const renderStartedAt = new Map<string, number>();
   const stableLayerIds = new Set<string>();
+  const dataReadyLayerIds = new Set<string>();
   const scaleRepairCounts = new Map<string, number>();
   const recycleCounts = new Map<string, number>();
   const recyclePending = new Set<string>();
@@ -246,7 +274,9 @@ export function installSceneLayerWatchdog(): () => void {
   };
 
   const markStable = (layerId: string, layerView: LayerViewLike) => {
-    if (layerView.layer?.visible === false || !isLayerViewRenderStable(layerView) || stableLayerIds.has(layerId)) return;
+    const renderReady = isLayerViewRenderStable(layerView)
+      || (dataReadyLayerIds.has(layerId) && isLayerViewRenderable(layerView));
+    if (layerView.layer?.visible === false || !renderReady || stableLayerIds.has(layerId)) return;
     const startedAt = renderStartedAt.get(layerId);
     stableLayerIds.add(layerId);
     clearStallTimer(layerId);
@@ -276,6 +306,7 @@ export function installSceneLayerWatchdog(): () => void {
     recycleCounts.set(layerId, attempt);
     recyclePending.add(layerId);
     stableLayerIds.delete(layerId);
+    dataReadyLayerIds.delete(layerId);
     clearStallTimer(layerId);
     emitHealth(layerId, "recycle-attempt", { attempt });
 
@@ -326,13 +357,25 @@ export function installSceneLayerWatchdog(): () => void {
         return;
       }
 
-      emitHealth(layerId, "render-stalled", { elapsedMs });
-      const layer = layerView.layer;
-      if (layer) requestRecycle(scene, layerId, layer);
-      else {
-        renderStartedAt.delete(layerId);
-        emitHealth(layerId, "render-failed");
-      }
+      // A FeatureLayerView may continue reporting `updating=true` while
+      // background tiles refine even though features are already queryable and
+      // visible. Prove usable data before any destructive map remove/add cycle.
+      void layerViewHasRenderableData(layerView).then((hasRenderableData) => {
+        if (layerViews.get(layerId) !== layerView || stableLayerIds.has(layerId)) return;
+        if (hasRenderableData) {
+          dataReadyLayerIds.add(layerId);
+          markStable(layerId, layerView);
+          return;
+        }
+
+        emitHealth(layerId, "render-stalled", { elapsedMs });
+        const layer = layerView.layer;
+        if (layer) requestRecycle(scene, layerId, layer);
+        else {
+          renderStartedAt.delete(layerId);
+          emitHealth(layerId, "render-failed");
+        }
+      });
     }, delayMs);
     stallTimers.set(layerId, timer);
   };
@@ -351,10 +394,14 @@ export function installSceneLayerWatchdog(): () => void {
           layerView.layer?.visible
         ] as const,
         () => {
-          const stable = layerView.layer?.visible !== false && isLayerViewRenderStable(layerView);
+          const stable = layerView.layer?.visible !== false && (
+            isLayerViewRenderStable(layerView)
+            || (dataReadyLayerIds.has(layerId) && isLayerViewRenderable(layerView))
+          );
           if (!stable && stableLayerIds.delete(layerId)) emitHealth(layerId, "created");
 
           if (layerView.layer?.visible === false || layerView.visible === false || layerView.visibleAtCurrentScale === false) {
+            dataReadyLayerIds.delete(layerId);
             clearStallTimer(layerId);
           } else if (!stable) {
             if (!renderStartedAt.has(layerId)) renderStartedAt.set(layerId, Date.now());
@@ -440,6 +487,7 @@ export function installSceneLayerWatchdog(): () => void {
     layerViews.set(layerId, layerView);
     if (!renderStartedAt.has(layerId)) renderStartedAt.set(layerId, Date.now());
     stableLayerIds.delete(layerId);
+    dataReadyLayerIds.delete(layerId);
     scaleRepairCounts.delete(layerId);
     if (!recovering) emitHealth(layerId, "created");
     attachLayerViewWatches(scene, layerId, layerView);
@@ -456,6 +504,7 @@ export function installSceneLayerWatchdog(): () => void {
     clearStallTimer(layerId);
     layerViews.delete(layerId);
     stableLayerIds.delete(layerId);
+    dataReadyLayerIds.delete(layerId);
     scaleRepairCounts.delete(layerId);
     if (!recovering) {
       recyclePending.delete(layerId);
@@ -518,6 +567,7 @@ export function installSceneLayerWatchdog(): () => void {
     renderStartedAt.clear();
     layerViews.clear();
     stableLayerIds.clear();
+    dataReadyLayerIds.clear();
     scaleRepairCounts.clear();
     recycleCounts.clear();
     recyclePending.clear();
