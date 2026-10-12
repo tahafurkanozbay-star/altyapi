@@ -1,4 +1,4 @@
-import { ViewTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ViewTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArcGISRuntime } from "./gis/ArcGISRuntime";
 import { LayerLoadScheduler, type LayerLoadPriority } from "./gis/layerLoadScheduler";
 import { loadServiceCatalog } from "./lib/catalog";
@@ -71,6 +71,7 @@ export default function App() {
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigationRef = useRef<HTMLDivElement>(null);
   const toolHostRef = useRef<HTMLDivElement>(null);
@@ -92,6 +93,31 @@ export default function App() {
   );
 
   useEffect(() => { servicesRef.current = services; }, [services]);
+
+  // Use the actual header height, including text zoom and SDK search resizing.
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    const shell = header?.closest<HTMLElement>(".app-shell");
+    if (!header || !shell) return;
+    const measure = () => shell.style.setProperty("--workspace-header", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const compact = window.matchMedia("(max-width: 1100px)");
+    const reconcile = () => {
+      if (compact.matches && activeTool) {
+        setPanel(null);
+        setIdentify(null);
+      }
+    };
+    reconcile();
+    compact.addEventListener("change", reconcile);
+    return () => compact.removeEventListener("change", reconcile);
+  }, [activeTool]);
 
   const pushToast = useCallback((message: string, tone: ToastItem["tone"] = "info") => {
     const id = createId();
@@ -470,12 +496,18 @@ export default function App() {
   }, [recordIncident]);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
-    const hiddenOnMobile = window.matchMedia("(max-width: 760px)").matches && !mobilePanelsVisible;
-    setPanel((current) => current === nextPanel && !hiddenOnMobile ? null : nextPanel);
+    setFocusMode(false);
+    if (window.matchMedia("(max-width: 1100px)").matches) {
+      setActiveTool(null);
+      setIdentify(null);
+    }
+    const hiddenPanel = focusMode || (window.matchMedia("(max-width: 760px)").matches && !mobilePanelsVisible);
+    setPanel((current) => current === nextPanel && !hiddenPanel ? null : nextPanel);
     setMobilePanelsVisible(true);
-  }, [mobilePanelsVisible]);
+  }, [focusMode, mobilePanelsVisible]);
 
   const selectTool = useCallback((tool: Exclude<ToolId, null>) => {
+    setFocusMode(false);
     setActiveTool((current) => current === tool ? null : tool);
   }, []);
 
@@ -703,11 +735,12 @@ export default function App() {
       />
       <div className="map-vignette" aria-hidden="true" />
 
-      <header className="topbar" aria-label="Kent Rehberi üst menüsü">
+      <header ref={headerRef} className="topbar" aria-label="Kent Rehberi üst menüsü">
         <button
           type="button"
           className="mobile-menu"
           onClick={() => {
+            setFocusMode(false);
             if (!panel) { setPanel("layers"); setMobilePanelsVisible(true); }
             else setMobilePanelsVisible((value) => !value);
           }}
@@ -719,7 +752,7 @@ export default function App() {
         </button>
         <div className="brand" aria-label="Ankara Kent Rehberi">
           <div className="brand-symbol"><span>3B</span><i /></div>
-          <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi · 3B Kent Haritası</span></div>
+          <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi</span></div>
         </div>
         <div className={`live-chip ${online ? "" : "is-offline"}`} role="status" aria-live="polite" title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "ÇEVRİMİÇİ" : "ÇEVRİMDIŞI"}</div>
         <div className="workspace-summary" role="group" aria-label="Katman çalışma özeti">

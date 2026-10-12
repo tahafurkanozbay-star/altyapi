@@ -153,7 +153,8 @@ export function installCitizenExperienceSupervisor(): () => void {
     }
 
     const isMobile = mobileQuery.matches;
-    const isVisible = !isMobile || panel.classList.contains("is-mobile-visible");
+    const isVisible = !document.querySelector(".app-shell.is-focus-mode")
+      && (!isMobile || panel.classList.contains("is-mobile-visible"));
     const hasContent = Boolean(panel.querySelector(PANEL_CONTENT_SELECTOR));
 
     panel.inert = !isVisible || !hasContent;
@@ -251,6 +252,11 @@ export function installCitizenExperienceSupervisor(): () => void {
     panelObserver.observe(panel, { attributes: true, attributeFilter: ["class"], childList: true, subtree: true });
     shellObserver?.disconnect();
     shellObserver = null;
+    const shell = panel.closest(".app-shell");
+    if (shell) {
+      shellObserver = new MutationObserver(syncPanelAccessibility);
+      shellObserver.observe(shell, { attributes: true, attributeFilter: ["class"] });
+    }
     syncPanelAccessibility();
     return true;
   };

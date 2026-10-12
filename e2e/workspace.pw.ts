@@ -34,7 +34,7 @@ test("readable shell, map access and keyboard-safe panels", async ({ page }, inf
   expect(panel!.x).toBeGreaterThanOrEqual(0);
   expect(panel!.x + panel!.width).toBeLessThanOrEqual(viewport.width);
   expect(panel!.y + panel!.height).toBeLessThanOrEqual(viewport.height);
-  await page.locator(".panel-content").evaluate((element) => { element.scrollTop = 0; });
+  await page.locator(".layer-explorer-body").evaluate((element) => { element.scrollTop = 0; });
   await page.screenshot({ path: test.info().outputPath("layers.png"), animations: "disabled" });
   const accessibility = await new AxeBuilder({ page }).include(".app-shell").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(accessibility.violations.map((violation) => ({ id: violation.id, targets: violation.nodes.map((node) => node.target) }))).toEqual([]);

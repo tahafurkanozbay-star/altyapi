@@ -9,7 +9,12 @@ export class ArcGISRuntime {
     container.style.background = '#d9e6ef';
     const scene = document.createElement('arcgis-scene');
     scene.id = 'altyapi-main-scene';
+    scene.style.cssText = 'display:block;width:100%;height:100%';
     container.append(scene);
+    container.addEventListener('click', () => callbacks.onIdentify({
+      title: 'Ankara altyapı inceleme noktası', subtitle: 'Çankaya',
+      attributes: [{ key: 'Mahalle', value: 'Kavaklıdere' }, { key: 'Açıklama', value: 'Uzun öznitelik değerleri panel sınırlarında okunabilir biçimde satırlara ayrılır.' }]
+    }));
     callbacks.onTelemetry({ latitude: 39.9208, longitude: 32.8542, scale: 12500, altitude: 5200, tilt: 58, heading: 2 });
   }
   async mountSearch(container) {
@@ -35,6 +40,10 @@ export class ArcGISRuntime {
   async takeScreenshot() { return null; }
   async openTool(tool, container) { container.textContent = tool + ' aracı'; }
   closeTool() {}
-  async queryAttributes(service, options) { return { serviceId:service.id,serviceName:service.displayName,fields:[{name:'id',alias:'Kimlik',type:'oid'}],rows:[{id:1}],total:1,truncated:false,fetchedAt:new Date().toISOString(),offset:options.offset,limit:options.limit,hasPrevious:false,hasNext:false }; }
+  async queryAttributes(service, options) {
+    const fields = [{name:'id',alias:'Kimlik',type:'oid'}, ...['ilce','mahalle','adres','aciklama','durum'].map(name => ({name,alias:name,type:'string'}))];
+    const rows = [{id:1,ilce:'Çankaya',mahalle:'Kavaklıdere',adres:'Ankara',aciklama:'İnceleme kaydı',durum:'Açık'},{id:2,ilce:'Mamak',mahalle:'Çağlayan',adres:'Mamak',aciklama:'İkinci kayıt',durum:'Kapalı'}];
+    return { serviceId:service.id,serviceName:service.displayName,fields,rows,total:rows.length,truncated:false,fetchedAt:new Date().toISOString(),offset:options.offset,limit:options.limit,hasPrevious:false,hasNext:false,objectIdField:'id',where:'1=1' };
+  }
 }
 `;
