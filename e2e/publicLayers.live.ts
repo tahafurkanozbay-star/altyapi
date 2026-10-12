@@ -184,6 +184,21 @@ test("production scene renders all public layers and reopens cached layers", asy
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
     await expect(component).toHaveCount(0);
   }
+  // Verify the SDK's minimum-width controls also fit actual tablet/phone
+  // panels, and leave the map usable when the layer panel was open.
+  for (const [screen, width, height] of [["tablet", 820, 1180], ["mobile", 390, 844]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.locator('[data-tool-target="area"]').click();
+    await expect(page.locator(".main-panel")).toHaveCount(0);
+    await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "ready");
+    const host = page.locator(".map-tool-host");
+    await expect(host.locator("arcgis-area-measurement-3d")).toBeVisible();
+    expect(await host.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await expect(host.getByRole("button", { name: "Yeni ölçüm", exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath("tool-area-" + screen + ".png"), animations: "disabled" });
+    await page.locator(".map-tool-header button").click();
+    await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+  }
   await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);

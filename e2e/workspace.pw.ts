@@ -5,11 +5,13 @@ import { runtimeFixture } from "./runtimeFixture";
 test.beforeEach(async ({ page }) => {
   await page.route(/\/src\/gis\/ArcGISRuntime\.ts(?:\?.*)?$/, (route) => route.fulfill({ contentType: "text/javascript", body: runtimeFixture }));
   await page.route("https://**/*", (route) => route.abort());
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".app-shell")).toBeVisible();
   await expect(page.locator(".boot-screen")).toHaveCount(0);
 });
 
 async function layers(page: import("@playwright/test").Page) {
+  await expect(page.locator(".app-shell")).toBeVisible();
   if (!(await page.locator(".main-panel").isVisible())) {
     if (await page.locator(".main-panel").count()) await page.locator(".mobile-menu").click();
     else await page.getByRole("button", { name: "Katmanlar", exact: true }).click();
@@ -107,11 +109,12 @@ test("local SDK assets and authorized-access dialog work without the SDK CDN", a
 test("failed map tools explain recovery and can be retried", async ({ page }, info) => {
   const recoveringFixture = runtimeFixture.replace("container.textContent = tool + ' aracı';", "if (tool === 'area' && !this.retried) { this.retried = true; throw new Error('temporary tool failure'); } container.textContent = tool + ' aracı';");
   await page.route(/\/src\/gis\/ArcGISRuntime\.ts(?:\?.*)?$/, (route) => route.fulfill({ contentType: "text/javascript", body: recoveringFixture }));
-  await page.reload();
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator(".boot-screen")).toHaveCount(0);
   await layers(page);
-  await page.getByRole("button", { name: "Katmanlar panelini kapat", exact: true }).click();
+  if (info.project.name !== "tablet") await page.getByRole("button", { name: "Katmanlar panelini kapat", exact: true }).click();
   await page.locator('[data-tool-target="area"]').click();
+  await expect(page.locator(".main-panel")).toHaveCount(0);
   await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "error");
   await expect(page.locator(".map-tool-error")).toContainText("Bağlantınızı kontrol");
   await expect(page.locator(".map-tool-guidance")).toContainText("köşelerini");
@@ -133,4 +136,27 @@ test("failed map tools explain recovery and can be retried", async ({ page }, in
   await expect(page.locator(".map-tool-host")).toContainText("area aracı");
   await page.locator(".map-tool-header button").click();
   await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+});
+
+
+test("slow module loading stays informative and real startup failures can recover", async ({ page }) => {
+  const mainModule = /\/src\/main\.tsx(?:\?.*)?$/;
+  await page.route(mainModule, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    await route.continue();
+  });
+  const navigation = page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByText("Hazırlık beklenenden uzun sürüyor.", { exact: false })).toBeVisible();
+  await expect(page.locator(".static-boot-error")).toHaveCount(0);
+  await navigation;
+  await expect(page.locator(".app-shell")).toBeVisible();
+  await page.unroute(mainModule);
+  await page.route(mainModule, (route) => route.abort());
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator(".static-boot-error")).toContainText("Harita kaynakları yüklenemedi");
+  const accessibility = await new AxeBuilder({ page }).include(".static-boot-error").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(accessibility.violations.map((violation) => violation.id)).toEqual([]);
+  await page.unroute(mainModule);
+  await page.getByRole("button", { name: "Sayfayı yeniden yükle", exact: true }).click();
+  await expect(page.locator(".app-shell")).toBeVisible();
 });

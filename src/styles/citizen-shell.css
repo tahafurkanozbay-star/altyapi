@@ -201,7 +201,7 @@ html[data-experience="v60"] :is(.main-panel, .operations-panel, .map-tool-panel,
   background: #fff; border-radius: var(--workspace-radius); border-color: var(--workspace-border);
   backdrop-filter: none; box-shadow: 0 4px 24px #16394f12;
 }
-html[data-experience="v60"] .map-tool-panel { left: auto; right: 68px; top: calc(var(--workspace-header) + 12px); width: min(360px, 32vw); max-height: calc(100dvh - 148px); }
+html[data-experience="v60"] .map-tool-panel { left: auto; right: 68px; top: calc(var(--workspace-header) + 12px); width: min(360px, calc(100vw - 104px)); max-height: calc(100dvh - 148px); }
 html[data-experience="v60"] .details-drawer { left: auto; right: 16px; bottom: 56px; width: min(390px, 33vw); }
 html[data-experience="v60"] .arcgis-navigation { top: calc(var(--workspace-header) + 16px); right: 16px; left: auto; }
 html[data-experience="v60"] .panel-content { padding: 20px 16px; }

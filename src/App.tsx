@@ -490,6 +490,7 @@ export default function App() {
   }, [mobilePanelsVisible]);
 
   const selectTool = useCallback((tool: Exclude<ToolId, null>) => {
+    if (window.matchMedia("(max-width: 1100px)").matches) setPanel(null);
     setToolPhase("loading");
     setActiveTool((current) => current === tool ? null : tool);
   }, []);

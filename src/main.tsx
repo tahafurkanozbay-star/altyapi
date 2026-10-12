@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { finishBoot } from "./boot";
 import "./platform/sdkAssets";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
@@ -67,10 +68,7 @@ createRoot(root).render(
 );
 
 document.documentElement.dataset.appReady = "true";
-if (window.__ALTYAPI_BOOT_TIMER__ !== undefined) {
-  window.clearTimeout(window.__ALTYAPI_BOOT_TIMER__);
-  delete window.__ALTYAPI_BOOT_TIMER__;
-}
+finishBoot();
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   let registration: ServiceWorkerRegistration | undefined;
