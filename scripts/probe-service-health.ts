@@ -1,5 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { providerLaneKey, providerRouteClass } from "../src/lib/providerTopology";
+import { mapWithProviderConcurrency } from "./providerProbeScheduler";
 
 const catalog = JSON.parse(await readFile(resolve("public/services.json"), "utf8"));
 const services = Array.isArray(catalog.services) ? catalog.services : [];
@@ -219,26 +221,24 @@ async function probe(service, index) {
   };
 }
 
-async function mapWithConcurrency(items, limit, mapper) {
-  const results = new Array(items.length);
-  let cursor = 0;
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor++;
-      results[index] = await mapper(items[index], index);
-      const row = results[index];
-      console.log(
-        `[${String(index + 1).padStart(2, "0")}/${items.length}] ${row.availability.padEnd(11)} ${row.kind.padEnd(13)} ${row.name}`
-      );
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return results;
+function probeLane(service) {
+  return providerLaneKey(service.tokenUrl, service.servisTuruAdi);
 }
 
-const results = await mapWithConcurrency(services, CONCURRENCY, probe);
+function probeLaneLimit(service) {
+  if (service.servisTuruAdi === "WMS" || service.servisTuruAdi === "WFS") return 1;
+  return providerRouteClass(service.tokenUrl, service.servisTuruAdi) === "arcgis-sharing-proxy" ? 1 : 2;
+}
+
+const results = await mapWithProviderConcurrency(
+  services,
+  {
+    globalLimit: CONCURRENCY,
+    laneFor: probeLane,
+    laneLimitFor: probeLaneLimit
+  },
+  probe
+);
 const snapshot = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
