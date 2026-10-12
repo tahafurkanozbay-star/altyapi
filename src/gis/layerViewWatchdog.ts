@@ -1,4 +1,6 @@
+import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
 import { runtimeScaleRangeFromLoadedLayer } from "../lib/runtimeScale";
+import { getRuntimePressureSnapshot, type RuntimePressureLevel } from "../platform/runtimePressure";
 import {
   ATOMIC_LAYER_ACTIVATION_EVENT,
   isAtomicLayerActivationPending
@@ -12,6 +14,9 @@ const MAX_SCALE_REPAIRS_PER_VIOLATION = 2;
 const MAX_LAYER_VIEW_RECYCLES = 2;
 const LAYER_VIEW_RECYCLE_DELAYS_MS = [320, 900] as const;
 const DEFAULT_RENDER_STALL_TIMEOUT_MS = 25_000;
+const STALL_PRESSURE_RECHECK_MS = 2_000;
+const SCENE_UPDATE_GRACE_MS = 45_000;
+const MAX_STALL_GRACE_MS = 90_000;
 
 type Removable = { remove(): void };
 
@@ -24,15 +29,12 @@ type LayerLike = {
   sublayers?: unknown;
 };
 
-type WatchableProperty = "visibleAtCurrentScale" | "updating" | "visible" | "suspended";
-
 type LayerViewLike = {
   layer?: LayerLike;
   visible?: boolean;
   visibleAtCurrentScale?: boolean;
   suspended?: boolean;
   updating?: boolean;
-  watch?: (property: WatchableProperty, callback: (value: unknown) => void) => Removable;
 };
 
 type LayerViewEventDetail = {
@@ -53,8 +55,15 @@ type MapLike = {
 
 type SceneLike = HTMLElement & {
   scale?: number;
+  stationary?: boolean;
+  updating?: boolean;
   map?: MapLike | null;
 };
+
+export interface LayerViewRecoveryContext {
+  stationary?: boolean;
+  updating?: boolean;
+}
 
 export type LayerViewHealthPhase =
   | "created"
@@ -161,6 +170,16 @@ export function isLayerViewStalled(
   return !isLayerViewRenderStable(layerView);
 }
 
+export function shouldDeferLayerViewRecovery(
+  scene: LayerViewRecoveryContext,
+  pressureLevel: RuntimePressureLevel,
+  elapsedMs: number
+): boolean {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= MAX_STALL_GRACE_MS) return false;
+  if (scene.stationary === false || pressureLevel !== "normal") return true;
+  return scene.updating === true && elapsedMs < SCENE_UPDATE_GRACE_MS;
+}
+
 export function layerViewRecoveryDelayMs(attempt: number): number {
   const index = Math.max(0, Math.min(LAYER_VIEW_RECYCLE_DELAYS_MS.length - 1, Math.trunc(attempt) - 1));
   return LAYER_VIEW_RECYCLE_DELAYS_MS[index]!;
@@ -197,6 +216,7 @@ export function installSceneLayerWatchdog(): () => void {
   const layerViews = new Map<string, LayerViewLike>();
   const layerViewHandles = new Map<string, Removable[]>();
   const stallTimers = new Map<string, number>();
+  const renderStartedAt = new Map<string, number>();
   const stableLayerIds = new Set<string>();
   const scaleRepairCounts = new Map<string, number>();
   const recycleCounts = new Map<string, number>();
@@ -226,13 +246,15 @@ export function installSceneLayerWatchdog(): () => void {
   };
 
   const markStable = (layerId: string, layerView: LayerViewLike) => {
-    if (!isLayerViewRenderStable(layerView) || stableLayerIds.has(layerId)) return;
+    if (layerView.layer?.visible === false || !isLayerViewRenderStable(layerView) || stableLayerIds.has(layerId)) return;
+    const startedAt = renderStartedAt.get(layerId);
     stableLayerIds.add(layerId);
     clearStallTimer(layerId);
+    renderStartedAt.delete(layerId);
     recyclePending.delete(layerId);
     recycleCounts.delete(layerId);
     scaleRepairCounts.delete(layerId);
-    emitHealth(layerId, "stable");
+    emitHealth(layerId, "stable", startedAt !== undefined ? { elapsedMs: Math.max(0, Date.now() - startedAt) } : {});
   };
 
   const scheduleAudit = (scene: SceneLike, delay = 80) => {
@@ -245,6 +267,7 @@ export function installSceneLayerWatchdog(): () => void {
     const recycleCount = recycleCounts.get(layerId) ?? 0;
     if (recycleCount >= MAX_LAYER_VIEW_RECYCLES) {
       recyclePending.delete(layerId);
+      renderStartedAt.delete(layerId);
       emitHealth(layerId, "recovery-exhausted", { attempt: recycleCount });
       return;
     }
@@ -264,72 +287,92 @@ export function installSceneLayerWatchdog(): () => void {
       const scheduled = recycleLayer(scene, layer, () => {
         if (layer.visible === false) return;
         recyclePending.delete(layerId);
+        renderStartedAt.delete(layerId);
         emitHealth(layerId, "recovery-exhausted", { attempt });
       });
       if (!scheduled) {
         recyclePending.delete(layerId);
+        renderStartedAt.delete(layerId);
         emitHealth(layerId, "recovery-exhausted", { attempt });
       }
     }, layerViewRecoveryDelayMs(attempt));
   };
 
-  const armStallTimer = (scene: SceneLike, layerId: string, layerView: LayerViewLike) => {
+  const armStallTimer = (
+    scene: SceneLike,
+    layerId: string,
+    layerView: LayerViewLike,
+    requestedDelayMs?: number
+  ) => {
     clearStallTimer(layerId);
     if (stableLayerIds.has(layerId)) return;
     if (layerView.layer?.visible === false || layerView.visible === false || layerView.visibleAtCurrentScale === false) return;
 
     const timeoutMs = layerViewStallTimeoutMs(layerView.layer);
-    const startedAt = Date.now();
+    const startedAt = renderStartedAt.get(layerId) ?? Date.now();
+    renderStartedAt.set(layerId, startedAt);
+    const elapsedBeforeArm = Math.max(0, Date.now() - startedAt);
+    const delayMs = requestedDelayMs ?? Math.max(250, timeoutMs - elapsedBeforeArm);
+
     const timer = window.setTimeout(() => {
       stallTimers.delete(layerId);
       if (layerViews.get(layerId) !== layerView) return;
-      const elapsedMs = Date.now() - startedAt;
+      const elapsedMs = Math.max(0, Date.now() - startedAt);
       if (!isLayerViewStalled(layerView, elapsedMs, timeoutMs)) return;
+
+      const pressure = getRuntimePressureSnapshot().level;
+      if (shouldDeferLayerViewRecovery(scene, pressure, elapsedMs)) {
+        armStallTimer(scene, layerId, layerView, STALL_PRESSURE_RECHECK_MS);
+        return;
+      }
+
       emitHealth(layerId, "render-stalled", { elapsedMs });
       const layer = layerView.layer;
       if (layer) requestRecycle(scene, layerId, layer);
-      else emitHealth(layerId, "render-failed");
-    }, timeoutMs);
+      else {
+        renderStartedAt.delete(layerId);
+        emitHealth(layerId, "render-failed");
+      }
+    }, delayMs);
     stallTimers.set(layerId, timer);
   };
 
   const attachLayerViewWatches = (scene: SceneLike, layerId: string, layerView: LayerViewLike) => {
     clearLayerViewHandles(layerId);
     const handles: Removable[] = [];
-    if (typeof layerView.watch === "function") {
-      try {
-        handles.push(layerView.watch("visibleAtCurrentScale", () => {
-          stableLayerIds.delete(layerId);
-          if (layerView.visibleAtCurrentScale === false) clearStallTimer(layerId);
-          else armStallTimer(scene, layerId, layerView);
+
+    try {
+      handles.push(reactiveWatch(
+        () => [
+          layerView.visibleAtCurrentScale,
+          layerView.updating,
+          layerView.suspended,
+          layerView.visible,
+          layerView.layer?.visible
+        ] as const,
+        () => {
+          const stable = layerView.layer?.visible !== false && isLayerViewRenderStable(layerView);
+          if (!stable && stableLayerIds.delete(layerId)) emitHealth(layerId, "created");
+
+          if (layerView.layer?.visible === false || layerView.visible === false || layerView.visibleAtCurrentScale === false) {
+            clearStallTimer(layerId);
+          } else if (!stable) {
+            if (!renderStartedAt.has(layerId)) renderStartedAt.set(layerId, Date.now());
+            armStallTimer(scene, layerId, layerView);
+          }
+
           markStable(layerId, layerView);
-          scheduleAudit(scene, 30);
-        }));
-        handles.push(layerView.watch("updating", () => {
-          if (!isLayerViewRenderStable(layerView) && stableLayerIds.delete(layerId)) emitHealth(layerId, "created");
-          if (!isLayerViewRenderStable(layerView)) armStallTimer(scene, layerId, layerView);
-          markStable(layerId, layerView);
-          scheduleAudit(scene, 45);
-        }));
-        handles.push(layerView.watch("suspended", () => {
-          if (!isLayerViewRenderStable(layerView) && stableLayerIds.delete(layerId)) emitHealth(layerId, "created");
-          markStable(layerId, layerView);
-          scheduleAudit(scene, 30);
-        }));
-        handles.push(layerView.watch("visible", () => {
-          stableLayerIds.delete(layerId);
-          if (layerView.visible === false) clearStallTimer(layerId);
-          else armStallTimer(scene, layerId, layerView);
-          markStable(layerId, layerView);
-          scheduleAudit(scene, 30);
-        }));
-      } catch {
-        for (const handle of handles) {
-          try { handle.remove(); } catch { /* best-effort */ }
-        }
-        handles.length = 0;
+          scheduleAudit(scene, 35);
+        },
+        { initial: true }
+      ));
+    } catch {
+      for (const handle of handles) {
+        try { handle.remove(); } catch { /* best-effort */ }
       }
+      handles.length = 0;
     }
+
     if (handles.length) layerViewHandles.set(layerId, handles);
     markStable(layerId, layerView);
     if (!stableLayerIds.has(layerId)) armStallTimer(scene, layerId, layerView);
@@ -395,6 +438,7 @@ export function installSceneLayerWatchdog(): () => void {
     if (!layerView || !layerId?.startsWith("svc-")) return;
     const recovering = recyclePending.delete(layerId);
     layerViews.set(layerId, layerView);
+    if (!renderStartedAt.has(layerId)) renderStartedAt.set(layerId, Date.now());
     stableLayerIds.delete(layerId);
     scaleRepairCounts.delete(layerId);
     if (!recovering) emitHealth(layerId, "created");
@@ -416,6 +460,7 @@ export function installSceneLayerWatchdog(): () => void {
     if (!recovering) {
       recyclePending.delete(layerId);
       recycleCounts.delete(layerId);
+      renderStartedAt.delete(layerId);
       emitHealth(layerId, "destroyed");
     }
   };
@@ -431,6 +476,7 @@ export function installSceneLayerWatchdog(): () => void {
 
     if (!shouldRecycleLayerView(detail?.error)) {
       recyclePending.delete(layerId);
+      renderStartedAt.delete(layerId);
       emitHealth(layerId, "render-failed");
       return;
     }
@@ -469,6 +515,7 @@ export function installSceneLayerWatchdog(): () => void {
     window.removeEventListener(ATOMIC_LAYER_ACTIVATION_EVENT, onAtomicActivationComplete);
     for (const layerId of [...layerViewHandles.keys()]) clearLayerViewHandles(layerId);
     for (const layerId of [...stallTimers.keys()]) clearStallTimer(layerId);
+    renderStartedAt.clear();
     layerViews.clear();
     stableLayerIds.clear();
     scaleRepairCounts.clear();
