@@ -2,6 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ArcGISRuntime } from "../src/gis/ArcGISRuntime";
 import type { SceneTelemetry } from "../src/types";
 
+const observations = vi.hoisted(() => [] as Array<{
+  read: () => readonly unknown[];
+  notify: () => void;
+  remove: ReturnType<typeof vi.fn>;
+}>);
+vi.mock("@arcgis/core/core/reactiveUtils.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@arcgis/core/core/reactiveUtils.js")>(),
+  watch: vi.fn((read: () => readonly unknown[], notify: () => void, options: { initial?: boolean }) => {
+    const remove = vi.fn();
+    observations.push({ read, notify, remove });
+    if (options.initial) notify();
+    return { remove };
+  })
+}));
+
 type TestScene = EventTarget & {
   center: { latitude: number; longitude: number };
   scale: number;
@@ -24,6 +39,7 @@ describe("live scene telemetry", () => {
   };
 
   beforeEach(() => {
+    observations.length = 0;
     vi.useFakeTimers();
     frames = new Map();
     let nextFrame = 0;
@@ -78,6 +94,17 @@ describe("live scene telemetry", () => {
     expect(telemetry).toHaveBeenLastCalledWith(expect.objectContaining({ scale: 6000, latitude: 39.95, longitude: 32.9 }));
   });
 
+  it("updates when the SDK changes scale without a stationary or pointer event", () => {
+    flushFrame();
+    scene.scale = 25_000;
+    scene.center = { latitude: 39.96, longitude: 32.93 };
+    const observer = observations.at(-1)!;
+    expect(observer.read()[0]).toBe(25_000);
+    observer.notify();
+    flushFrame();
+    expect(telemetry).toHaveBeenLastCalledWith(expect.objectContaining({ scale: 25_000, latitude: 39.96, longitude: 32.93 }));
+  });
+
   it("coalesces pointer samples and returns to the current map center on navigation", () => {
     flushFrame();
     scene.dispatchEvent(new CustomEvent("arcgisViewPointerMove", { detail: { x: 10, y: 20 } }));
@@ -107,6 +134,7 @@ describe("live scene telemetry", () => {
 
   it("cancels pending telemetry and detaches events on destruction", () => {
     runtime.destroy();
+    expect(observations.at(-1)!.remove).toHaveBeenCalledOnce();
     expect(frames.size).toBe(0);
     scene.dispatchEvent(new Event("arcgisViewChange"));
     documentTarget.dispatchEvent(new Event("visibilitychange"));

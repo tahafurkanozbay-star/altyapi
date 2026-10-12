@@ -5,9 +5,10 @@ import type { RawServiceDefinition } from "../src/types";
 async function expectCurrentSceneScale(page: Page) {
   await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => {
     const scale = (element as unknown as { scale: number }).scale;
-    return Number.isFinite(scale) && scale > 0
-      && document.querySelector(".status-scale strong")?.textContent === "1:" + Math.round(scale).toLocaleString("tr-TR");
-  })).toBe(true);
+    const sdk = "1:" + Math.round(scale).toLocaleString("tr-TR");
+    const footer = document.querySelector(".status-scale strong")?.textContent;
+    return { sdk, footer, matches: Number.isFinite(scale) && scale > 0 && footer === sdk };
+  })).toMatchObject({ matches: true });
 }
 
 test("production scene renders all public layers and reopens cached layers", async ({ page }, info) => {

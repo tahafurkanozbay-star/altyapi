@@ -3,6 +3,7 @@ import type ArcGISMap from "@arcgis/core/Map.js";
 import type Camera from "@arcgis/core/Camera.js";
 import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import type Basemap from "@arcgis/core/Basemap.js";
+import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
 import { BASEMAP_OPTIONS, supportedBasemapId, type BasemapId } from "../lib/basemaps";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
@@ -1187,7 +1188,22 @@ export class ArcGISRuntime {
   private installSceneEvents(): void {
     const scene = this.scene;
     if (!scene) return;
-    this.scheduleTelemetry();
+    // arcgisViewChange reports stationary transitions; startup/camera values
+    // can change between those events. Observe actual SDK properties directly.
+    this.handles.push(reactiveWatch(
+      () => [
+        scene.scale,
+        scene.center?.latitude,
+        scene.center?.longitude,
+        scene.camera?.position.latitude,
+        scene.camera?.position.longitude,
+        scene.camera?.position.z,
+        scene.camera?.tilt,
+        scene.camera?.heading
+      ] as const,
+      () => this.scheduleTelemetry(),
+      { initial: true }
+    ));
 
     this.handles.push(
       domHandle(scene, "arcgisViewClick", async (event) => {
