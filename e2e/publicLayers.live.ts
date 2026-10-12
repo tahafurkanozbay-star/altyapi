@@ -22,7 +22,7 @@ async function readLayerDrawing(page: Page, id: string) {
     if (!layer) return null;
     const view = await scene.whenLayerView(layer);
     const settled = !view.updating;
-    const count = !settled && view.dataUpdating === false && view.hasAllFeaturesInView !== false && view.queryFeatureCount
+    const count = !settled && view.queryFeatureCount
       ? await view.queryFeatureCount({ geometry: scene.extent }) : 0;
     const visible = layer.visible && view.visible && view.visibleAtCurrentScale && !view.suspended;
     return { loaded: layer.loaded, visible, settled, dataUpdating: view.dataUpdating, viewportCount: count, drawable: visible && (settled || Number.isFinite(count) && count > 0) };
@@ -56,6 +56,21 @@ test("production scene renders all public layers and reopens cached layers", asy
   const startupId = await startupLayer.getAttribute("data-service-id");
   await expect.poll(() => readLayerDrawing(page, startupId!)).toMatchObject({ loaded: true, visible: true, drawable: true });
   const startupEvidence = await readLayerDrawing(page, startupId!);
+  // The boundary's bright outline must actually reach the map framebuffer;
+  // this is independent of both the app label and the local query result.
+  const readBoundaryPixels = () => page.locator("arcgis-scene").evaluate(async (element) => {
+    const scene = element as unknown as { takeScreenshot(options: { format: string }): Promise<{ data: ImageData }> };
+    const pixels = (await scene.takeScreenshot({ format: "png" })).data.data;
+    let count = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index]!, green = pixels[index + 1]!, blue = pixels[index + 2]!;
+      if (red > 180 && green < 130 && blue > 100 && red > green * 1.8) count += 1;
+    }
+    return count;
+  });
+  await expect.poll(readBoundaryPixels, { timeout: 90_000 }).toBeGreaterThan(128);
+  const startupBoundaryPixels = await readBoundaryPixels();
+  const startupDrawMs = Date.now() - startupReadyAt;
   await page.screenshot({ path: info.outputPath("startup-first-draw.png"), animations: "disabled" });
 
   // Neutralize the startup view so each public provider is then measured from
@@ -103,7 +118,7 @@ test("production scene renders all public layers and reopens cached layers", asy
       return { loaded: layer.loaded, visible: layer.visible, inScale: layerView.visibleAtCurrentScale, settled: !layerView.updating, screenshotBytes: screenshot.dataUrl.length };
     }, serviceId);
     expect(state).toMatchObject({ loaded: true, visible: true, inScale: true });
-    // Fully settled rendering or complete, queryable viewport data is required
+    // Fully settled rendering or positive, queryable viewport data is required
     // independently of the app's readiness label above.
     expect(state!.screenshotBytes).toBeGreaterThan(1000);
     await page.screenshot({ path: info.outputPath(service.servisTuruAdi + "-" + metrics.length + ".png"), animations: "disabled" });
@@ -199,7 +214,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     await page.locator(".map-tool-header button").click();
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);

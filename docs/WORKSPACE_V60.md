@@ -2,9 +2,9 @@
 
 ## Katman hazırlığı ve yaşam döngüsü
 
-LayerView tamamen durulduğunda mevcut hazır olma sinyali korunur. FeatureLayerView arka planda çizim güncellemelerine devam ediyorsa ilk kullanışlı görünüm ayrıca doğrulanır: katman açık, ölçek içinde ve askıya alınmamış olmalı; veri güncellemesi bitmiş olmalı; SDK görünüm verisinin eksik olduğunu bildirmemeli; mevcut harita kapsamındaki yerel `queryFeatureCount` pozitif sonuç vermelidir. Ardından iki animasyon karesi beklenir ve aynı LayerView ile aynı kapsamın hâlâ geçerli olduğu kontrol edilir.
+LayerView tamamen durulduğunda mevcut hazır olma sinyali korunur. FeatureLayerView arka planda çizim güncellemelerine devam ediyorsa ilk kullanışlı görünüm ayrıca doğrulanır: katman açık, ölçek içinde ve askıya alınmamış olmalı; mevcut harita kapsamındaki yerel `queryFeatureCount` pozitif sonuç vermelidir. SDK arka planda veri/ayrıntı güncellemelerine devam edebilir; hazır durumu ilk kullanılabilir görünümü ifade eder. Ardından iki animasyon karesi beklenir ve aynı LayerView ile aynı kapsamın hâlâ geçerli olduğu kontrol edilir.
 
-Bu kontrol yeni bir uzak servis sorgusu başlatmaz. Her katman için aynı kapsamın sorgusu paylaşılır; yeni kapsam eskisini iptal eder. Beş saniyelik süre sınırı, kapatma ve gözlemci temizliği bekleyen işleri bırakır. Sorgu hatası veya sıfır sonuç hazır olma olarak değerlendirilmez. Tamamlanmamış veri, görünmeyen katman ve eski harita kapsamı erken hazır olarak işaretlenmez.
+Bu kontrol yeni bir uzak servis sorgusu başlatmaz. Her katman için aynı kapsamın sorgusu paylaşılır; yeni kapsam eskisini iptal eder. Beş saniyelik süre sınırı, kapatma ve gözlemci temizliği bekleyen işleri bırakır. Sorgu hatası veya sıfır sonuç hazır olma olarak değerlendirilmez. Görünmeyen katman ve eski harita kapsamı hazır olarak işaretlenmez. Henüz yerel veri yoksa kontrol, tek bekleyen sorguyla saniyede en fazla bir kez ve toplam 90 saniyeyle sınırlı tekrar edilir. Görünüm kapsamı değiştiğinde önceki veri kanıtı bırakılır.
 
 Kurtarma zamanlayıcıları gözlemci kapatıldığında temizlenir. Katman map remove/add arasında kullanıcı tarafından kapatılırsa önbellekteki örnek aynı sıraya, görünürlüğü kapalı olarak geri bağlanır. Yetki hataları tekrar oluşturma döngüsüne girmez. Harici servis ve cihaz performansı için sabit açılış süresi taahhüt edilmez.
 

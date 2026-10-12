@@ -15,11 +15,11 @@ import {
 } from "../src/gis/layerViewWatchdog";
 
 describe("LayerView provider-scale watchdog", () => {
-  it("only probes completed viewport data while background rendering continues", () => {
+  it("probes visible viewport data while streaming and background refinement continue", () => {
     const view = { layer: { visible: true }, visible: true, visibleAtCurrentScale: true, suspended: false, updating: true, dataUpdating: false, hasAllFeaturesInView: true, queryFeatureCount: async () => 4 };
     expect(canProbeFirstRender(view)).toBe(true);
-    expect(canProbeFirstRender({ ...view, dataUpdating: true })).toBe(false);
-    expect(canProbeFirstRender({ ...view, hasAllFeaturesInView: false })).toBe(false);
+    expect(canProbeFirstRender({ ...view, dataUpdating: true })).toBe(true);
+    expect(canProbeFirstRender({ ...view, hasAllFeaturesInView: false })).toBe(true);
     expect(canProbeFirstRender({ ...view, suspended: true })).toBe(false);
     expect(canProbeFirstRender({ ...view, layer: { visible: false } })).toBe(false);
   });
