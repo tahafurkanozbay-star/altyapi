@@ -1,6 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import type { RawServiceDefinition } from "../src/types";
+
+async function expectCurrentSceneScale(page: Page) {
+  await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => {
+    const scale = (element as unknown as { scale: number }).scale;
+    const sdk = "1:" + Math.round(scale).toLocaleString("tr-TR");
+    const footer = document.querySelector(".status-scale strong")?.textContent;
+    return { sdk, footer, matches: Number.isFinite(scale) && scale > 0 && footer === sdk };
+  })).toMatchObject({ matches: true });
+}
 
 test("production scene renders all public layers and reopens cached layers", async ({ page }, info) => {
   const runtimeErrors: string[] = [];
@@ -13,6 +22,9 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(page.locator(".boot-screen")).toHaveCount(0);
   await expect(page.locator(".fatal-screen")).toHaveCount(0);
   await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => (element as unknown as { ready: boolean }).ready)).toBe(true);
+  // A touch user has no pointer-move event to initialize the footer. Read the
+  // real SDK scale and verify it is published before any map interaction.
+  await expectCurrentSceneScale(page);
 
   // The default startup boundary is a real citizen-visible layer. Verify that
   // initial Scene/SDK pressure does not trigger a destructive recycle loop
@@ -51,6 +63,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     await toggle.click();
     await expect(card).toHaveAttribute("data-render-state", "ready");
     await expect(card).not.toHaveClass(/status-error/);
+    await expectCurrentSceneScale(page);
     const firstReadyMs = Date.now() - started;
     const state = await page.locator("arcgis-scene").evaluate(async (element, id) => {
       const scene = element as unknown as {
@@ -80,8 +93,54 @@ test("production scene renders all public layers and reopens cached layers", asy
     page.off("response", onResponse);
     await toggle.click();
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, metrics, runtimeErrors, failedSdkAssets }, null, 2));
+  // Exercise the actual lazy SDK components, beyond the isolated UI fixture.
+  // arcgisReady is the SDK's signal that a component can be interacted with.
+  await page.evaluate(() => {
+    document.addEventListener("arcgisReady", (event) => {
+      const component = event.composedPath()[0];
+      if (component instanceof HTMLElement) component.dataset.liveComponentReady = "true";
+    }, true);
+  });
+  const tools = [
+    ["legend", "arcgis-legend"],
+    ["basemap", "arcgis-basemap-gallery"],
+    ["distance", "arcgis-direct-line-measurement-3d"],
+    ["area", "arcgis-area-measurement-3d"],
+    ["daylight", "arcgis-daylight"],
+    ["slice", "arcgis-slice"],
+    ["lineOfSight", "arcgis-line-of-sight"],
+    ["elevation", "arcgis-elevation-profile"]
+  ] as const;
+  const toolMetrics: Array<{ tool: string; readyMs: number }> = [];
+  for (const [tool, tag] of tools) {
+    const openedAt = Date.now();
+    await page.locator(`[data-tool-target="${tool}"]`).click();
+    const component = page.locator(".map-tool-host " + tag);
+    await expect(component).toBeVisible();
+    await expect(component).toHaveAttribute("data-live-component-ready", "true");
+    expect(await component.evaluate((element) => (element as unknown as { referenceElement: Element }).referenceElement === document.querySelector("arcgis-scene"))).toBe(true);
+    if (tool === "basemap") {
+      await expect(component.getByRole("radio")).toHaveCount(6);
+      const topoItem = component.locator("arcgis-basemap-gallery-item").filter({ hasText: "Topoğrafik" });
+      await expect.poll(() => topoItem.evaluate((element) => (element as unknown as { item: { state: string } }).item.state)).toBe("ready");
+      await component.getByRole("radio", { name: "Topoğrafik", exact: true }).click();
+      await expect(page.getByRole("combobox", { name: "Harita görünümü", exact: true })).toHaveValue("topo-vector");
+      await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => (element as unknown as { map: { basemap: { id: string } } }).map.basemap.id)).toBe("topo-vector");
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem("altyapi:preferences:v5") ?? "{}").basemap)).toBe("topo-vector");
+      // Restore the original basemap through the header and verify the gallery
+      // also tracks changes in the opposite direction.
+      await page.getByRole("combobox", { name: "Harita görünümü", exact: true }).selectOption("hybrid");
+      await expect(component.getByRole("radio", { name: "Hibrit", exact: true })).toHaveAttribute("aria-checked", "true");
+    }
+    toolMetrics.push({ tool, readyMs: Date.now() - openedAt });
+    await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
+    await page.locator(".map-tool-header button").click();
+    await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+    await expect(component).toHaveCount(0);
+  }
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, metrics, toolMetrics, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);
+  expect(toolMetrics).toHaveLength(8);
 });

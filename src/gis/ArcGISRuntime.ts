@@ -2,6 +2,9 @@ import type Layer from "@arcgis/core/layers/Layer.js";
 import type ArcGISMap from "@arcgis/core/Map.js";
 import type Camera from "@arcgis/core/Camera.js";
 import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
+import type Basemap from "@arcgis/core/Basemap.js";
+import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
+import { BASEMAP_OPTIONS, supportedBasemapId, type BasemapId } from "../lib/basemaps";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { LayerIntentTracker } from "../lib/layerIntent";
@@ -90,6 +93,7 @@ type ArcGISSceneElement = HTMLElement & {
   spatialReference?: SpatialReference;
   popupDisabled?: boolean;
   map?: ArcGISMap | null;
+  center?: MapPointLike | null;
   scale?: number;
   extent?: ExtentLike | null;
   fatalError?: Error | null;
@@ -110,6 +114,9 @@ type ArcGISComponentElement = HTMLElement & {
   locationEnabled?: boolean;
   popupEnabled?: boolean;
   resultGraphicEnabled?: boolean;
+  // The gallery's documented array input autocasts to LocalBasemapsSource.
+  source?: Basemap[];
+  activeBasemap?: unknown;
   componentOnReady?: () => Promise<unknown>;
   destroy?: () => Promise<void>;
 };
@@ -122,6 +129,7 @@ export interface GraphicsRecoveryEvent {
 export interface RuntimeCallbacks {
   onIdentify?: (result: IdentifyResult | null) => void;
   onTelemetry?: (telemetry: SceneTelemetry) => void;
+  onBasemapChange?: (basemap: BasemapId) => void;
   onCamera?: (camera: CameraState) => void;
   onGraphicsRecovery?: (event: GraphicsRecoveryEvent) => void;
 }
@@ -176,6 +184,7 @@ export class ArcGISRuntime {
   private cameraTimer = 0;
   private scaleGuardTimer = 0;
   private telemetryFrame = 0;
+  private telemetryPointer?: ScenePointerDetail;
   private profile: PerformanceProfile;
   private destroyed = false;
   private recoveringGraphics = false;
@@ -245,6 +254,8 @@ export class ArcGISRuntime {
     }
 
     this.map = map;
+    const basemapId = supportedBasemapId(basemap);
+    if (basemapId && map.basemap) this.retainBasemapIdentity(map.basemap, basemapId);
     this.installSceneEvents();
   }
 
@@ -603,7 +614,10 @@ export class ArcGISRuntime {
   }
 
   setBasemap(basemap: string): void {
-    if (this.scene && !this.destroyed) this.scene.basemap = basemap;
+    if (!this.scene || this.destroyed) return;
+    this.scene.basemap = basemap;
+    const id = supportedBasemapId(basemap);
+    if (id && this.map?.basemap) this.retainBasemapIdentity(this.map.basemap, id);
   }
 
   setPerformanceProfile(profile: PerformanceProfile): void {
@@ -683,6 +697,8 @@ export class ArcGISRuntime {
     window.clearTimeout(this.cameraTimer);
     window.clearTimeout(this.scaleGuardTimer);
     cancelAnimationFrame(this.telemetryFrame);
+    this.telemetryFrame = 0;
+    this.telemetryPointer = undefined;
     this.closeTool();
     this.disposeComponent(this.searchWidget);
     this.searchWidget = undefined;
@@ -1148,9 +1164,51 @@ export class ArcGISRuntime {
     if (component.destroy) void component.destroy().catch(() => undefined);
   }
 
+  private scheduleTelemetry(pointer?: ScenePointerDetail): void {
+    if (!this.scene || this.destroyed || document.hidden) return;
+    this.telemetryPointer = pointer;
+    if (this.telemetryFrame) return;
+
+    // Read the latest scene once per frame. Camera changes and touch gestures
+    // must update the footer even when no mouse ever enters the map.
+    this.telemetryFrame = requestAnimationFrame(() => {
+      this.telemetryFrame = 0;
+      const scene = this.scene;
+      if (!scene || this.destroyed || document.hidden) return;
+      const camera = scene.camera;
+      const point = (this.telemetryPointer ? scene.toMap?.(this.telemetryPointer) : undefined)
+        ?? scene.center
+        ?? camera?.position;
+      this.callbacks.onTelemetry?.({
+        latitude: point?.latitude ?? undefined,
+        longitude: point?.longitude ?? undefined,
+        altitude: camera?.position.z ?? 0,
+        tilt: camera?.tilt ?? 0,
+        heading: camera?.heading ?? 0,
+        scale: scene.scale
+      });
+    });
+  }
+
   private installSceneEvents(): void {
     const scene = this.scene;
     if (!scene) return;
+    // arcgisViewChange reports stationary transitions; startup/camera values
+    // can change between those events. Observe actual SDK properties directly.
+    this.handles.push(reactiveWatch(
+      () => [
+        scene.scale,
+        scene.center?.latitude,
+        scene.center?.longitude,
+        scene.camera?.position.latitude,
+        scene.camera?.position.longitude,
+        scene.camera?.position.z,
+        scene.camera?.tilt,
+        scene.camera?.heading
+      ] as const,
+      () => this.scheduleTelemetry(),
+      { initial: true }
+    ));
 
     this.handles.push(
       domHandle(scene, "arcgisViewClick", async (event) => {
@@ -1185,26 +1243,19 @@ export class ArcGISRuntime {
         if (!this.scene || this.destroyed || document.hidden || !this.scene.toMap) return;
         const detail = event instanceof CustomEvent ? event.detail as ScenePointerDetail : undefined;
         if (!detail || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) return;
-        cancelAnimationFrame(this.telemetryFrame);
-        this.telemetryFrame = requestAnimationFrame(() => {
-          if (!this.scene || this.destroyed || !this.scene.toMap) return;
-          const point = this.scene.toMap({ x: detail.x, y: detail.y });
-          const camera = this.scene.camera;
-          this.callbacks.onTelemetry?.({
-            latitude: point?.latitude ?? undefined,
-            longitude: point?.longitude ?? undefined,
-            altitude: camera?.position.z ?? 0,
-            tilt: camera?.tilt ?? 0,
-            heading: camera?.heading ?? 0,
-            scale: this.scene.scale
-          });
-        });
+        this.scheduleTelemetry(detail);
       })
+    );
+
+    this.handles.push(
+      domHandle(scene, "arcgisViewPointerLeave", () => this.scheduleTelemetry()),
+      domHandle(document, "visibilitychange", () => this.scheduleTelemetry())
     );
 
     this.handles.push(
       domHandle(scene, "arcgisViewChange", () => {
         if (this.destroyed) return;
+        this.scheduleTelemetry();
         this.scheduleScaleGuard();
         window.clearTimeout(this.cameraTimer);
         this.cameraTimer = window.setTimeout(() => {
@@ -1225,15 +1276,26 @@ export class ArcGISRuntime {
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
 
     let tagName: string;
+    const properties: Partial<ArcGISComponentElement> = {};
     switch (tool) {
       case "legend":
         await import("@arcgis/map-components/components/arcgis-legend");
         tagName = "arcgis-legend";
         break;
-      case "basemap":
-        await import("@arcgis/map-components/components/arcgis-basemap-gallery");
+      case "basemap": {
+        const [{ default: Basemap }] = await Promise.all([
+          import("@arcgis/core/Basemap.js"),
+          import("@arcgis/map-components/components/arcgis-basemap-gallery")
+        ]);
+        properties.source = BASEMAP_OPTIONS.map(([id, title]) => {
+          const basemap = Basemap.fromId(id);
+          if (!basemap) throw new Error(`Harita görünümü hazırlanamadı: ${title}`);
+          this.retainBasemapIdentity(basemap, id);
+          return basemap;
+        });
         tagName = "arcgis-basemap-gallery";
         break;
+      }
       case "distance":
         await import("@arcgis/map-components/components/arcgis-direct-line-measurement-3d");
         tagName = "arcgis-direct-line-measurement-3d";
@@ -1261,12 +1323,35 @@ export class ArcGISRuntime {
     }
 
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
-    const component = this.createConnectedComponent(tagName);
+    const component = this.createConnectedComponent(tagName, properties);
+    if (tool === "basemap") this.bindBasemapSelection(component);
     if (tool === "elevation") component.profiles = [{ type: "ground" }];
     component.classList.add("arcgis-tool-component");
     container.append(component);
     await component.componentOnReady?.();
     return component;
+  }
+
+  private bindBasemapSelection(component: ArcGISComponentElement): void {
+    component.addEventListener("arcgisPropertyChange", (event) => {
+      if (this.destroyed || !component.isConnected) return;
+      if (!(event instanceof CustomEvent) || event.detail?.name !== "activeBasemap") return;
+      const id = supportedBasemapId(component.activeBasemap);
+      if (id) this.callbacks.onBasemapChange?.(id);
+    });
+  }
+
+  private retainBasemapIdentity(basemap: Basemap, id: BasemapId): void {
+    const title = BASEMAP_OPTIONS.find(([candidate]) => candidate === id)?.[1] ?? id;
+    const applyIdentity = () => {
+      basemap.id = id;
+      basemap.title = title;
+    };
+    applyIdentity();
+    // fromId may generate a model ID and then overwrite its title from remote
+    // metadata. Keep the app's stable choices after both successful and failed
+    // loads; the SDK still retains and displays its actual load status/error.
+    void basemap.load().then(applyIdentity, applyIdentity);
   }
 
   async recoverGraphics(): Promise<boolean> {
