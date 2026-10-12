@@ -1,8 +1,8 @@
 import { readFile, readdir } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname, join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CODE_ROOTS = ["src", "scripts", "tests"] as const;
+const CODE_ROOTS = ["src", "scripts", "tests", "e2e"] as const;
 const ALLOWED_SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".css", ".png", ".svg", ".d.ts"]);
 
 async function walk(root: string): Promise<string[]> {
@@ -32,12 +32,16 @@ describe("first-party language policy", () => {
 
   it("allows JavaScript only as the generated browser service-worker artifact", async () => {
     const publicFiles = await walk("public");
-    const publicJavaScript = publicFiles.filter((file) => extname(file) === ".js").sort();
+    const publicJavaScript = publicFiles.filter((file) =>
+      extname(file) === ".js" && !file.startsWith(join("public", "sdk-assets") + sep)
+    ).sort();
     const generatedWorker = await readFile("public/sw.js", "utf8");
     const workerSource = await readFile("src/sw/sw.ts", "utf8");
 
     expect(publicJavaScript).toEqual([join("public", "sw.js")]);
     expect(generatedWorker).toContain("GENERATED OUTPUT");
     expect(workerSource).toContain("strict TypeScript file is the source of truth");
+    const ignore = await readFile(".gitignore", "utf8");
+    expect(ignore).toContain("public/sdk-assets/");
   });
 });

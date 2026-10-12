@@ -5,7 +5,7 @@ describe("service health monitor workflow", () => {
   it("installs engineering dependencies before running TypeScript probes", async () => {
     const workflow = await readFile(".github/workflows/service-health.yml", "utf8");
 
-    const install = workflow.indexOf("npm install --no-audit --no-fund");
+    const install = workflow.indexOf("npm ci --no-audit --no-fund");
     const probe = workflow.indexOf("npm run probe:services");
     const validate = workflow.indexOf("npm run validate:health");
     const audit = workflow.indexOf("npm run audit:scales");
@@ -39,9 +39,9 @@ describe("service health monitor workflow", () => {
     const workflow = await readFile(".github/workflows/service-health.yml", "utf8");
     const packageJson = await readFile("package.json", "utf8");
 
-    expect(packageJson).toContain('"validate:scale-audit": "tsx scripts/validate-scale-audit.ts"');
-    expect(packageJson).toContain('"summary:observability": "tsx scripts/write-observability-summary.ts"');
-    expect(packageJson).toContain("tsx scripts/finalize-scale-audit.ts");
+    expect(packageJson).toContain('"validate:scale-audit": "node --import tsx scripts/validate-scale-audit.ts"');
+    expect(packageJson).toContain('"summary:observability": "node --import tsx scripts/write-observability-summary.ts"');
+    expect(packageJson).toContain("node --import tsx scripts/finalize-scale-audit.ts");
     expect(workflow).not.toContain("s.reachable}/${s.total");
     expect(workflow).not.toContain("const states =");
   });
