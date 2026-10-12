@@ -276,7 +276,8 @@ html[data-experience="v60"] .details-drawer {
   left: auto; right: 16px; bottom: calc(var(--workspace-bottom) + 12px);
   width: min(390px, 34vw); max-height: min(45dvh, 480px); scroll-padding-block: 80px 16px;
 }
-html[data-experience="v60"] .arcgis-navigation { top: calc(var(--workspace-header) + 16px); right: 16px; left: auto; }
+/* Map navigation stays below workspace surfaces, including short phone drawers. */
+html[data-experience="v60"] .arcgis-navigation { top: calc(var(--workspace-header) + 16px); right: 16px; left: auto; z-index: 32; }
 html[data-experience="v60"] .panel-content.layer-explorer {
   display: flex; flex-direction: column; height: 100%; padding: 0;
   overflow: hidden; scrollbar-gutter: auto;

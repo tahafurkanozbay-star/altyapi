@@ -195,7 +195,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     }
     toolMetrics.push({ tool, readyMs, completedMs: Date.now() - openedAt });
     await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
-    await page.locator(".map-tool-header button").click();
+    await page.locator(".map-tool-header button").click({ timeout: 10_000 });
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
     await expect(component).toHaveCount(0);
   }
@@ -211,7 +211,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     expect(await host.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await expect(host.getByRole("button", { name: "Yeni ölçüm", exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("tool-area-" + screen + ".png"), animations: "disabled" });
-    await page.locator(".map-tool-header button").click();
+    await page.locator(".map-tool-header button").click({ timeout: 10_000 });
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
   }
   await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));

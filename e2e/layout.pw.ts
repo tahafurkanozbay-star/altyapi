@@ -141,6 +141,22 @@ test("compact workspaces show one surface and focus mode restores the retained p
   await page.locator('[data-panel-target="layers"]').click();
   await expect(page.locator(".main-panel")).toBeVisible();
   await expect(page.locator(".app-shell")).not.toHaveClass(/is-focus-mode/);
+  await closePanel(page);
+  for (const viewport of [{ width: 320, height: 640 }, { width: 760, height: 360 }, { width: 820, height: 1180 }]) {
+    await page.setViewportSize(viewport);
+    await page.locator('[data-tool-target="area"]').click();
+    // A tall SDK control fills the bounded drawer; navigation must never
+    // intercept its sticky close control on short or narrow screens.
+    await page.locator(".map-tool-host").evaluate((host) => { host.style.minHeight = "600px"; });
+    const close = page.locator(".map-tool-header button");
+    await expect(close).toBeInViewport();
+    await expect.poll(() => close.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      return button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    })).toBe(true);
+    await close.click();
+    await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+  }
 });
 
 test("object details and native save dialogs fit the viewport and keep close controls reachable", async ({ page }) => {

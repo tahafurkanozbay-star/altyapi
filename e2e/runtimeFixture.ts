@@ -24,7 +24,19 @@ export class ArcGISRuntime {
     input.style.cssText = 'width:100%;height:44px;border:1px solid #d7e1ea;border-radius:10px;padding:12px;background:#f6f9fc';
     container.append(input);
   }
-  async mountNavigation() { return () => {}; }
+  async mountNavigation(container) {
+    for (const [tag, label] of [['arcgis-home','Başlangıç görünümü'],['arcgis-compass','Yönü sıfırla'],['arcgis-locate','Konumum'],['arcgis-fullscreen','Tam ekran']]) {
+      const component = document.createElement(tag);
+      component.className = 'arcgis-nav-component';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('aria-label', label);
+      button.style.cssText = 'display:block;width:100%;height:38px;border:0';
+      component.append(button);
+      container.append(component);
+    }
+    return () => container.replaceChildren();
+  }
   async withLayerActivationBatch(task) { return task(); }
   async setLayerVisible(service, visible) {
     this.desired.set(service.id, visible);

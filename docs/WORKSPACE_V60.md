@@ -16,6 +16,8 @@ Sekiz araç ortak Türkçe adlar ve araca özel kullanım yönergeleri kullanır
 
 Telefonda araç ve ayrıntı pencereleri alt araç çubuğu, durum çubuğu ve cihazın güvenli alanı için boşluk bırakır; yeniden deneme düğmesi durum çubuğunun arkasında kalmaz.
 
+Harita navigasyonu çalışma pencerelerinin altında kalır. Kısa veya dar ekranlarda tam ekran/konum düğmeleri pencerelerin kapatma düğmesini engellemez. Arayüz testindeki navigasyon kontrolleri de gerçek bileşenlerin yer kaplamasını temsil eder; 320 px telefon, yatay telefon ve tablette kapatma düğmesinin fiziksel olarak tıklanabildiği kontrol edilir.
+
 Güncel görünüm sistemindeki tablet araç penceresi SDK'nın en az 300 px genişlik isteyen kontrollerini sığdırır. 1100 px ve altındaki ekranlarda bir harita aracı seçildiğinde çalışma paneli kapanır ve haritada işlem yapmak için alan açılır. Canlı tarayıcı kontrolü gerçek SDK alan ölçümü arayüzünü telefon ve tablette yatay taşma açısından da doğrular.
 
 Altlık galerisindeki altı seçenek, üst bölüm, yer imleri ve paylaşım tercihleriyle aynı sözleşmeyi kullanmaya devam eder. Kesit, görüş hattı ve gölge araçları için veri gereksinimleri yönergede açıklanır.
