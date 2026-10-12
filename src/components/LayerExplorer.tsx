@@ -1,6 +1,7 @@
 import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
+import { warmLayerModuleOnIntent } from "../gis/layerModuleWarmup";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
 import { groupServicesInStableOrder } from "../lib/layerOrdering";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
@@ -66,6 +67,7 @@ export const LayerExplorer = memo(function LayerExplorer({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const groupsInitialized = useRef(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [cooldownClock, setCooldownClock] = useState(Date.now);
   const renderHealth = useSyncExternalStore(
     subscribeLayerRenderHealth,
     getLayerRenderHealthSnapshot,
@@ -76,6 +78,14 @@ export const LayerExplorer = memo(function LayerExplorer({
     const visibleIds = new Set(services.filter((service) => service.visible).map((service) => service.id));
     pruneLayerRenderHealth(visibleIds);
   }, [services]);
+
+  useEffect(() => {
+    const deadlines = services.map((service) => Date.parse(service.cooldownUntil ?? ""))
+      .filter((deadline) => Number.isFinite(deadline) && deadline > cooldownClock);
+    if (!deadlines.length) return;
+    const timer = window.setTimeout(() => setCooldownClock(Date.now()), Math.min(1000, Math.min(...deadlines) - cooldownClock + 1));
+    return () => window.clearTimeout(timer);
+  }, [services, cooldownClock]);
 
   useEffect(() => {
     if (!services.length || groupsInitialized.current) return;
@@ -113,7 +123,7 @@ export const LayerExplorer = memo(function LayerExplorer({
     degraded: services.filter((service) => service.availability === "degraded").length,
     unavailable: services.filter((service) => service.availability === "unavailable").length,
     cooling: services.filter((service) => isServiceCoolingDown(service)).length
-  }), [services, renderHealth]);
+  }), [services, renderHealth, cooldownClock]);
 
   const filtersActive = query.length > 0 || kind !== "all" || activeOnly || favoriteOnly || availability !== "all";
 
@@ -334,6 +344,13 @@ export const LayerExplorer = memo(function LayerExplorer({
                     key={service.id}
                     className={`layer-card ${service.visible ? "is-active" : ""} status-${visualStatus} availability-${service.availability}`}
                     data-kind={service.kind}
+                    data-service-id={service.id}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === "mouse" && !service.visible) warmLayerModuleOnIntent(service.kind);
+                    }}
+                    onFocusCapture={() => {
+                      if (!service.visible) warmLayerModuleOnIntent(service.kind);
+                    }}
                     data-availability={service.availability}
                     data-render-state={layerRender?.state ?? "none"}
                     aria-label={service.displayName}

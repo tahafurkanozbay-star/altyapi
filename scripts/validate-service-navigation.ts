@@ -1,8 +1,13 @@
+import { parseServicesDocument } from "../src/lib/catalog";
+import { parseServiceNavigationSnapshot } from "../src/lib/serviceNavigation";
+import type { ServiceNavigationSnapshot } from "../src/types";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const catalog = JSON.parse(await readFile(resolve("public/services.json"), "utf8"));
-const snapshot = JSON.parse(await readFile(resolve("public/service-navigation.json"), "utf8"));
+const catalog = { services: parseServicesDocument(JSON.parse(await readFile(resolve("public/services.json"), "utf8"))) };
+const rawSnapshot: unknown = JSON.parse(await readFile(resolve("public/service-navigation.json"), "utf8"));
+parseServiceNavigationSnapshot(rawSnapshot);
+const snapshot = rawSnapshot as ServiceNavigationSnapshot;
 const errors = [];
 
 const services = Array.isArray(catalog?.services) ? catalog.services : [];
@@ -56,7 +61,7 @@ for (const [position, profile] of profiles.entries()) {
     }
   }
 
-  for (const key of ["minScale", "maxScale", "recommendedScale"]) {
+  for (const key of ["minScale", "maxScale", "recommendedScale"] as const) {
     if (profile[key] !== undefined && (!Number.isFinite(profile[key]) || profile[key] <= 0 || profile[key] > 1_000_000_000)) {
       errors.push(`profile #${position + 1}: ${key} geçersiz.`);
     }

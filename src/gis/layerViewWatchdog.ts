@@ -24,7 +24,7 @@ type LayerLike = {
   sublayers?: unknown;
 };
 
-type WatchableProperty = "visibleAtCurrentScale" | "updating" | "visible";
+type WatchableProperty = "visibleAtCurrentScale" | "updating" | "visible" | "suspended";
 
 type LayerViewLike = {
   layer?: LayerLike;
@@ -138,8 +138,8 @@ export function layerViewRecoveryScale(
   return undefined;
 }
 
-export function isLayerViewRenderStable(layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "updating">): boolean {
-  return layerView.visible !== false && layerView.visibleAtCurrentScale !== false && layerView.updating === false;
+export function isLayerViewRenderStable(layerView: Pick<LayerViewLike, "visible" | "visibleAtCurrentScale" | "updating" | "suspended">): boolean {
+  return layerView.visible !== false && layerView.visibleAtCurrentScale !== false && layerView.suspended !== true && layerView.updating === false;
 }
 
 export function layerViewStallTimeoutMs(layer?: Pick<LayerLike, "type">): number {
@@ -306,9 +306,15 @@ export function installSceneLayerWatchdog(): () => void {
           scheduleAudit(scene, 30);
         }));
         handles.push(layerView.watch("updating", () => {
+          if (!isLayerViewRenderStable(layerView) && stableLayerIds.delete(layerId)) emitHealth(layerId, "created");
           if (!isLayerViewRenderStable(layerView)) armStallTimer(scene, layerId, layerView);
           markStable(layerId, layerView);
           scheduleAudit(scene, 45);
+        }));
+        handles.push(layerView.watch("suspended", () => {
+          if (!isLayerViewRenderStable(layerView) && stableLayerIds.delete(layerId)) emitHealth(layerId, "created");
+          markStable(layerId, layerView);
+          scheduleAudit(scene, 30);
         }));
         handles.push(layerView.watch("visible", () => {
           stableLayerIds.delete(layerId);

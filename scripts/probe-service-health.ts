@@ -1,15 +1,17 @@
+import { parseServicesDocument } from "../src/lib/catalog";
+import type { RawServiceDefinition, ServiceVerificationEntry } from "../src/types";
+import { networkErrorCode, parseRemoteMetadata, type QueryParameters, type HealthProbeResponse, type HealthProbeResult } from "./probeTypes";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { providerLaneKey, providerRouteClass } from "../src/lib/providerTopology";
 import { mapWithProviderConcurrency } from "./providerProbeScheduler";
 
-const catalog = JSON.parse(await readFile(resolve("public/services.json"), "utf8"));
-const services = Array.isArray(catalog.services) ? catalog.services : [];
+const services = parseServicesDocument(JSON.parse(await readFile(resolve("public/services.json"), "utf8")));
 const ORIGIN = process.env.PROBE_ORIGIN || "https://tahafurkanozbay-star.github.io";
 const TIMEOUT_MS = 12_000;
 const CONCURRENCY = 4;
 
-function addQuery(url, params) {
+function addQuery(url: string, params: QueryParameters) {
   const target = new URL(url);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) target.searchParams.set(key, String(value));
@@ -17,7 +19,7 @@ function addQuery(url, params) {
   return target.toString();
 }
 
-function isRuntimeTucbsService(service) {
+function isRuntimeTucbsService(service: RawServiceDefinition) {
   try {
     const target = new URL(service.tokenUrl);
     return target.hostname.toLowerCase() === "ucbp-api.tucbs.gov.tr" && target.pathname.startsWith("/__runtime__/");
@@ -26,7 +28,7 @@ function isRuntimeTucbsService(service) {
   }
 }
 
-async function request(url, accept = "*/*") {
+async function request(url: string, accept = "*/*"): Promise<HealthProbeResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const started = performance.now();
@@ -50,7 +52,7 @@ async function request(url, accept = "*/*") {
       cors: corsAllowed(response.headers.get("access-control-allow-origin"))
     };
   } catch (error) {
-    const code = error?.cause?.code ? String(error.cause.code) : "";
+    const code = networkErrorCode(error);
     return {
       ok: false,
       status: 0,
@@ -65,15 +67,15 @@ async function request(url, accept = "*/*") {
   }
 }
 
-function corsAllowed(value) {
+function corsAllowed(value: string | null) {
   return value === "*" || value === ORIGIN;
 }
 
-function serviceException(text) {
+function serviceException(text: string) {
   return /ServiceException|ExceptionReport|ExceptionText|ows:Exception/i.test(text);
 }
 
-function classifyNetworkFailure(result, stage) {
+function classifyNetworkFailure(result: HealthProbeResponse, stage: string): HealthProbeResult {
   if (result.status >= 500) {
     return {
       availability: "unavailable",
@@ -101,7 +103,7 @@ function classifyNetworkFailure(result, stage) {
   };
 }
 
-function successClassification(result, reason) {
+function successClassification(result: HealthProbeResponse, reason: string): HealthProbeResult {
   if (result.cors) {
     return {
       availability: "verified",
@@ -120,7 +122,7 @@ function successClassification(result, reason) {
   };
 }
 
-async function probeWms(service) {
+async function probeWms(service: RawServiceDefinition): Promise<HealthProbeResult> {
   const caps = await request(
     addQuery(service.tokenUrl, { SERVICE: "WMS", VERSION: "1.3.0", REQUEST: "GetCapabilities" }),
     "application/xml,text/xml,*/*"
@@ -130,7 +132,7 @@ async function probeWms(service) {
   return successClassification(caps, `WMS GetCapabilities başarılı · ${caps.ms} ms`);
 }
 
-async function probeWfs(service) {
+async function probeWfs(service: RawServiceDefinition): Promise<HealthProbeResult> {
   const caps = await request(
     addQuery(service.tokenUrl, { SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetCapabilities" }),
     "application/xml,text/xml,*/*"
@@ -140,7 +142,7 @@ async function probeWfs(service) {
   return successClassification(caps, `WFS GetCapabilities başarılı · ${caps.ms} ms`);
 }
 
-async function probeArcGis(service) {
+async function probeArcGis(service: RawServiceDefinition): Promise<HealthProbeResult> {
   let probeUrl = addQuery(service.tokenUrl, { f: "json" });
   let stage = "ArcGIS metadata";
 
@@ -159,10 +161,8 @@ async function probeArcGis(service) {
   const result = await request(probeUrl, "application/json,*/*");
   if (!result.ok) return classifyNetworkFailure(result, stage);
 
-  let data;
-  try {
-    data = JSON.parse(result.text);
-  } catch {
+  const data = parseRemoteMetadata(result.text);
+  if (!data) {
     return {
       availability: "unavailable",
       access: "server-error",
@@ -195,12 +195,12 @@ async function probeArcGis(service) {
   return successClassification(result, `${stage} başarılı · ${result.ms} ms`);
 }
 
-async function probe(service, index) {
+async function probe(service: RawServiceDefinition, index: number): Promise<ServiceVerificationEntry> {
   if (isRuntimeTucbsService(service)) {
     return {
       index,
       name: service.cografiVeriKatmanAdi,
-      kind: service.servisTuruAdi,
+      kind: service.servisTuruAdi as ServiceVerificationEntry["kind"],
       availability: "unknown",
       access: "network-restricted",
       browserCompatible: null,
@@ -216,16 +216,16 @@ async function probe(service, index) {
   return {
     index,
     name: service.cografiVeriKatmanAdi,
-    kind: service.servisTuruAdi,
+    kind: service.servisTuruAdi as ServiceVerificationEntry["kind"],
     ...result
   };
 }
 
-function probeLane(service) {
+function probeLane(service: RawServiceDefinition) {
   return providerLaneKey(service.tokenUrl, service.servisTuruAdi);
 }
 
-function probeLaneLimit(service) {
+function probeLaneLimit(service: RawServiceDefinition) {
   if (service.servisTuruAdi === "WMS" || service.servisTuruAdi === "WFS") return 1;
   return providerRouteClass(service.tokenUrl, service.servisTuruAdi) === "arcgis-sharing-proxy" ? 1 : 2;
 }

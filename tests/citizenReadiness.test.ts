@@ -54,6 +54,7 @@ describe("citizen readiness", () => {
 
   it("keeps hidden failures out of the citizen workspace status", () => {
     const render: LayerRenderHealthSnapshot = {
+      visible: { state: "ready", updatedAt: 1 },
       hidden: { state: "failed", updatedAt: 1 }
     };
     const result = deriveCitizenReadiness([
@@ -62,6 +63,13 @@ describe("citizen readiness", () => {
     ], render, true);
     expect(result.tone).toBe("ready");
     expect(result.failed).toBe(0);
+  });
+
+  it("waits for a LayerView signal even after metadata loading succeeds", () => {
+    const result = deriveCitizenReadiness([service("a")], {}, true);
+    expect(result.tone).toBe("loading");
+    expect(result.renderPending).toBe(1);
+    expect(result.renderReady).toBe(0);
   });
 
   it("provides an actionable idle state when no layers are open", () => {

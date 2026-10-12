@@ -45,7 +45,11 @@ export function deriveCitizenReadiness(
 
   for (const service of visible) {
     const state = renderHealth[service.id]?.state;
-    if (!state) continue;
+    if (!state) {
+      // Metadata success is not evidence that the layer has reached the screen.
+      if (service.status !== "error") renderPending += 1;
+      continue;
+    }
     if (state === "ready") renderReady += 1;
     else if (state === "failed") renderFailedIds.add(service.id);
     else renderPending += 1;
