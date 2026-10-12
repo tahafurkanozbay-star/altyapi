@@ -5,6 +5,7 @@ import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import type Basemap from "@arcgis/core/Basemap.js";
 import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
 import { waitForComponentReady } from "./componentReadiness";
+import { SDK_REQUEST_TIMEOUT_MS } from "./requestTiming";
 import { BASEMAP_OPTIONS, supportedBasemapId, type BasemapId } from "../lib/basemaps";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
@@ -216,7 +217,7 @@ export class ArcGISRuntime {
     ]);
     if (this.destroyed) return;
 
-    config.request.timeout = 60_000;
+    config.request.timeout = SDK_REQUEST_TIMEOUT_MS;
     container.replaceChildren();
 
     const scene = document.createElement("arcgis-scene") as unknown as ArcGISSceneElement;

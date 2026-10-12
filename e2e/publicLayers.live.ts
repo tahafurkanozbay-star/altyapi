@@ -83,7 +83,9 @@ test("production scene renders all public layers and reopens cached layers", asy
     const toggle = card.locator(".visibility-button");
     const started = Date.now();
     await toggle.click();
-    await expect(card).toHaveAttribute("data-render-state", "ready");
+    // Allow the SDK's 60s network deadline plus bounded render recovery. The
+    // assertions still require the real layer to become usable and drawable.
+    await expect(card).toHaveAttribute("data-render-state", "ready", { timeout: 90_000 });
     await expect(card).not.toHaveClass(/status-error/);
     await expectCurrentSceneScale(page);
     const firstReadyMs = Date.now() - started;

@@ -166,7 +166,10 @@ describe("LayerView provider-scale watchdog", () => {
   it("defers destructive recycle while the startup scene is still updating", () => {
     expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 26_000)).toBe(true);
     expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 44_999)).toBe(true);
-    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 45_000)).toBe(false);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 46_000)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 59_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 64_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 65_000)).toBe(false);
   });
 
   it("extends recovery grace under real main-thread pressure but keeps it bounded", () => {

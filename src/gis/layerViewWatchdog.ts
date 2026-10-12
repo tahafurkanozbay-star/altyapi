@@ -2,6 +2,7 @@ import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
 import { runtimeScaleRangeFromLoadedLayer } from "../lib/runtimeScale";
 import { getRuntimePressureSnapshot, type RuntimePressureLevel } from "../platform/runtimePressure";
 import { FirstRenderProbe, waitForRenderFrames } from "./firstRenderProbe";
+import { SCENE_REQUEST_GRACE_MS } from "./requestTiming";
 import {
   ATOMIC_LAYER_ACTIVATION_EVENT,
   isAtomicLayerActivationPending
@@ -16,7 +17,6 @@ const MAX_LAYER_VIEW_RECYCLES = 2;
 const LAYER_VIEW_RECYCLE_DELAYS_MS = [320, 900] as const;
 const DEFAULT_RENDER_STALL_TIMEOUT_MS = 25_000;
 const STALL_PRESSURE_RECHECK_MS = 2_000;
-const SCENE_UPDATE_GRACE_MS = 45_000;
 const MAX_STALL_GRACE_MS = 90_000;
 
 type Removable = { remove(): void };
@@ -231,7 +231,7 @@ export function shouldDeferLayerViewRecovery(
 ): boolean {
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= MAX_STALL_GRACE_MS) return false;
   if (scene.stationary === false || pressureLevel !== "normal") return true;
-  return scene.updating === true && elapsedMs < SCENE_UPDATE_GRACE_MS;
+  return scene.updating === true && elapsedMs < SCENE_REQUEST_GRACE_MS;
 }
 
 export function layerViewRecoveryDelayMs(attempt: number): number {

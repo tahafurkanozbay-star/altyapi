@@ -51,4 +51,26 @@ describe("LayerView recovery ownership", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(scene.map.remove).not.toHaveBeenCalled();
   });
+
+  it("lets an in-flight export finish before the SDK request deadline", async () => {
+    Object.assign(scene, { stationary: true, updating: true });
+    const layerView = {
+      layer: { id: "svc-plan", type: "map-image", visible: true },
+      visible: true, visibleAtCurrentScale: true, suspended: false, updating: true
+    };
+    const phases: string[] = [];
+    window.addEventListener("altyapi:layerview-health", (event) => {
+      phases.push((event as CustomEvent<{ phase: string }>).detail.phase);
+    });
+    doc.dispatchEvent(new CustomEvent("arcgisViewLayerviewCreate", { detail: { layerView } }));
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(scene.map.remove).not.toHaveBeenCalled();
+    layerView.updating = false;
+    Object.assign(scene, { updating: false });
+    doc.dispatchEvent(new CustomEvent("arcgisViewChange"));
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(phases).toContain("stable");
+    expect(phases).not.toContain("recycle-attempt");
+    expect(scene.map.remove).not.toHaveBeenCalled();
+  });
 });

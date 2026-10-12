@@ -8,6 +8,8 @@ Bu kontrol yeni bir uzak servis sorgusu başlatmaz. Her katman için aynı kapsa
 
 Kurtarma zamanlayıcıları gözlemci kapatıldığında temizlenir. Katman map remove/add arasında kullanıcı tarafından kapatılırsa önbellekteki örnek aynı sıraya, görünürlüğü kapalı olarak geri bağlanır. Yetki hataları tekrar oluşturma döngüsüne girmez. Harici servis ve cihaz performansı için sabit açılış süresi taahhüt edilmez.
 
+Scene hâlâ güncellenirken kurtarma, SDK'nın 60 saniyelik ağ isteği süresini ve 5 saniyelik tamamlanma payını dikkate alır. Böylece yavaş bir export isteği 45 saniyede gereksiz yere iptal edilmez. Basınç/navigasyon için toplam kurtarma beklemesi yine 90 saniyeyle sınırlıdır; normal, durulmuş bir görünümde takılan çizim mevcut tür bazlı süreyle kurtarılır.
+
 ## Harita araçları
 
 Sekiz araç ortak Türkçe adlar ve araca özel kullanım yönergeleri kullanır. Pencere yüklenme, hazır ve hata durumlarını gösterir; hata durumunda aynı araç yeniden denenebilir. SDK `arcgisReady` dinleyicisi bağlantı kurulmadan önce eklenir. Pencere kapanınca bekleme iptal edilir; geç gelen modül eski pencereye eklenmez. Hazırlanmayan bileşen 15 saniye sonunda temizlenir ve yeniden deneme sunulur.
