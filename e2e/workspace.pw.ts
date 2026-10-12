@@ -123,6 +123,10 @@ test("failed map tools explain recovery and can be retried", async ({ page }, in
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+  if (info.project.name === "mobile") {
+    const footer = await page.locator(".status-bar").boundingBox();
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(footer!.y);
+  }
   await page.screenshot({ path: info.outputPath("tool-recovery.png"), animations: "disabled" });
   await page.getByRole("button", { name: "Aracı yeniden dene", exact: true }).click();
   await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "ready");

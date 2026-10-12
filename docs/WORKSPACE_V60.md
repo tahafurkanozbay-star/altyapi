@@ -12,6 +12,8 @@ Kurtarma zamanlayıcıları gözlemci kapatıldığında temizlenir. Katman map 
 
 Sekiz araç ortak Türkçe adlar ve araca özel kullanım yönergeleri kullanır. Pencere yüklenme, hazır ve hata durumlarını gösterir; hata durumunda aynı araç yeniden denenebilir. SDK `arcgisReady` dinleyicisi bağlantı kurulmadan önce eklenir. Pencere kapanınca bekleme iptal edilir; geç gelen modül eski pencereye eklenmez. Hazırlanmayan bileşen 15 saniye sonunda temizlenir ve yeniden deneme sunulur.
 
+Telefonda araç ve ayrıntı pencereleri alt araç çubuğu, durum çubuğu ve cihazın güvenli alanı için boşluk bırakır; yeniden deneme düğmesi durum çubuğunun arkasında kalmaz.
+
 Altlık galerisindeki altı seçenek, üst bölüm, yer imleri ve paylaşım tercihleriyle aynı sözleşmeyi kullanmaya devam eder. Kesit, görüş hattı ve gölge araçları için veri gereksinimleri yönergede açıklanır.
 
 ## Teknoloji ve doğrulama
