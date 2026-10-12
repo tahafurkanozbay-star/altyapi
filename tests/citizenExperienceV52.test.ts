@@ -29,7 +29,8 @@ describe("v52 accessible interaction contract", () => {
 
     expect(guard).toContain("resolveCitizenShortcut");
     expect(guard).toContain("CITIZEN_SHORTCUTS.find");
-    expect(supervisor).toContain("LEGACY_SINGLE_KEYS");
+    expect(supervisor).toContain("shouldSuppressAppSingleKeyShortcut");
+    expect(guard).toContain("APP_SINGLE_KEY_SHORTCUTS");
     expect(supervisor).toContain("stopImmediatePropagation");
     expect(CITIZEN_SHORTCUTS.map((item) => item.command)).toEqual([
       "layers", "data", "home", "focus-mode", "search", "help", "fullscreen"
