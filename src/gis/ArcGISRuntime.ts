@@ -254,6 +254,8 @@ export class ArcGISRuntime {
     }
 
     this.map = map;
+    const basemapId = supportedBasemapId(basemap);
+    if (basemapId && map.basemap) this.retainBasemapIdentity(map.basemap, basemapId);
     this.installSceneEvents();
   }
 
@@ -612,7 +614,10 @@ export class ArcGISRuntime {
   }
 
   setBasemap(basemap: string): void {
-    if (this.scene && !this.destroyed) this.scene.basemap = basemap;
+    if (!this.scene || this.destroyed) return;
+    this.scene.basemap = basemap;
+    const id = supportedBasemapId(basemap);
+    if (id && this.map?.basemap) this.retainBasemapIdentity(this.map.basemap, id);
   }
 
   setPerformanceProfile(profile: PerformanceProfile): void {
@@ -1285,7 +1290,7 @@ export class ArcGISRuntime {
         properties.source = BASEMAP_OPTIONS.map(([id, title]) => {
           const basemap = Basemap.fromId(id);
           if (!basemap) throw new Error(`Harita görünümü hazırlanamadı: ${title}`);
-          basemap.title = title;
+          this.retainBasemapIdentity(basemap, id);
           return basemap;
         });
         tagName = "arcgis-basemap-gallery";
@@ -1334,6 +1339,19 @@ export class ArcGISRuntime {
       const id = supportedBasemapId(component.activeBasemap);
       if (id) this.callbacks.onBasemapChange?.(id);
     });
+  }
+
+  private retainBasemapIdentity(basemap: Basemap, id: BasemapId): void {
+    const title = BASEMAP_OPTIONS.find(([candidate]) => candidate === id)?.[1] ?? id;
+    const applyIdentity = () => {
+      basemap.id = id;
+      basemap.title = title;
+    };
+    applyIdentity();
+    // fromId may generate a model ID and then overwrite its title from remote
+    // metadata. Keep the app's stable choices after both successful and failed
+    // loads; the SDK still retains and displays its actual load status/error.
+    void basemap.load().then(applyIdentity, applyIdentity);
   }
 
   async recoverGraphics(): Promise<boolean> {

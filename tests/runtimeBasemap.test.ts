@@ -52,4 +52,28 @@ describe("basemap selection", () => {
     change();
     expect(onBasemapChange).not.toHaveBeenCalled();
   });
+
+  it("restores the canonical ID and label after SDK metadata overwrites them", async () => {
+    const runtime = new ArcGISRuntime("eco");
+    let resolve!: () => void;
+    const loaded = new Promise<void>((done) => { resolve = done; });
+    const basemap = { id: "generated-id", title: "Basemap", load: () => loaded };
+    (runtime as unknown as { retainBasemapIdentity(model: unknown, id: string): void }).retainBasemapIdentity(basemap, "topo-vector");
+    expect(basemap).toMatchObject({ id: "topo-vector", title: "Topoğrafik" });
+    basemap.id = "server-id";
+    basemap.title = "Topografik";
+    resolve();
+    await loaded;
+    expect(basemap).toMatchObject({ id: "topo-vector", title: "Topoğrafik" });
+  });
+
+  it("keeps stable choices without hiding a failed SDK load", async () => {
+    const runtime = new ArcGISRuntime("eco");
+    const loaded = Promise.reject(new Error("provider unavailable"));
+    const basemap = { id: "generated-id", title: "Basemap", loadStatus: "failed", load: () => loaded };
+    (runtime as unknown as { retainBasemapIdentity(model: unknown, id: string): void }).retainBasemapIdentity(basemap, "hybrid");
+    basemap.title = "Etiketli Görüntüler";
+    await loaded.catch(() => undefined);
+    expect(basemap).toMatchObject({ id: "hybrid", title: "Hibrit", loadStatus: "failed" });
+  });
 });

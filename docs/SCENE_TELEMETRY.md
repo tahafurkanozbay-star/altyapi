@@ -35,3 +35,8 @@ beslenir. Galerideki seçim üst menü, yer imi/paylaşım için kullanılan uyg
 durumu ve kalıcı tercihle eşlenir. Kapanmış galeriden gelen geç olaylar dikkate
 alınmaz. Canlı test gerçek Topoğrafik seçimini, Scene basemap'ini, tercihin
 kaydedilmesini ve üst menüden Hibrit'e dönüşün galeriye yansımasını doğrular.
+
+SDK'nın `fromId` ile oluşturduğu model kimliği uygulamadaki seçim anahtarıyla
+aynı olmayabilir; uzaktaki metadata da model başlığını değiştirebilir.
+Uygulamanın altı kimliği ve Türkçe adları ilk hazırlıkta ve metadata yüklemesi
+sonrasında korunur. Modelin gerçek yükleme/hata durumu değişmez.
