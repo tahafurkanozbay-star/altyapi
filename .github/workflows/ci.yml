@@ -27,5 +27,30 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run check
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Probe public providers without protected TUCBS credentials
+        run: npm run probe:services && npm run validate:health && npm run audit:scales && npm run validate:scale-audit && npm run summary:observability >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-and-service-verification
+          path: |
+            playwright-report/
+            test-results/
+            public/service-health.json
+            service-scale-audit.json
+          retention-days: 7

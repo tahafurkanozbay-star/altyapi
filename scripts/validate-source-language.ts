@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 
-const ROOTS = ["src", "scripts", "tests"] as const;
+const ROOTS = ["src", "scripts", "tests", "e2e"] as const;
 const FORBIDDEN_EXECUTABLE_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
 const TYPESCRIPT_EXTENSIONS = new Set([".ts", ".tsx"]);
 

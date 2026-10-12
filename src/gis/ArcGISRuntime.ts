@@ -1,8 +1,10 @@
 import type Layer from "@arcgis/core/layers/Layer.js";
 import type ArcGISMap from "@arcgis/core/Map.js";
 import type Camera from "@arcgis/core/Camera.js";
+import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
+import { LayerIntentTracker } from "../lib/layerIntent";
 import { normalizeAttributeValue } from "../lib/attributeTable";
 import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
 import {
@@ -85,6 +87,7 @@ type ArcGISSceneElement = HTMLElement & {
   cameraHeading?: number;
   qualityProfile?: "low" | "medium" | "high";
   environment?: unknown;
+  spatialReference?: SpatialReference;
   popupDisabled?: boolean;
   map?: ArcGISMap | null;
   scale?: number;
@@ -164,6 +167,8 @@ export class ArcGISRuntime {
   private readonly runtimeScaleServices = new Map<string, ServiceDefinition>();
   private readonly deferredActivationNavigations = new Map<string, DeferredActivationNavigation>();
   private activeWidget?: ArcGISComponentElement;
+  private toolGeneration = 0;
+  private readonly visibilityIntents = new LayerIntentTracker();
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
   private handles: Removable[] = [];
@@ -193,8 +198,9 @@ export class ArcGISRuntime {
     this.destroyed = false;
     this.callbacks = callbacks;
 
-    const [{ default: config }] = await Promise.all([
+    const [{ default: config }, { default: SpatialReference }] = await Promise.all([
       import("@arcgis/core/config.js"),
+      import("@arcgis/core/geometry/SpatialReference.js"),
       import("@arcgis/map-components/components/arcgis-scene")
     ]);
     if (this.destroyed) return;
@@ -209,6 +215,7 @@ export class ArcGISRuntime {
     scene.basemap = basemap;
     scene.ground = "world-elevation";
     scene.viewingMode = "local";
+    scene.spatialReference = new SpatialReference({ wkid: 3857 });
     scene.cameraPosition = `${camera.longitude}, ${camera.latitude}, ${camera.z}`;
     scene.cameraHeading = camera.heading;
     scene.cameraTilt = camera.tilt;
@@ -219,7 +226,7 @@ export class ArcGISRuntime {
     container.append(scene);
     this.scene = scene;
     if (!scene.viewOnReady) throw new Error("ArcGIS Scene bileşeni viewOnReady API'sini sunmuyor.");
-    await scene.viewOnReady();
+    await withTimeout(scene.viewOnReady(), 30_000, "3B haritanın hazırlanması");
 
     if (this.destroyed) {
       scene.remove();
@@ -299,6 +306,7 @@ export class ArcGISRuntime {
       return { ok: false, error: "Harita motoru henüz hazır değil." };
     }
 
+    this.visibilityIntents.begin(service.id);
     this.desiredVisibility.set(service.id, visible);
 
     if (!visible) {
@@ -430,6 +438,7 @@ export class ArcGISRuntime {
 
   async reloadLayer(service: ServiceDefinition): Promise<LayerLoadResult> {
     if (this.destroyed) return { ok: false, error: "Harita oturumu kapatıldı." };
+    const intent = this.visibilityIntents.begin(service.id);
 
     this.releaseDeferredActivation(service.id);
     this.setScaleGuard(service, false);
@@ -437,6 +446,9 @@ export class ArcGISRuntime {
     this.desiredVisibility.set(service.id, false);
     const inFlight = this.loadingLayers.get(service.id);
     if (inFlight) await inFlight.catch(() => undefined);
+    if (this.destroyed || !this.visibilityIntents.isCurrent(service.id, intent)) {
+      return { ok: true, superseded: true };
+    }
 
     const existing = this.layers.get(service.id);
     if (existing) {
@@ -605,11 +617,18 @@ export class ArcGISRuntime {
   async openTool(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<void> {
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
     this.closeTool();
+    const generation = this.toolGeneration;
     container.replaceChildren();
-    this.activeWidget = await this.createToolWidget(tool, container);
+    const widget = await this.createToolWidget(tool, container);
+    if (this.destroyed || generation !== this.toolGeneration || !container.isConnected) {
+      this.disposeComponent(widget);
+      return;
+    }
+    this.activeWidget = widget;
   }
 
   closeTool(): void {
+    this.toolGeneration += 1;
     this.disposeComponent(this.activeWidget);
     this.activeWidget = undefined;
   }

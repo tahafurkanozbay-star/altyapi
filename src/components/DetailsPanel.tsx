@@ -13,12 +13,12 @@ export function DetailsPanel({ result, onClose }: { result: IdentifyResult | nul
         </div>
         <button type="button" className="icon-ghost" onClick={onClose} aria-label="Detayları kapat"><Icon name="close" /></button>
       </div>
-      <div className="details-grid">
+      <dl className="details-grid">
         {result.attributes.length === 0 && <div className="empty-state compact">Öznitelik bulunamadı.</div>}
         {result.attributes.map((item) => (
           <div key={item.key}><dt>{item.key}</dt><dd>{item.value}</dd></div>
         ))}
-      </div>
+      </dl>
     </aside>
   );
 }

@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: Refresh sanitized service health snapshot
         run: npm run probe:services
       - run: npm run check

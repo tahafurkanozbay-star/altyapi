@@ -25,7 +25,11 @@ for (const source of localScripts) {
   }
 }
 
-for (const required of ["services.json", "service-health.json", "service-navigation.json", "manifest.webmanifest", "favicon.svg", "sw.js", "health.html"]) {
+for (const required of ["services.json", "service-health.json", "service-navigation.json", "manifest.webmanifest", "favicon.svg", "sw.js", "health.html",
+  "sdk-assets/core/esri/core/workers/RemoteClient.js",
+  "sdk-assets/map/assets/search/t9n/messages.tr.json",
+  "sdk-assets/calcite/assets/icon/x24.json"
+]) {
   try {
     await access(resolve(dist, required));
   } catch {

@@ -3,6 +3,8 @@ import { ArcGISRuntime } from "./gis/ArcGISRuntime";
 import { LayerLoadScheduler, type LayerLoadPriority } from "./gis/layerLoadScheduler";
 import { loadServiceCatalog } from "./lib/catalog";
 import { detectPerformanceProfile } from "./lib/performance";
+import { LayerIntentTracker } from "./lib/layerIntent";
+import { chooseStartupLayers } from "./lib/startupLayers";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
 import { appendIncident, createIncident, loadIncidentJournal, type IncidentInput } from "./lib/incidentJournal";
@@ -71,7 +73,7 @@ export default function App() {
   const [identify, setIdentify] = useState<IdentifyResult | null>(null);
   const [telemetry, setTelemetry] = useState<SceneTelemetry>({ altitude: DEFAULT_CAMERA.z, tilt: DEFAULT_CAMERA.tilt, heading: DEFAULT_CAMERA.heading });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [mobilePanelsVisible, setMobilePanelsVisible] = useState(true);
+  const [mobilePanelsVisible, setMobilePanelsVisible] = useState(() => !window.matchMedia("(max-width: 760px)").matches);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
@@ -83,6 +85,7 @@ export default function App() {
   const runtimeRef = useRef<ArcGISRuntime | null>(null);
   const navigationCleanupRef = useRef<(() => void) | null>(null);
   const servicesRef = useRef<ServiceDefinition[]>([]);
+  const layerIntents = useRef(new LayerIntentTracker());
   const incidentsRef = useRef<RuntimeIncident[]>(loadIncidentJournal());
 
   const shellMetrics = useMemo(() => ({
@@ -169,7 +172,7 @@ export default function App() {
         const healthCatalog = applyServiceHealthSnapshot(catalog, healthSnapshot);
         const enrichedCatalog = applyServiceNavigationSnapshot(healthCatalog, navigationSnapshot);
         let suppressedRestores = 0;
-        const restored = enrichedCatalog.map((service) => {
+        const requested = enrichedCatalog.map((service) => {
           const requestedVisible = sharedLayers
             ? sharedLayers.has(service.id)
             : (initialPreferences.layerVisibility[service.id] ?? false);
@@ -183,13 +186,7 @@ export default function App() {
           };
         });
 
-        if (!restored.some((service) => service.visible)) {
-          const preferred = [
-            restored.find((service) => service.kind === "SceneServer" && shouldAutoLoadService(service)),
-            restored.find((service) => service.kind === "FeatureServer" && shouldAutoLoadService(service))
-          ].filter(Boolean) as ServiceDefinition[];
-          for (const service of preferred) service.visible = true;
-        }
+        const restored = chooseStartupLayers(requested, Boolean(share) || Object.keys(initialPreferences.layerVisibility).length > 0);
 
         const allServiceIds = restored.map((service) => service.id);
         const restoredOrder = share
@@ -230,8 +227,10 @@ export default function App() {
           return;
         }
 
-        if (searchRef.current) await runtime.mountSearch(searchRef.current);
-        if (navigationRef.current) navigationCleanupRef.current = await runtime.mountNavigation(navigationRef.current);
+        await Promise.all([
+          searchRef.current ? runtime.mountSearch(searchRef.current) : Promise.resolve(),
+          navigationRef.current ? runtime.mountNavigation(navigationRef.current).then((cleanup) => { navigationCleanupRef.current = cleanup; }) : Promise.resolve()
+        ]);
         if (cancelled) {
           runtime.destroy();
           return;
@@ -241,6 +240,7 @@ export default function App() {
         await runtime.withLayerActivationBatch(async () => {
           await Promise.all(restored.filter((service) => service.visible).map(async (service) => {
             if (cancelled) return;
+            const intent = layerIntents.current.begin(service.id);
             patchService(service.id, { status: "loading" });
             const result = await layerLoadScheduler.schedule(
               service,
@@ -248,7 +248,7 @@ export default function App() {
               () => runtime.setLayerVisible(service, true),
               { ok: true, superseded: true }
             );
-            if (result.superseded) return;
+            if (cancelled || result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
             patchService(
               service.id,
               result.ok
@@ -317,6 +317,8 @@ export default function App() {
     const runtime = runtimeRef.current;
     if (!runtime) return;
 
+    const intent = layerIntents.current.begin(service.id);
+
     if (visible) patchService(service.id, { visible: true, status: "loading", error: undefined });
     else patchService(service.id, { visible: false });
 
@@ -334,7 +336,7 @@ export default function App() {
       result = await runtime.setLayerVisible(targetService, false);
     }
 
-    if (result.superseded) return;
+    if (result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? {
           ...(visible ? successPatch(result.durationMs) : {}),
@@ -420,6 +422,7 @@ export default function App() {
   const retryLayer = useCallback(async (service: ServiceDefinition) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
+    const intent = layerIntents.current.begin(service.id);
     patchService(service.id, { visible: true, status: "loading", error: undefined });
     const retryService = { ...service, visible: true };
     const result = await layerLoadScheduler.schedule(
@@ -428,7 +431,7 @@ export default function App() {
       () => runtime.reloadLayer(retryService),
       { ok: true, superseded: true }
     );
-    if (result.superseded) return;
+    if (result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? { ...successPatch(result.durationMs), visible: true }
       : failurePatch(service, result.error, result.durationMs);
@@ -469,9 +472,10 @@ export default function App() {
   }, [recordIncident]);
 
   const selectPanel = useCallback((nextPanel: Exclude<PanelId, null>) => {
-    setPanel((current) => current === nextPanel ? null : nextPanel);
+    const hiddenOnMobile = window.matchMedia("(max-width: 760px)").matches && !mobilePanelsVisible;
+    setPanel((current) => current === nextPanel && !hiddenOnMobile ? null : nextPanel);
     setMobilePanelsVisible(true);
-  }, []);
+  }, [mobilePanelsVisible]);
 
   const selectTool = useCallback((tool: Exclude<ToolId, null>) => {
     setActiveTool((current) => current === tool ? null : tool);
@@ -705,7 +709,10 @@ export default function App() {
         <button
           type="button"
           className="mobile-menu"
-          onClick={() => setMobilePanelsVisible((value) => !value)}
+          onClick={() => {
+            if (!panel) { setPanel("layers"); setMobilePanelsVisible(true); }
+            else setMobilePanelsVisible((value) => !value);
+          }}
           aria-label="Katman ve araç panelini aç veya kapat"
           aria-controls="kent-rehberi-panels"
           aria-expanded={Boolean(panel && mobilePanelsVisible)}
@@ -716,7 +723,7 @@ export default function App() {
           <div className="brand-symbol"><span>3B</span><i /></div>
           <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi · 3B Kent Haritası</span></div>
         </div>
-        <div className={`live-chip ${online ? "" : "is-offline"}`} role="status" aria-live="polite" title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "CANLI HARİTA" : "ÇEVRİMDIŞI"}</div>
+        <div className={`live-chip ${online ? "" : "is-offline"}`} role="status" aria-live="polite" title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "ÇEVRİMİÇİ" : "ÇEVRİMDIŞI"}</div>
         <div className="workspace-summary" role="group" aria-label="Katman çalışma özeti">
           <span><strong>{shellMetrics.active}</strong> açık</span>
           {shellMetrics.loading > 0 && <span className="is-loading"><strong>{shellMetrics.loading}</strong> hazırlanıyor</span>}
@@ -732,7 +739,7 @@ export default function App() {
         </div>
       </header>
 
-      <div ref={navigationRef} className="arcgis-navigation" aria-label="Harita yakınlaştırma ve yön kontrolleri" />
+      <nav ref={navigationRef} className="arcgis-navigation" aria-label="Harita yakınlaştırma ve yön kontrolleri" />
 
       <ToolRail
         activePanel={panel}
@@ -743,11 +750,11 @@ export default function App() {
         onScreenshot={() => void takeScreenshot()}
       />
 
-      <div id="kent-rehberi-panels" className={`panel-zone ${mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri" tabIndex={-1}>
+      <div id="kent-rehberi-panels" className={`panel-zone ${panel && mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri" tabIndex={-1}>
         <ViewTransition name="workspace-panel">
           {panel === "layers" ? (
             <aside className="main-panel" key="layers" aria-label="Katmanlar paneli">
-              <button type="button" className="mobile-panel-close" onClick={() => setMobilePanelsVisible(false)} aria-label="Katmanlar panelini kapat"><Icon name="close" /></button>
+              <button type="button" className="mobile-panel-close" data-panel-close onClick={() => setPanel(null)} aria-label="Katmanlar panelini kapat"><Icon name="close" /></button>
               <LayerExplorer
                 services={services}
                 currentScale={telemetry.scale}

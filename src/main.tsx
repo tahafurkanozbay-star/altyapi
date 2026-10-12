@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import "./platform/sdkAssets";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { PlatformStatusHost } from "./components/PlatformStatusHost";
@@ -51,7 +52,7 @@ installRuntimePressureMonitor();
 installCitizenKeyboardSupervisor();
 installCitizenExperienceSupervisor();
 installCitizenShellSupervisor();
-document.documentElement.dataset.experience = "v56";
+document.documentElement.dataset.experience = "v57";
 installLayerRenderHealthStore();
 installBrowserServiceHealthMemory();
 installSceneLayerWatchdog();

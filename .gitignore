@@ -8,3 +8,6 @@ dist/
 .env.*
 !.env.example
 coverage/
+public/sdk-assets/
+playwright-report/
+test-results/

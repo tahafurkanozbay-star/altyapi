@@ -1,6 +1,7 @@
-import { memo, useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
+import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
 import { groupServicesInStableOrder } from "../lib/layerOrdering";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import {
@@ -63,6 +64,7 @@ export const LayerExplorer = memo(function LayerExplorer({
   const [availability, setAvailability] = useState<ServiceAvailability | "all">("all");
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const groupsInitialized = useRef(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const renderHealth = useSyncExternalStore(
     subscribeLayerRenderHealth,
@@ -73,6 +75,14 @@ export const LayerExplorer = memo(function LayerExplorer({
   useEffect(() => {
     const visibleIds = new Set(services.filter((service) => service.visible).map((service) => service.id));
     pruneLayerRenderHealth(visibleIds);
+  }, [services]);
+
+  useEffect(() => {
+    if (!services.length || groupsInitialized.current) return;
+    groupsInitialized.current = true;
+    setCollapsedGroups(new Set(groupServicesInStableOrder(services)
+      .filter(([, items]) => items.every((service) => isUnconfiguredTucbsUrl(service.url)))
+      .map(([organization]) => organization)));
   }, [services]);
 
   const filtered = useMemo(() => services.filter((service) => {
@@ -136,13 +146,14 @@ export const LayerExplorer = memo(function LayerExplorer({
     if (errors.length === 0 || bulkBusy) return;
     setBulkBusy(true);
     try {
-      for (const service of errors) await retryService(service);
+      await Promise.all(errors.map(retryService));
     } finally {
       setBulkBusy(false);
     }
   };
 
-  const actionableErrors = metrics.error + metrics.renderFailed;
+  const actionableErrors = services.filter((service) => isRetryableFailure(service, renderHealth[service.id])).length;
+  const restricted = services.filter((service) => service.access === "network-restricted" || isUnconfiguredTucbsUrl(service.url)).length;
 
   return (
     <section className="panel-content layer-explorer" aria-label="Harita katmanları" aria-busy={bulkBusy}>
@@ -150,18 +161,18 @@ export const LayerExplorer = memo(function LayerExplorer({
         <div>
           <span className="eyebrow">HARİTA KATMANLARI</span>
           <h2>Katmanlar</h2>
-          <p>Görmek istediğiniz verileri açın; uygun konum ve zoom gerektiğinde otomatik ayarlanır.</p>
+          <p>Bir katman açın, haritada inceleyin. Konum ve ölçek otomatik ayarlanır.</p>
         </div>
         <div className="metric-badge" aria-label={`${metrics.active} açık katman`}><strong>{metrics.active}</strong><span>açık</span></div>
       </div>
 
       <div className="catalog-overview catalog-overview-v9" aria-label="Katman özeti">
         <div className="catalog-stat is-active"><strong>{metrics.active}</strong><span>Açık</span></div>
-        <div className="catalog-stat is-ready"><strong>{metrics.verified}</strong><span>Erişilebilir</span></div>
-        <div className={`catalog-stat ${metrics.degraded ? "is-warn" : ""}`}><strong>{metrics.degraded}</strong><span>Kısıtlı</span></div>
-        <div className={`catalog-stat ${metrics.unavailable ? "is-error" : ""}`}><strong>{metrics.unavailable}</strong><span>Sorunlu</span></div>
+        <div className="catalog-stat is-ready"><strong>{metrics.loading}</strong><span>Açılıyor</span></div>
         <div className="catalog-stat"><strong>{services.length}</strong><span>Toplam</span></div>
       </div>
+
+      {restricted > 0 && <p className="catalog-access-note"><Icon name="info" size={16} /><span>{restricted} kurum katmanı için yetkili ağ bağlantısı gerekir. Erişim bilgisi katman ayrıntılarında görünür.</span></p>}
 
       <div className="catalog-actions">
         <button type="button" className="catalog-action" onClick={() => void deactivateVisible()} disabled={metrics.active === 0 || bulkBusy}>
@@ -178,7 +189,8 @@ export const LayerExplorer = memo(function LayerExplorer({
       </div>
 
       {activeStack.length > 0 && (
-        <section className="layer-stack-editor" aria-labelledby="layer-stack-title">
+        <details className="layer-stack-editor">
+          <summary>Çizim sırası <span>{activeStack.length} açık katman</span></summary>
           <div className="layer-stack-heading">
             <div>
               <span className="eyebrow">ÇİZİM SIRASI</span>
@@ -218,7 +230,7 @@ export const LayerExplorer = memo(function LayerExplorer({
               </li>
             ))}
           </ol>
-        </section>
+        </details>
       )}
 
       <label className="search-field">
@@ -234,6 +246,8 @@ export const LayerExplorer = memo(function LayerExplorer({
         {query && <button type="button" className="icon-ghost" onClick={() => setQuery("")} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
       </label>
 
+      <details className="advanced-layer-filters">
+      <summary>Tür ve bağlantı filtreleri {kind !== "all" || availability !== "all" ? <span>Filtre etkin</span> : null}</summary>
       <div className="filter-row" role="group" aria-label="Katman türü filtresi">
         {kinds.map((item) => (
           <button
@@ -268,6 +282,8 @@ export const LayerExplorer = memo(function LayerExplorer({
         ))}
       </div>
 
+      </details>
+
       <div className="toggle-filters">
         <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> <span>Sadece açık</span></label>
         <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> <span>Favoriler</span></label>
@@ -287,7 +303,7 @@ export const LayerExplorer = memo(function LayerExplorer({
           </div>
         )}
         {groups.map(([organization, items]) => {
-          const collapsed = collapsedGroups.has(organization);
+          const collapsed = !deferredQuery && collapsedGroups.has(organization);
           return (
             <section className="layer-group" key={organization}>
               <button
@@ -329,7 +345,7 @@ export const LayerExplorer = memo(function LayerExplorer({
                         onClick={() => void onToggle(service, !service.visible)}
                         aria-label={`${service.displayName} katmanını ${service.visible ? "kapat" : "aç"}`}
                         aria-pressed={service.visible}
-                        disabled={service.status === "loading"}
+                        title={service.status === "loading" ? "Yüklemeyi iptal et" : undefined}
                       >
                         <Icon name={service.visible ? "eye" : "eyeOff"} size={16} />
                       </button>
@@ -339,9 +355,7 @@ export const LayerExplorer = memo(function LayerExplorer({
                         <div className="layer-meta-row">
                           <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{serviceKindLabel(service.kind)}</span>
                           <span className={`status-dot status-${visualStatus}`} aria-hidden="true" />
-                          <span>{statusLabel(service, currentScale, layerRender)}</span>
-                          <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
-                          {service.latencyMs !== undefined && <span className="layer-latency" title={latencyLabel(service.latencyMs)}>{service.latencyMs} ms</span>}
+                          <span role="status" aria-live="polite">{statusLabel(service, currentScale, layerRender)}</span>
                         </div>
                       </div>
 
@@ -357,7 +371,7 @@ export const LayerExplorer = memo(function LayerExplorer({
                     </div>
 
                     <div className="layer-owner-line">
-                      <span>{service.owner}</span>
+                      <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
                       {service.favorite && <em>Favori</em>}
                     </div>
 
@@ -367,7 +381,8 @@ export const LayerExplorer = memo(function LayerExplorer({
                           type="range" min="0" max="1" step="0.05" value={service.opacity}
                           onChange={(event) => onOpacity(service, Number(event.target.value))}
                           disabled={!service.visible}
-                          aria-label={`${service.displayName} saydamlığı`}
+                          aria-label={`${service.displayName} opaklığı`}
+                          aria-valuetext={`Yüzde ${Math.round(service.opacity * 100)} opak`}
                         />
                         <span>{Math.round(service.opacity * 100)}%</span>
                       </div>
@@ -388,6 +403,7 @@ export const LayerExplorer = memo(function LayerExplorer({
                         title="Katman bilgisi"
                         aria-label={`${service.displayName} katman bilgisini ${openInfo === service.id ? "kapat" : "aç"}`}
                         aria-expanded={openInfo === service.id}
+                        aria-controls={`layer-info-${service.id}`}
                       >
                         <Icon name="info" size={15} />
                       </button>
@@ -406,7 +422,7 @@ export const LayerExplorer = memo(function LayerExplorer({
                     </div>
 
                     {openInfo === service.id && (
-                      <div className="layer-info-box" role="region" aria-label={`${service.displayName} ayrıntıları`}>
+                      <div id={`layer-info-${service.id}`} className="layer-info-box" role="region" aria-label={`${service.displayName} ayrıntıları`}>
                         <dl>
                           <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
                           <div><dt>Servis kaynağı</dt><dd>{hostLabel(service.url)}</dd></div>

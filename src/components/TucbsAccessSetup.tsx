@@ -38,6 +38,7 @@ export function TucbsAccessSetupHost() {
 }
 
 export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [remember, setRemember] = useState(true);
@@ -45,7 +46,12 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!open) return null;
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
 
   const applyText = async (value: string) => {
     setBusy(true);
@@ -111,10 +117,14 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
   };
 
   return (
+    <dialog ref={dialogRef} className="tucbs-access-native" aria-labelledby="tucbs-access-title" onCancel={(event) => {
+      event.preventDefault();
+      if (!busy) onClose();
+    }}>
     <div className="tucbs-access-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.currentTarget === event.target && !busy) onClose();
     }}>
-      <section className="tucbs-access-dialog" role="dialog" aria-modal="true" aria-labelledby="tucbs-access-title">
+      <section className="tucbs-access-dialog" aria-labelledby="tucbs-access-title">
         <header>
           <div className="tucbs-access-icon"><Icon name="layers" size={20} /></div>
           <div>
@@ -174,5 +184,6 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
         </footer>
       </section>
     </div>
+    </dialog>
   );
 }

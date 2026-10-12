@@ -15,6 +15,17 @@ Ankara odaklı, vatandaş kullanımına göre sadeleştirilmiş; ArcGIS Maps SDK
 
 Uygulama, worker'lar, testler ve servis bakım/audit araçlarının first-party kaynak kodu tek dilde **TypeScript** olarak tutulur. `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `isolatedModules`, `erasableSyntaxOnly` ve `verbatimModuleSyntax` guardrail'leri aktiftir. ArcGIS'in tarayıcı SDK'sıyla doğal uyumluluğu korumak için Rust/C++ gibi native bir dile köprü eklemek yerine bütün mühendislik yüzeyi strict TypeScript üzerinde standardize edilmiştir.
 
+## Güncel çalışma alanı
+
+v57; etiketli araçlar, sade katman paneli, mobilde doğrudan harita erişimi, iptal edilebilir yükleme, yarış korumaları ve yerel SDK kaynakları sağlar. Ayrıntılar: [WORKSPACE_V57](docs/WORKSPACE_V57.md).
+
+```bash
+npm ci
+npm run dev
+```
+
+Tarayıcı kontrolleri: `npx playwright install chromium` ardından `npm run test:e2e`.
+
 ## v43 vatandaş deneyimi
 
 v43, v42'nin gelişmiş servis/runtime çekirdeğini koruyarak sayfanın tamamını daha anlaşılır ve kullanılabilir hale getirir:
