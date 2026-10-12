@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isLayerViewRenderable,
   isLayerViewRenderStable,
   isLayerViewStalled,
+  layerViewHasRenderableData,
   layerViewRecoveryDelayMs,
   layerViewRecoveryScale,
   layerViewScaleIntersection,
@@ -83,6 +85,35 @@ describe("LayerView provider-scale watchdog", () => {
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, suspended: true, updating: false })).toBe(false);
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: false, updating: false })).toBe(false);
     expect(isLayerViewRenderStable({ visible: false, visibleAtCurrentScale: true, updating: false })).toBe(false);
+  });
+
+  it("treats visible in-scale unsuspended LayerViews as renderable even while background refinement continues", () => {
+    expect(isLayerViewRenderable({ visible: true, visibleAtCurrentScale: true, suspended: false })).toBe(true);
+    expect(isLayerViewRenderable({ visible: true, visibleAtCurrentScale: true, suspended: true })).toBe(false);
+    expect(isLayerViewRenderable({ visible: true, visibleAtCurrentScale: false, suspended: false })).toBe(false);
+  });
+
+  it("uses queryable feature data as positive first-render evidence before destructive recycle", async () => {
+    await expect(layerViewHasRenderableData({
+      visible: true,
+      visibleAtCurrentScale: true,
+      suspended: false,
+      queryFeatureCount: async () => 42
+    })).resolves.toBe(true);
+
+    await expect(layerViewHasRenderableData({
+      visible: true,
+      visibleAtCurrentScale: true,
+      suspended: false,
+      queryFeatureCount: async () => 0
+    })).resolves.toBe(false);
+
+    await expect(layerViewHasRenderableData({
+      visible: true,
+      visibleAtCurrentScale: true,
+      suspended: false,
+      queryFeatureCount: async () => { throw new Error("provider timeout"); }
+    })).resolves.toBe(false);
   });
 
   it("uses service-aware first-render deadlines", () => {
