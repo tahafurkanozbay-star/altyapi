@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   isLayerViewRenderable,
+  canProbeFirstRender,
+  sameViewExtent,
   isLayerViewRenderStable,
   isLayerViewStalled,
   layerViewHasRenderableData,
@@ -13,6 +15,22 @@ import {
 } from "../src/gis/layerViewWatchdog";
 
 describe("LayerView provider-scale watchdog", () => {
+  it("probes visible viewport data while streaming and background refinement continue", () => {
+    const view = { layer: { visible: true }, visible: true, visibleAtCurrentScale: true, suspended: false, updating: true, dataUpdating: false, hasAllFeaturesInView: true, queryFeatureCount: async () => 4 };
+    expect(canProbeFirstRender(view)).toBe(true);
+    expect(canProbeFirstRender({ ...view, dataUpdating: true })).toBe(true);
+    expect(canProbeFirstRender({ ...view, hasAllFeaturesInView: false })).toBe(true);
+    expect(canProbeFirstRender({ ...view, suspended: true })).toBe(false);
+    expect(canProbeFirstRender({ ...view, layer: { visible: false } })).toBe(false);
+  });
+
+  it("does not apply evidence from another or invalid viewport", () => {
+    const extent = { xmin: 1, ymin: 2, xmax: 3, ymax: 4 };
+    expect(sameViewExtent(extent, { ...extent })).toBe(true);
+    expect(sameViewExtent(extent, { ...extent, xmin: 2 })).toBe(false);
+    expect(sameViewExtent(extent, null)).toBe(false);
+    expect(sameViewExtent({ ...extent, xmin: NaN }, { ...extent, xmin: NaN })).toBe(false);
+  });
   it("builds the strict intersection from visible constrained layers only", () => {
     const state = layerViewScaleIntersection([
       {
@@ -148,7 +166,10 @@ describe("LayerView provider-scale watchdog", () => {
   it("defers destructive recycle while the startup scene is still updating", () => {
     expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 26_000)).toBe(true);
     expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 44_999)).toBe(true);
-    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 45_000)).toBe(false);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 46_000)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 59_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 64_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 65_000)).toBe(false);
   });
 
   it("extends recovery grace under real main-thread pressure but keeps it bounded", () => {

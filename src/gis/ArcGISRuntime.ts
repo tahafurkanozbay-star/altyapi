@@ -4,6 +4,8 @@ import type Camera from "@arcgis/core/Camera.js";
 import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import type Basemap from "@arcgis/core/Basemap.js";
 import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
+import { waitForComponentReady } from "./componentReadiness";
+import { SDK_REQUEST_TIMEOUT_MS } from "./requestTiming";
 import { BASEMAP_OPTIONS, supportedBasemapId, type BasemapId } from "../lib/basemaps";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
@@ -176,6 +178,7 @@ export class ArcGISRuntime {
   private readonly deferredActivationNavigations = new Map<string, DeferredActivationNavigation>();
   private activeWidget?: ArcGISComponentElement;
   private toolGeneration = 0;
+  private toolController?: AbortController;
   private readonly visibilityIntents = new LayerIntentTracker();
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
@@ -214,7 +217,7 @@ export class ArcGISRuntime {
     ]);
     if (this.destroyed) return;
 
-    config.request.timeout = 60_000;
+    config.request.timeout = SDK_REQUEST_TIMEOUT_MS;
     container.replaceChildren();
 
     const scene = document.createElement("arcgis-scene") as unknown as ArcGISSceneElement;
@@ -632,9 +635,18 @@ export class ArcGISRuntime {
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
     this.closeTool();
     const generation = this.toolGeneration;
+    const controller = new AbortController();
+    this.toolController = controller;
     container.replaceChildren();
-    const widget = await this.createToolWidget(tool, container);
-    if (this.destroyed || generation !== this.toolGeneration || !container.isConnected) {
+    let widget: ArcGISComponentElement;
+    try {
+      widget = await this.createToolWidget(tool, container, controller.signal);
+    } catch (error) {
+      if (this.toolController === controller) this.toolController = undefined;
+      if (controller.signal.aborted) return;
+      throw error;
+    }
+    if (this.destroyed || controller.signal.aborted || generation !== this.toolGeneration || !container.isConnected) {
       this.disposeComponent(widget);
       return;
     }
@@ -643,6 +655,8 @@ export class ArcGISRuntime {
 
   closeTool(): void {
     this.toolGeneration += 1;
+    this.toolController?.abort();
+    this.toolController = undefined;
     this.disposeComponent(this.activeWidget);
     this.activeWidget = undefined;
   }
@@ -1150,9 +1164,10 @@ export class ArcGISRuntime {
     this.navigationWidgets = [];
   }
 
-  private createConnectedComponent(tagName: string, properties: Partial<ArcGISComponentElement> = {}): ArcGISComponentElement {
+  private createConnectedComponent(tagName: string, properties: Partial<ArcGISComponentElement> = {}, beforeConnect?: (component: ArcGISComponentElement) => void): ArcGISComponentElement {
     if (!this.scene) throw new Error("Harita motoru hazır değil.");
     const element = document.createElement(tagName) as ArcGISComponentElement;
+    beforeConnect?.(element);
     element.referenceElement = this.scene;
     Object.assign(element, properties);
     return element;
@@ -1272,7 +1287,7 @@ export class ArcGISRuntime {
     );
   }
 
-  private async createToolWidget(tool: Exclude<ToolId, null>, container: HTMLDivElement): Promise<ArcGISComponentElement> {
+  private async createToolWidget(tool: Exclude<ToolId, null>, container: HTMLDivElement, signal: AbortSignal): Promise<ArcGISComponentElement> {
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
 
     let tagName: string;
@@ -1287,6 +1302,7 @@ export class ArcGISRuntime {
           import("@arcgis/core/Basemap.js"),
           import("@arcgis/map-components/components/arcgis-basemap-gallery")
         ]);
+        signal.throwIfAborted();
         properties.source = BASEMAP_OPTIONS.map(([id, title]) => {
           const basemap = Basemap.fromId(id);
           if (!basemap) throw new Error(`Harita görünümü hazırlanamadı: ${title}`);
@@ -1323,13 +1339,22 @@ export class ArcGISRuntime {
     }
 
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
-    const component = this.createConnectedComponent(tagName, properties);
+    signal.throwIfAborted();
+    let ready!: Promise<void>;
+    const component = this.createConnectedComponent(tagName, properties, (element) => {
+      ready = waitForComponentReady(element, signal);
+    });
     if (tool === "basemap") this.bindBasemapSelection(component);
     if (tool === "elevation") component.profiles = [{ type: "ground" }];
     component.classList.add("arcgis-tool-component");
     container.append(component);
-    await component.componentOnReady?.();
-    return component;
+    try {
+      await Promise.all([ready, Promise.resolve().then(() => component.componentOnReady?.())]);
+      return component;
+    } catch (error) {
+      this.disposeComponent(component);
+      throw error;
+    }
   }
 
   private bindBasemapSelection(component: ArcGISComponentElement): void {

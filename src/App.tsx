@@ -51,6 +51,7 @@ import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { NotificationPortal } from "./components/NotificationPortal";
 import { Icon } from "./components/Icon";
 import { BASEMAP_OPTIONS } from "./lib/basemaps";
+import { MAP_TOOL_METADATA } from "./platform/citizenActions";
 
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 export default function App() {
@@ -63,6 +64,8 @@ export default function App() {
   const [bootError, setBootError] = useState<string | null>(null);
   const [panel, setPanel] = useState<PanelId>("layers");
   const [activeTool, setActiveTool] = useState<ToolId>(null);
+  const [toolPhase, setToolPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [toolAttempt, setToolAttempt] = useState(0);
   const [identify, setIdentify] = useState<IdentifyResult | null>(null);
   const [telemetry, setTelemetry] = useState<SceneTelemetry>({ altitude: DEFAULT_CAMERA.z, tilt: DEFAULT_CAMERA.tilt, heading: DEFAULT_CAMERA.heading });
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -329,13 +332,24 @@ export default function App() {
       runtimeRef.current?.closeTool();
       return;
     }
+    let cancelled = false;
+    const runtime = runtimeRef.current;
+    setToolPhase("loading");
     const frame = requestAnimationFrame(() => {
-      if (toolHostRef.current) {
-        void runtimeRef.current?.openTool(activeTool, toolHostRef.current).catch(() => pushToast("Harita aracı açılamadı.", "error"));
+      if (toolHostRef.current && runtime) {
+        void runtime.openTool(activeTool, toolHostRef.current).then(() => {
+          if (!cancelled) setToolPhase("ready");
+        }).catch(() => {
+          if (!cancelled) setToolPhase("error");
+        });
       }
     });
-    return () => cancelAnimationFrame(frame);
-  }, [activeTool, ready, pushToast]);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      runtime?.closeTool();
+    };
+  }, [activeTool, ready, toolAttempt]);
 
   const toggleLayer = useCallback(async (
     service: ServiceDefinition,
@@ -512,6 +526,8 @@ export default function App() {
 
   const selectTool = useCallback((tool: Exclude<ToolId, null>) => {
     setFocusMode(false);
+    if (window.matchMedia("(max-width: 1100px)").matches) setPanel(null);
+    setToolPhase("loading");
     setActiveTool((current) => current === tool ? null : tool);
   }, []);
 
@@ -819,8 +835,11 @@ export default function App() {
       </div>
 
       {activeTool && (
-        <aside className="map-tool-panel" aria-labelledby="active-map-tool-title">
+        <aside className="map-tool-panel" aria-labelledby="active-map-tool-title" data-tool-state={toolPhase}>
           <div className="map-tool-header"><strong id="active-map-tool-title">{toolTitle(activeTool)}</strong><button type="button" className="icon-ghost" onClick={() => setActiveTool(null)} aria-label={`${toolTitle(activeTool)} aracını kapat`}><Icon name="close" /></button></div>
+          <p className="map-tool-guidance">{MAP_TOOL_METADATA[activeTool].instructions}</p>
+          {toolPhase === "loading" && <div className="map-tool-loading" role="status">Araç hazırlanıyor…</div>}
+          {toolPhase === "error" && <div className="map-tool-error" role="alert"><p>Bu araç açılamadı. Bağlantınızı kontrol edip yeniden deneyin.</p><button type="button" className="primary-button" onClick={() => { setToolPhase("loading"); setToolAttempt((attempt) => attempt + 1); }}><Icon name="refresh" /> Aracı yeniden dene</button></div>}
           <div ref={toolHostRef} className="map-tool-host" />
         </aside>
       )}
@@ -863,17 +882,7 @@ export default function App() {
 }
 
 function toolTitle(tool: Exclude<ToolId, null>): string {
-  const labels: Record<Exclude<ToolId, null>, string> = {
-    legend: "Lejant",
-    basemap: "Harita Görünümü",
-    distance: "Mesafe Ölç",
-    area: "Alan Ölç",
-    daylight: "Gün Işığı",
-    slice: "3B Kesit",
-    lineOfSight: "Görüş Hattı",
-    elevation: "Yükseklik Profili"
-  };
-  return labels[tool];
+  return MAP_TOOL_METADATA[tool].label;
 }
 
 function createId(): string {
