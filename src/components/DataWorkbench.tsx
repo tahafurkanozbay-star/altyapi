@@ -177,8 +177,8 @@ export function DataWorkbench({ services, onQuery }: Props) {
       <div className="data-workbench-hero">
         <span className="data-hero-icon"><Icon name="database" size={22} /></span>
         <div>
-          <strong>Öznitelik Sorgu Stüdyosu</strong>
-          <span>Sunucu tarafı filtreleme, sıralama ve sayfalama ile FeatureServer / SceneServer verilerini kontrollü inceleyin.</span>
+          <strong>Harita verisini inceleyin</strong>
+          <span>Katman seçin, kayıtları filtreleyin ve sonuç tablosunu CSV olarak indirin.</span>
         </div>
       </div>
 
@@ -255,10 +255,13 @@ export function DataWorkbench({ services, onQuery }: Props) {
                 <Icon name="refresh" size={14} /> Temizle
               </button>
             </div>
-            <div className="query-expression" title={result.where}>
-              <span>WHERE</span><code>{result.where}</code>
-              {result.orderBy && <><span>ORDER</span><code>{result.orderBy}</code></>}
-            </div>
+            <details className="query-preview">
+              <summary>Sorgu ayrıntıları</summary>
+              <div className="query-expression" title={result.where}>
+                <span>WHERE</span><code>{result.where}</code>
+                {result.orderBy && <><span>ORDER</span><code>{result.orderBy}</code></>}
+              </div>
+            </details>
           </section>
 
           <div className="data-summary">
@@ -272,7 +275,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
             <button type="button" className="catalog-action" disabled={busy || !result.hasPrevious} onClick={() => void load(Math.max(0, result.offset - result.limit))}>
               ‹ Önceki
             </button>
-            <span>{(result.offset + 1).toLocaleString("tr-TR")}–{Math.min(result.offset + result.rows.length, result.total).toLocaleString("tr-TR")} / {result.total.toLocaleString("tr-TR")}</span>
+            <span>{(result.rows.length ? result.offset + 1 : 0).toLocaleString("tr-TR")}–{Math.min(result.offset + result.rows.length, result.total).toLocaleString("tr-TR")} / {result.total.toLocaleString("tr-TR")}</span>
             <button type="button" className="catalog-action" disabled={busy || !result.hasNext} onClick={() => void load(result.offset + result.limit)}>
               Sonraki ›
             </button>
@@ -281,7 +284,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
           <div className="data-toolbar">
             <label className="search-field data-search">
               <Icon name="search" size={15} />
-              <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Bu sayfada hızlı ara…" />
+              <input aria-label="Bu sayfada hızlı ara" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Bu sayfada hızlı ara…" />
               {filter && <button type="button" className="icon-ghost" onClick={() => setFilter("")} aria-label="Filtreyi temizle"><Icon name="close" size={13} /></button>}
             </label>
             <button type="button" className="catalog-action" onClick={exportCsv} disabled={filteredRows.length === 0}>
@@ -301,7 +304,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
             </div>
           </details>
 
-          <div className="attribute-table-wrap">
+          <div className="attribute-table-wrap" role="region" aria-label="Öznitelik sonuç tablosu" tabIndex={0}>
             <table className="attribute-table">
               <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları</caption>
               <thead>

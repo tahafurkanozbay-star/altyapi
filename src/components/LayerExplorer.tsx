@@ -167,306 +167,311 @@ export const LayerExplorer = memo(function LayerExplorer({
 
   return (
     <section className="panel-content layer-explorer" aria-label="Harita katmanları" aria-busy={bulkBusy}>
-      <div className="panel-heading panel-heading-rich">
-        <div>
-          <span className="eyebrow">HARİTA KATMANLARI</span>
-          <h2>Katmanlar</h2>
-          <p>Bir katman açın, haritada inceleyin. Konum ve ölçek otomatik ayarlanır.</p>
+      <div className="layer-explorer-header">
+        <div className="panel-heading panel-heading-rich">
+          <div>
+            <span className="eyebrow">HARİTA KATMANLARI</span>
+            <h2>Katmanlar</h2>
+            <p>Bir katman açın, haritada inceleyin. Konum ve ölçek otomatik ayarlanır.</p>
+          </div>
+          <div className="metric-badge" aria-label={`${metrics.active} açık katman`}><strong>{metrics.active}</strong><span>açık</span></div>
         </div>
-        <div className="metric-badge" aria-label={`${metrics.active} açık katman`}><strong>{metrics.active}</strong><span>açık</span></div>
+
+        <div className="catalog-overview catalog-overview-v9" aria-label="Katman özeti">
+          <div className="catalog-stat is-active"><strong>{metrics.active}</strong><span>Açık</span></div>
+          <div className="catalog-stat is-ready"><strong>{metrics.loading}</strong><span>Açılıyor</span></div>
+          <div className="catalog-stat"><strong>{services.length}</strong><span>Toplam</span></div>
+        </div>
+
+        <label className="search-field">
+          <Icon name="search" size={16} />
+          <input
+            type="search"
+            autoComplete="off"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Katman veya kurum ara…"
+            aria-label="Katman veya kurum ara"
+          />
+          {query && <button type="button" className="icon-ghost" onClick={() => setQuery("")} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
+        </label>
+
       </div>
+      <div className="layer-explorer-body">
+        <details className="advanced-layer-filters">
+          <summary>Filtreler ve katman ayarları {kind !== "all" || availability !== "all" ? <span>Filtre etkin</span> : null}</summary>
+          {restricted > 0 && <p className="catalog-access-note"><Icon name="info" size={16} /><span>{restricted} kurum katmanı için yetkili ağ bağlantısı gerekir. Erişim bilgisi katman ayrıntılarında görünür.</span></p>}
 
-      <div className="catalog-overview catalog-overview-v9" aria-label="Katman özeti">
-        <div className="catalog-stat is-active"><strong>{metrics.active}</strong><span>Açık</span></div>
-        <div className="catalog-stat is-ready"><strong>{metrics.loading}</strong><span>Açılıyor</span></div>
-        <div className="catalog-stat"><strong>{services.length}</strong><span>Toplam</span></div>
-      </div>
-
-      <label className="search-field">
-        <Icon name="search" size={16} />
-        <input
-          type="search"
-          autoComplete="off"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Katman veya kurum ara…"
-          aria-label="Katman veya kurum ara"
-        />
-        {query && <button type="button" className="icon-ghost" onClick={() => setQuery("")} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
-      </label>
-
-      <details className="advanced-layer-filters">
-      <summary>Filtreler ve katman ayarları {kind !== "all" || availability !== "all" ? <span>Filtre etkin</span> : null}</summary>
-      {restricted > 0 && <p className="catalog-access-note"><Icon name="info" size={16} /><span>{restricted} kurum katmanı için yetkili ağ bağlantısı gerekir. Erişim bilgisi katman ayrıntılarında görünür.</span></p>}
-
-      <div className="catalog-actions">
-        <button type="button" className="catalog-action" onClick={() => void deactivateVisible()} disabled={metrics.active === 0 || bulkBusy}>
-          <Icon name="eyeOff" size={14} /> Açık katmanları kapat
-        </button>
-        <button
-          type="button"
-          className={`catalog-action ${actionableErrors ? "has-error" : ""}`}
-          onClick={() => void retryErrors()}
-          disabled={actionableErrors === 0 || bulkBusy || services.every((service) => !isRetryableFailure(service, renderHealth[service.id]))}
-        >
-          <Icon name="refresh" size={14} /> Sorunlu katmanları dene
-        </button>
-      </div>
-
-      {activeStack.length > 0 && (
-        <details className="layer-stack-editor">
-          <summary>Çizim sırası <span>{activeStack.length} açık katman</span></summary>
-          <div className="layer-stack-heading">
-            <div>
-              <span className="eyebrow">ÇİZİM SIRASI</span>
-              <strong id="layer-stack-title">Açık katman yığını</strong>
-            </div>
-            <span>{activeStack.length} katman</span>
+          <div className="catalog-actions">
+            <button type="button" className="catalog-action" onClick={() => void deactivateVisible()} disabled={metrics.active === 0 || bulkBusy}>
+              <Icon name="eyeOff" size={14} /> Açık katmanları kapat
+            </button>
+            <button
+              type="button"
+              className={`catalog-action ${actionableErrors ? "has-error" : ""}`}
+              onClick={() => void retryErrors()}
+              disabled={actionableErrors === 0 || bulkBusy || services.every((service) => !isRetryableFailure(service, renderHealth[service.id]))}
+            >
+              <Icon name="refresh" size={14} /> Sorunlu katmanları dene
+            </button>
           </div>
-          <p className="layer-stack-note">Listenin üstündeki katman haritada da üstte çizilir.</p>
-          <ol className="layer-stack-list">
-            {activeStack.map((service, index) => (
-              <li key={service.id} className="layer-stack-item">
-                <span className="layer-stack-rank" aria-hidden="true">{index + 1}</span>
-                <span className="layer-stack-name" title={service.displayName}>{service.displayName}</span>
-                <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{serviceKindLabel(service.kind)}</span>
-                <div className="layer-stack-buttons" role="group" aria-label={`${service.displayName} çizim sırası`}>
-                  <button
-                    type="button"
-                    className="icon-ghost"
-                    onClick={() => onMoveLayer(service.id, "up")}
-                    disabled={index === 0}
-                    aria-label={`${service.displayName} katmanını üste taşı`}
-                    title="Üste taşı"
-                  >
-                    <span aria-hidden="true">↑</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-ghost"
-                    onClick={() => onMoveLayer(service.id, "down")}
-                    disabled={index === activeStack.length - 1}
-                    aria-label={`${service.displayName} katmanını alta taşı`}
-                    title="Alta taşı"
-                  >
-                    <span aria-hidden="true">↓</span>
-                  </button>
+
+          {activeStack.length > 0 && (
+            <details className="layer-stack-editor">
+              <summary>Çizim sırası <span>{activeStack.length} açık katman</span></summary>
+              <div className="layer-stack-heading">
+                <div>
+                  <span className="eyebrow">ÇİZİM SIRASI</span>
+                  <strong id="layer-stack-title">Açık katman yığını</strong>
                 </div>
-              </li>
-            ))}
-          </ol>
-        </details>
-      )}
+                <span>{activeStack.length} katman</span>
+              </div>
+              <p className="layer-stack-note">Listenin üstündeki katman haritada da üstte çizilir.</p>
+              <ol className="layer-stack-list">
+                {activeStack.map((service, index) => (
+                  <li key={service.id} className="layer-stack-item">
+                    <span className="layer-stack-rank" aria-hidden="true">{index + 1}</span>
+                    <span className="layer-stack-name" title={service.displayName}>{service.displayName}</span>
+                    <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{serviceKindLabel(service.kind)}</span>
+                    <div className="layer-stack-buttons" role="group" aria-label={`${service.displayName} çizim sırası`}>
+                      <button
+                        type="button"
+                        className="icon-ghost"
+                        onClick={() => onMoveLayer(service.id, "up")}
+                        disabled={index === 0}
+                        aria-label={`${service.displayName} katmanını üste taşı`}
+                        title="Üste taşı"
+                      >
+                        <span aria-hidden="true">↑</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-ghost"
+                        onClick={() => onMoveLayer(service.id, "down")}
+                        disabled={index === activeStack.length - 1}
+                        aria-label={`${service.displayName} katmanını alta taşı`}
+                        title="Alta taşı"
+                      >
+                        <span aria-hidden="true">↓</span>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
 
-      <div className="filter-row" role="group" aria-label="Katman türü filtresi">
-        {kinds.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            className={`filter-chip ${kind === item.value ? "is-active" : ""}`}
-            aria-pressed={kind === item.value}
-            onClick={() => setKind(item.value)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="availability-filter" role="group" aria-label="Bağlantı durumu filtresi">
-        {([
-          ["all", "Tüm durumlar"],
-          ["verified", "Erişilebilir"],
-          ["degraded", "Kısıtlı"],
-          ["unavailable", "Sorunlu"],
-          ["unknown", "Bekleniyor"]
-        ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={`availability-chip availability-${value} ${availability === value ? "is-active" : ""}`}
-            aria-pressed={availability === value}
-            onClick={() => setAvailability(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      </details>
-
-      <div className="toggle-filters">
-        <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> <span>Sadece açık</span></label>
-        <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> <span>Favoriler</span></label>
-        {metrics.active > 0 && <span className="filter-circuit-count">{metrics.renderReady}/{metrics.active} haritada hazır</span>}
-        {metrics.cooling > 0 && <span className="filter-circuit-count">{metrics.cooling} geçici beklemede</span>}
-        <span className="filter-result-count" aria-live="polite">{filtered.length} / {services.length}</span>
-        {filtersActive && <button type="button" className="filter-reset" onClick={resetFilters}>Filtreleri temizle</button>}
-      </div>
-
-      <div className="layer-groups">
-        {groups.length === 0 && (
-          <div className="empty-state">
-            <Icon name="layers" size={28} />
-            <strong>Katman bulunamadı</strong>
-            <span>Arama veya filtreleri değiştirin.</span>
-            {filtersActive && <button type="button" className="catalog-action" onClick={resetFilters}>Tüm katmanları göster</button>}
-          </div>
-        )}
-        {groups.map(([organization, items]) => {
-          const collapsed = !deferredQuery && collapsedGroups.has(organization);
-          return (
-            <section className="layer-group" key={organization}>
+          <div className="filter-row" role="group" aria-label="Katman türü filtresi">
+            {kinds.map((item) => (
               <button
+                key={item.value}
                 type="button"
-                className="group-heading"
-                aria-expanded={!collapsed}
-                onClick={() => setCollapsedGroups((current) => {
-                  const next = new Set(current);
-                  collapsed ? next.delete(organization) : next.add(organization);
-                  return next;
-                })}
+                className={`filter-chip ${kind === item.value ? "is-active" : ""}`}
+                aria-pressed={kind === item.value}
+                onClick={() => setKind(item.value)}
               >
-                <span className={`chevron ${collapsed ? "" : "is-open"}`}><Icon name="chevron" size={14} /></span>
-                <span title={organization}>{organization}</span>
-                <em>{items.length}</em>
+                {item.label}
               </button>
+            ))}
+          </div>
 
-              {!collapsed && items.map((service) => {
-                const layerRender = service.visible ? renderHealth[service.id] : undefined;
-                const visualStatus = service.status === "error"
-                  ? "error"
-                  : service.status === "loading"
-                    ? "loading"
-                    : (layerRenderHealthVisualStatus(layerRender) ?? service.status);
-                const renderFailed = isLayerRenderFailure(layerRender);
-                return (
-                  <article
-                    key={service.id}
-                    className={`layer-card ${service.visible ? "is-active" : ""} status-${visualStatus} availability-${service.availability}`}
-                    data-kind={service.kind}
-                    data-service-id={service.id}
-                    onPointerEnter={(event) => {
-                      if (event.pointerType === "mouse" && !service.visible) warmLayerModuleOnIntent(service.kind);
-                    }}
-                    onFocusCapture={() => {
-                      if (!service.visible) warmLayerModuleOnIntent(service.kind);
-                    }}
-                    data-availability={service.availability}
-                    data-render-state={layerRender?.state ?? "none"}
-                    aria-label={service.displayName}
-                  >
-                    <div className="layer-card-main">
-                      <button
-                        type="button"
-                        className={`visibility-button ${service.visible ? "is-on" : ""}`}
-                        onClick={() => void onToggle(service, !service.visible)}
-                        aria-label={`${service.displayName} katmanını ${service.visible ? "kapat" : "aç"}`}
-                        aria-pressed={service.visible}
-                        title={service.status === "loading" ? "Yüklemeyi iptal et" : undefined}
-                      >
-                        <Icon name={service.visible ? "eye" : "eyeOff"} size={16} />
-                      </button>
+          <div className="availability-filter" role="group" aria-label="Bağlantı durumu filtresi">
+            {([
+              ["all", "Tüm durumlar"],
+              ["verified", "Erişilebilir"],
+              ["degraded", "Kısıtlı"],
+              ["unavailable", "Sorunlu"],
+              ["unknown", "Bekleniyor"]
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`availability-chip availability-${value} ${availability === value ? "is-active" : ""}`}
+                aria-pressed={availability === value}
+                onClick={() => setAvailability(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-                      <div className="layer-card-title">
-                        <strong title={service.displayName}>{service.displayName}</strong>
-                        <div className="layer-meta-row">
-                          <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{serviceKindLabel(service.kind)}</span>
-                          <span className={`status-dot status-${visualStatus}`} aria-hidden="true" />
-                          <span role="status" aria-live="polite">{statusLabel(service, currentScale, layerRender)}</span>
-                        </div>
-                      </div>
+        </details>
 
-                      <button
-                        type="button"
-                        className={`favorite-button ${service.favorite ? "is-on" : ""}`}
-                        onClick={() => onFavorite(service)}
-                        aria-label={`${service.displayName} ${service.favorite ? "favorilerden çıkar" : "favorilere ekle"}`}
-                        aria-pressed={service.favorite}
-                      >
-                        <Icon name="star" size={15} />
-                      </button>
-                    </div>
+        <div className="toggle-filters">
+          <label><input type="checkbox" checked={activeOnly} onChange={(event) => setActiveOnly(event.target.checked)} /> <span>Sadece açık</span></label>
+          <label><input type="checkbox" checked={favoriteOnly} onChange={(event) => setFavoriteOnly(event.target.checked)} /> <span>Favoriler</span></label>
+          {metrics.active > 0 && <span className="filter-circuit-count">{metrics.renderReady}/{metrics.active} haritada hazır</span>}
+          {metrics.cooling > 0 && <span className="filter-circuit-count">{metrics.cooling} geçici beklemede</span>}
+          <span className="filter-result-count" aria-live="polite">{filtered.length} / {services.length}</span>
+          {filtersActive && <button type="button" className="filter-reset" onClick={resetFilters}>Filtreleri temizle</button>}
+        </div>
 
-                    <div className="layer-owner-line">
-                      <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
-                      {service.favorite && <em>Favori</em>}
-                    </div>
+        <div className="layer-groups">
+          {groups.length === 0 && (
+            <div className="empty-state">
+              <Icon name="layers" size={28} />
+              <strong>Katman bulunamadı</strong>
+              <span>Arama veya filtreleri değiştirin.</span>
+              {filtersActive && <button type="button" className="catalog-action" onClick={resetFilters}>Tüm katmanları göster</button>}
+            </div>
+          )}
+          {groups.map(([organization, items]) => {
+            const collapsed = !deferredQuery && collapsedGroups.has(organization);
+            return (
+              <section className="layer-group" key={organization}>
+                <button
+                  type="button"
+                  className="group-heading"
+                  aria-expanded={!collapsed}
+                  onClick={() => setCollapsedGroups((current) => {
+                    const next = new Set(current);
+                    collapsed ? next.delete(organization) : next.add(organization);
+                    return next;
+                  })}
+                >
+                  <span className={`chevron ${collapsed ? "" : "is-open"}`}><Icon name="chevron" size={14} /></span>
+                  <span title={organization}>{organization}</span>
+                  <em>{items.length}</em>
+                </button>
 
-                    <div className="layer-actions">
-                      <div className="opacity-control" title="Katman saydamlığı">
-                        <input
-                          type="range" min="0" max="1" step="0.05" value={service.opacity}
-                          onChange={(event) => onOpacity(service, Number(event.target.value))}
-                          disabled={!service.visible}
-                          aria-label={`${service.displayName} opaklığı`}
-                          aria-valuetext={`Yüzde ${Math.round(service.opacity * 100)} opak`}
-                        />
-                        <span>{Math.round(service.opacity * 100)}%</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-ghost"
-                        onClick={() => onZoom(service)}
-                        disabled={!service.visible && !service.operationalExtent}
-                        aria-label={`${service.displayName} katmanına git`}
-                        title={service.operationalExtent ? "Katmanın çalışma alanına git" : "Katmana yaklaş"}
-                      >
-                        <Icon name="zoom" size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-ghost"
-                        onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)}
-                        title="Katman bilgisi"
-                        aria-label={`${service.displayName} katman bilgisini ${openInfo === service.id ? "kapat" : "aç"}`}
-                        aria-expanded={openInfo === service.id}
-                        aria-controls={`layer-info-${service.id}`}
-                      >
-                        <Icon name="info" size={15} />
-                      </button>
-                      {(service.status === "error" || renderFailed) && (
+                {!collapsed && items.map((service) => {
+                  const layerRender = service.visible ? renderHealth[service.id] : undefined;
+                  const visualStatus = service.status === "error"
+                    ? "error"
+                    : service.status === "loading"
+                      ? "loading"
+                      : (layerRenderHealthVisualStatus(layerRender) ?? service.status);
+                  const renderFailed = isLayerRenderFailure(layerRender);
+                  return (
+                    <article
+                      key={service.id}
+                      className={`layer-card ${service.visible ? "is-active" : ""} status-${visualStatus} availability-${service.availability}`}
+                      data-kind={service.kind}
+                      data-service-id={service.id}
+                      onPointerEnter={(event) => {
+                        if (event.pointerType === "mouse" && !service.visible) warmLayerModuleOnIntent(service.kind);
+                      }}
+                      onFocusCapture={() => {
+                        if (!service.visible) warmLayerModuleOnIntent(service.kind);
+                      }}
+                      data-availability={service.availability}
+                      data-render-state={layerRender?.state ?? "none"}
+                      aria-label={service.displayName}
+                    >
+                      <div className="layer-card-main">
                         <button
                           type="button"
-                          className="icon-ghost is-danger"
-                          onClick={() => void retryService(service)}
-                          title={retryTitle(service, renderFailed)}
-                          aria-label={`${service.displayName} katmanını yeniden dene`}
-                          disabled={(service.status === "error" && service.availability === "unavailable") || isServiceCoolingDown(service)}
+                          className={`visibility-button ${service.visible ? "is-on" : ""}`}
+                          onClick={() => void onToggle(service, !service.visible)}
+                          aria-label={`${service.displayName} katmanını ${service.visible ? "kapat" : "aç"}`}
+                          aria-pressed={service.visible}
+                          title={service.status === "loading" ? "Yüklemeyi iptal et" : undefined}
                         >
-                          <Icon name="refresh" size={15} />
+                          <Icon name={service.visible ? "eye" : "eyeOff"} size={16} />
                         </button>
-                      )}
-                    </div>
 
-                    {openInfo === service.id && (
-                      <div id={`layer-info-${service.id}`} className="layer-info-box" role="region" aria-label={`${service.displayName} ayrıntıları`}>
-                        <dl>
-                          <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
-                          <div><dt>Servis kaynağı</dt><dd>{hostLabel(service.url)}</dd></div>
-                          <div><dt>Katman durumu</dt><dd>{service.error ?? statusLabel(service, currentScale, layerRender)}</dd></div>
-                          <div><dt>Haritada görünüm</dt><dd>{service.visible ? (layerRenderHealthLabel(layerRender) ?? "Hazırlanıyor") : "Kapalı"}</dd></div>
-                          <div><dt>Bağlantı doğrulaması</dt><dd>{availabilityLabel(service)}</dd></div>
-                          <div><dt>Erişim</dt><dd>{accessLabel(service)}</dd></div>
-                          <div><dt>Bağlantı notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
-                          <div><dt>Son doğrulama</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
-                          <div><dt>Bağlantı gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
-                          <div><dt>Çalışma ölçeği</dt><dd>{operationalScaleLabel(service)}</dd></div>
-                          <div><dt>Önerilen açılış ölçeği</dt><dd>{service.recommendedScale ? `1:${formatScale(service.recommendedScale)}` : "—"}</dd></div>
-                          <div><dt>Kapsam bilgisi</dt><dd>{navigationSourceLabel(service)}</dd></div>
-                          <div><dt>Kapsam doğrulaması</dt><dd>{service.navigationVerifiedAt ? new Date(service.navigationVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
-                          <div><dt>Zoom davranışı</dt><dd>{service.renderScaleSensitive ? "Katman açıkken doğrulanmış çalışma ölçeği korunur." : "Ek zoom kısıtı yok."}</dd></div>
-                          <div><dt>Geçici koruma</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Hazır"}</dd></div>
-                          <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
-                          <div><dt>Son başarılı açılış</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
-                        </dl>
+                        <div className="layer-card-title">
+                          <strong title={service.displayName}>{service.displayName}</strong>
+                          <div className="layer-meta-row">
+                            <span className={`kind-pill kind-${service.kind.toLowerCase()}`}>{serviceKindLabel(service.kind)}</span>
+                            <span className={`status-dot status-${visualStatus}`} aria-hidden="true" />
+                            <span role="status" aria-live="polite">{statusLabel(service, currentScale, layerRender)}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`favorite-button ${service.favorite ? "is-on" : ""}`}
+                          onClick={() => onFavorite(service)}
+                          aria-label={`${service.displayName} ${service.favorite ? "favorilerden çıkar" : "favorilere ekle"}`}
+                          aria-pressed={service.favorite}
+                        >
+                          <Icon name="star" size={15} />
+                        </button>
                       </div>
-                    )}
-                  </article>
-                );
-              })}
-            </section>
+
+                      <div className="layer-owner-line">
+                        <span className={`availability-badge availability-${service.availability}`}>{availabilityLabel(service)}</span>
+                        {service.favorite && <em>Favori</em>}
+                      </div>
+
+                      <div className="layer-actions">
+                        <div className="opacity-control" title="Katman saydamlığı">
+                          <input
+                            type="range" min="0" max="1" step="0.05" value={service.opacity}
+                            onChange={(event) => onOpacity(service, Number(event.target.value))}
+                            disabled={!service.visible}
+                            aria-label={`${service.displayName} opaklığı`}
+                            aria-valuetext={`Yüzde ${Math.round(service.opacity * 100)} opak`}
+                          />
+                          <span>{Math.round(service.opacity * 100)}%</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="icon-ghost"
+                          onClick={() => onZoom(service)}
+                          disabled={!service.visible && !service.operationalExtent}
+                          aria-label={`${service.displayName} katmanına git`}
+                          title={service.operationalExtent ? "Katmanın çalışma alanına git" : "Katmana yaklaş"}
+                        >
+                          <Icon name="zoom" size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-ghost"
+                          onClick={() => setOpenInfo(openInfo === service.id ? null : service.id)}
+                          title="Katman bilgisi"
+                          aria-label={`${service.displayName} katman bilgisini ${openInfo === service.id ? "kapat" : "aç"}`}
+                          aria-expanded={openInfo === service.id}
+                          aria-controls={`layer-info-${service.id}`}
+                        >
+                          <Icon name="info" size={15} />
+                        </button>
+                        {(service.status === "error" || renderFailed) && (
+                          <button
+                            type="button"
+                            className="icon-ghost is-danger"
+                            onClick={() => void retryService(service)}
+                            title={retryTitle(service, renderFailed)}
+                            aria-label={`${service.displayName} katmanını yeniden dene`}
+                            disabled={(service.status === "error" && service.availability === "unavailable") || isServiceCoolingDown(service)}
+                          >
+                            <Icon name="refresh" size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      {openInfo === service.id && (
+                        <div id={`layer-info-${service.id}`} className="layer-info-box" role="region" aria-label={`${service.displayName} ayrıntıları`}>
+                          <dl>
+                            <div><dt>Veri sahibi</dt><dd>{service.owner}</dd></div>
+                            <div><dt>Servis kaynağı</dt><dd>{hostLabel(service.url)}</dd></div>
+                            <div><dt>Katman durumu</dt><dd>{service.error ?? statusLabel(service, currentScale, layerRender)}</dd></div>
+                            <div><dt>Haritada görünüm</dt><dd>{service.visible ? (layerRenderHealthLabel(layerRender) ?? "Hazırlanıyor") : "Kapalı"}</dd></div>
+                            <div><dt>Bağlantı doğrulaması</dt><dd>{availabilityLabel(service)}</dd></div>
+                            <div><dt>Erişim</dt><dd>{accessLabel(service)}</dd></div>
+                            <div><dt>Bağlantı notu</dt><dd>{service.verificationReason ?? "Henüz harici doğrulama kaydı yok."}</dd></div>
+                            <div><dt>Son doğrulama</dt><dd>{service.verifiedAt ? new Date(service.verifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                            <div><dt>Bağlantı gecikmesi</dt><dd>{service.verificationLatencyMs !== undefined ? `${service.verificationLatencyMs} ms` : "—"}</dd></div>
+                            <div><dt>Çalışma ölçeği</dt><dd>{operationalScaleLabel(service)}</dd></div>
+                            <div><dt>Önerilen açılış ölçeği</dt><dd>{service.recommendedScale ? `1:${formatScale(service.recommendedScale)}` : "—"}</dd></div>
+                            <div><dt>Kapsam bilgisi</dt><dd>{navigationSourceLabel(service)}</dd></div>
+                            <div><dt>Kapsam doğrulaması</dt><dd>{service.navigationVerifiedAt ? new Date(service.navigationVerifiedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                            <div><dt>Zoom davranışı</dt><dd>{service.renderScaleSensitive ? "Katman açıkken doğrulanmış çalışma ölçeği korunur." : "Ek zoom kısıtı yok."}</dd></div>
+                            <div><dt>Geçici koruma</dt><dd>{cooldownRemaining(service) ? `${cooldownRemaining(service)} bekleme` : "Hazır"}</dd></div>
+                            <div><dt>Açılış süresi</dt><dd>{service.latencyMs !== undefined ? `${service.latencyMs} ms · ${latencyLabel(service.latencyMs)}` : "Ölçülmedi"}</dd></div>
+                            <div><dt>Son başarılı açılış</dt><dd>{service.lastLoadedAt ? new Date(service.lastLoadedAt).toLocaleString("tr-TR") : "—"}</dd></div>
+                          </dl>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+
+    </section>
           );
         })}
+      </div>
       </div>
     </section>
   );

@@ -56,7 +56,7 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
 
       <div className="tool-group" role="group" aria-label="Harita konumu" data-tool-group="location">
         <span className="tool-group-label">Konum</span>
-        <ToolButton icon="home" label="Ankara başlangıç görünümü" shortcut={HOME_SHORTCUT} commandTarget="home" onClick={onHome} />
+        <ToolButton icon="home" label="Ankara başlangıç görünümü" visibleLabel="Başlangıç" shortcut={HOME_SHORTCUT} commandTarget="home" onClick={onHome} />
       </div>
 
       <div className="tool-group tool-group-analysis" role="group" aria-label="Harita araçları" data-tool-group="analysis">
@@ -76,7 +76,7 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
       <div className="tool-group tool-group-bottom" role="group" aria-label="Yardımcı araçlar" data-tool-group="utility">
         <span className="tool-group-label">Diğer</span>
         <ToolButton icon="camera" label="Ekran görüntüsü" onClick={onScreenshot} />
-        <ToolButton icon="help" label="Yardım ve kısayollar" shortcut={HELP_SHORTCUT} commandTarget="help" panelTarget="help" active={activePanel === "help"} onClick={() => onPanel("help")} />
+        <ToolButton icon="help" label="Yardım ve kısayollar" visibleLabel="Yardım" shortcut={HELP_SHORTCUT} commandTarget="help" panelTarget="help" active={activePanel === "help"} onClick={() => onPanel("help")} />
       </div>
     </nav>
   );
@@ -90,6 +90,7 @@ interface ShortcutPresentation {
 interface ToolButtonProps {
   icon: IconName;
   label: string;
+  visibleLabel?: string;
   shortcut?: ShortcutPresentation;
   commandTarget?: CitizenShortcutCommand;
   panelTarget?: Exclude<PanelId, null>;
@@ -98,7 +99,7 @@ interface ToolButtonProps {
   onClick: () => void;
 }
 
-function ToolButton({ icon, label, shortcut, commandTarget, panelTarget, toolTarget, active, onClick }: ToolButtonProps) {
+function ToolButton({ icon, label, visibleLabel, shortcut, commandTarget, panelTarget, toolTarget, active, onClick }: ToolButtonProps) {
   const isToggle = active !== undefined;
   return (
     <button
@@ -117,7 +118,7 @@ function ToolButton({ icon, label, shortcut, commandTarget, panelTarget, toolTar
       title={shortcut ? `${label} (${shortcut.display})` : label}
     >
       <Icon name={icon} size={18} />
-      <span className="tool-mobile-label" aria-hidden="true">{label}</span>
+      <span className="tool-mobile-label" aria-hidden="true">{visibleLabel ?? label}</span>
       <span className="tool-tooltip" aria-hidden="true">
         <strong>{label}</strong>
         {shortcut && <kbd>{shortcut.display}</kbd>}

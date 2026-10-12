@@ -46,15 +46,16 @@ function clickFirstEnabled(selector: string): boolean {
 export function readCitizenShellSnapshot(mobileViewport: boolean): CitizenShellSnapshot {
   const panelZone = document.querySelector<HTMLElement>(PANEL_ZONE_SELECTOR);
   const panelOpen = Boolean(panelZone?.querySelector(PANEL_CONTENT_SELECTOR));
+  const focusMode = Boolean(document.querySelector(FOCUS_MODE_BUTTON_SELECTOR));
 
   return {
     dialogOpen: Boolean(document.querySelector(DIALOG_SELECTOR)),
-    detailsOpen: Boolean(document.querySelector(DETAILS_SELECTOR)),
+    detailsOpen: !focusMode && Boolean(document.querySelector(DETAILS_SELECTOR)),
     toolOpen: Boolean(document.querySelector(TOOL_PANEL_SELECTOR)),
-    panelOpen,
+    panelOpen: !focusMode && panelOpen,
     mobilePanelVisible: Boolean(panelZone?.classList.contains("is-mobile-visible")),
     mobileViewport,
-    focusMode: Boolean(document.querySelector(FOCUS_MODE_BUTTON_SELECTOR))
+    focusMode
   };
 }
 
@@ -75,13 +76,17 @@ function executeDismissAction(action: Exclude<CitizenDismissAction, "native-dial
 }
 
 function visibleMobilePanel(): HTMLElement | null {
+  if (document.querySelector(FOCUS_MODE_BUTTON_SELECTOR)) return null;
   if (!document.querySelector<HTMLElement>(PANEL_ZONE_SELECTOR)?.classList.contains("is-mobile-visible")) return null;
   return document.querySelector<HTMLElement>(`${PANEL_ZONE_SELECTOR} ${PANEL_CONTENT_SELECTOR}`);
 }
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)]
-    .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true" && !element.inert);
+    .filter((element) => element.getClientRects().length > 0
+      && getComputedStyle(element).visibility !== "hidden"
+      && element.getAttribute("aria-hidden") !== "true"
+      && !element.closest("[inert]"));
 }
 
 function trapMobilePanelTab(event: KeyboardEvent): boolean {
@@ -136,7 +141,7 @@ function setMobileModalBackgroundInert(inert: boolean): void {
 
 function syncMobilePanelSemantics(mobileViewport: boolean): HTMLElement | null {
   const panelZone = document.querySelector<HTMLElement>(PANEL_ZONE_SELECTOR);
-  const visible = mobileViewport && Boolean(panelZone?.classList.contains("is-mobile-visible"));
+  const visible = mobileViewport && !document.querySelector(FOCUS_MODE_BUTTON_SELECTOR) && Boolean(panelZone?.classList.contains("is-mobile-visible"));
   const content = panelZone?.querySelector<HTMLElement>(PANEL_CONTENT_SELECTOR) ?? null;
 
   for (const surface of document.querySelectorAll<HTMLElement>(PANEL_CONTENT_SELECTOR)) {
