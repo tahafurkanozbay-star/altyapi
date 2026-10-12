@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { IdentifyResult } from "../types";
 import { Icon } from "./Icon";
 
@@ -35,4 +36,3 @@ export function DetailsPanel({ result, onClose }: { result: IdentifyResult | nul
     </aside>
   );
 }
-import { useState } from "react";

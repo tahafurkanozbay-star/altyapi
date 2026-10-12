@@ -118,13 +118,13 @@ export default function App() {
     const reconcile = () => {
       if (compact.matches && activeTool) {
         setPanel(null);
-        setIdentify(null);
+        closeIdentify();
       }
     };
     reconcile();
     compact.addEventListener("change", reconcile);
     return () => compact.removeEventListener("change", reconcile);
-  }, [activeTool]);
+  }, [activeTool, closeIdentify]);
 
   const pushToast = useCallback((message: string, tone: ToastItem["tone"] = "info") => {
     const id = createId();
@@ -768,6 +768,7 @@ export default function App() {
           type="button"
           className="mobile-menu"
           onClick={() => {
+            closeIdentify();
             setFocusMode(false);
             if (!panel) { setPanel("layers"); setMobilePanelsVisible(true); }
             else setMobilePanelsVisible((value) => !value);
