@@ -59,7 +59,10 @@ test("search stays pinned while layer controls and all rail tools stay reachable
     expect(size.height).toBeGreaterThanOrEqual(44);
   }
   await close.click();
-  await page.locator('[data-panel-target="layers"]').focus();
+  await expect(page.locator("#kent-rehberi-tools")).not.toHaveAttribute("inert", "");
+  const layersTrigger = page.locator('[data-panel-target="layers"]');
+  await layersTrigger.focus();
+  await expect(layersTrigger).toBeFocused();
   await page.keyboard.press("End");
   const help = page.locator('[data-panel-target="help"]');
   await expect(help).toBeFocused();

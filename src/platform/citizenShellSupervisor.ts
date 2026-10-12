@@ -200,6 +200,7 @@ export function installCitizenShellSupervisor(): () => void {
   };
 
   const leaveMobileModal = (): void => {
+    const closingPanel = modalPanel;
     cancelFocusFrame();
     setMobileModalBackgroundInert(false);
     const preferred = focusBeforeModal?.isConnected && !focusBeforeModal.inert
@@ -210,6 +211,15 @@ export function installCitizenShellSupervisor(): () => void {
     focusFrame = window.requestAnimationFrame(() => {
       focusFrame = 0;
       if (document.querySelector(DIALOG_SELECTOR)) return;
+      const active = document.activeElement;
+      // A user may already have moved to another control during dismissal.
+      // Restore abandoned/hidden focus, but never overwrite that newer intent.
+      if (active instanceof HTMLElement
+        && active !== body && active !== root
+        && !closingPanel?.contains(active)
+        && !active.closest("[inert]")
+        && active.getClientRects().length > 0
+        && getComputedStyle(active).visibility !== "hidden") return;
       preferred.focus({ preventScroll: true });
     });
   };
