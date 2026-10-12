@@ -72,6 +72,27 @@ describe("citizen readiness", () => {
     expect(result.renderReady).toBe(0);
   });
 
+  it("lets a stable LayerView outrank a lagging loading status", () => {
+    const render: LayerRenderHealthSnapshot = {
+      a: { state: "ready", updatedAt: 1 }
+    };
+    const result = deriveCitizenReadiness([service("a", { status: "loading" })], render, true);
+    expect(result.tone).toBe("ready");
+    expect(result.loading).toBe(0);
+    expect(result.renderPending).toBe(0);
+    expect(result.renderReady).toBe(1);
+  });
+
+  it("does not double-report a render failure as loading", () => {
+    const render: LayerRenderHealthSnapshot = {
+      a: { state: "failed", updatedAt: 1 }
+    };
+    const result = deriveCitizenReadiness([service("a", { status: "loading" })], render, true);
+    expect(result.tone).toBe("warning");
+    expect(result.loading).toBe(0);
+    expect(result.failed).toBe(1);
+  });
+
   it("provides an actionable idle state when no layers are open", () => {
     const result = deriveCitizenReadiness([service("a", { visible: false })], {}, true);
     expect(result.tone).toBe("idle");
