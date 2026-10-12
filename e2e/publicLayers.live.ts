@@ -136,7 +136,8 @@ test("production scene renders all public layers and reopens cached layers", asy
     ["lineOfSight", "arcgis-line-of-sight"],
     ["elevation", "arcgis-elevation-profile"]
   ] as const;
-  const toolMetrics: Array<{ tool: string; readyMs: number }> = [];
+  const toolMetrics: Array<{ tool: string; readyMs: number; completedMs: number }> = [];
+  let distanceMeasurement: { value: string; unit: string } | undefined;
   for (const [tool, tag] of tools) {
     const openedAt = Date.now();
     await page.locator(`[data-tool-target="${tool}"]`).click();
@@ -146,6 +147,7 @@ test("production scene renders all public layers and reopens cached layers", asy
     await expect(page.locator(".map-tool-panel")).toHaveAttribute("data-tool-state", "ready");
     await expect(page.locator(".map-tool-guidance")).not.toBeEmpty();
     expect(await component.evaluate((element) => (element as unknown as { referenceElement: Element }).referenceElement === document.querySelector("arcgis-scene"))).toBe(true);
+    const readyMs = Date.now() - openedAt;
     if (tool === "basemap") {
       await expect(component.getByRole("radio")).toHaveCount(6);
       const topoItem = component.locator("arcgis-basemap-gallery-item").filter({ hasText: "Topoğrafik" });
@@ -165,14 +167,22 @@ test("production scene renders all public layers and reopens cached layers", asy
       await page.mouse.click(650, 450);
       await page.mouse.click(880, 510);
       await expect.poll(() => component.evaluate((element) => (element as unknown as { state: string }).state)).toBe("measured");
+      // Placement finishes before the SDK's asynchronous distance calculation.
+      // Wait for a citizen-visible result rather than accepting placeholder '-'.
+      await expect(component.locator("output.value").first()).toHaveText(/\d/);
+      await expect(component.locator(".unit").first()).toHaveText(/^(m|km)$/);
+      distanceMeasurement = {
+        value: (await component.locator("output.value").first().innerText()).trim(),
+        unit: (await component.locator(".unit").first().innerText()).trim()
+      };
     }
-    toolMetrics.push({ tool, readyMs: Date.now() - openedAt });
+    toolMetrics.push({ tool, readyMs, completedMs: Date.now() - openedAt });
     await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
     await page.locator(".map-tool-header button").click();
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
     await expect(component).toHaveCount(0);
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupEvidence, metrics, toolMetrics, runtimeErrors, failedSdkAssets }, null, 2));
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);
