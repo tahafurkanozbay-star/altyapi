@@ -172,6 +172,21 @@ export const LayerExplorer = memo(function LayerExplorer({
         <div className="catalog-stat"><strong>{services.length}</strong><span>Toplam</span></div>
       </div>
 
+      <label className="search-field">
+        <Icon name="search" size={16} />
+        <input
+          type="search"
+          autoComplete="off"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Katman veya kurum ara…"
+          aria-label="Katman veya kurum ara"
+        />
+        {query && <button type="button" className="icon-ghost" onClick={() => setQuery("")} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
+      </label>
+
+      <details className="advanced-layer-filters">
+      <summary>Filtreler ve katman ayarları {kind !== "all" || availability !== "all" ? <span>Filtre etkin</span> : null}</summary>
       {restricted > 0 && <p className="catalog-access-note"><Icon name="info" size={16} /><span>{restricted} kurum katmanı için yetkili ağ bağlantısı gerekir. Erişim bilgisi katman ayrıntılarında görünür.</span></p>}
 
       <div className="catalog-actions">
@@ -233,21 +248,6 @@ export const LayerExplorer = memo(function LayerExplorer({
         </details>
       )}
 
-      <label className="search-field">
-        <Icon name="search" size={16} />
-        <input
-          type="search"
-          autoComplete="off"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Katman veya kurum ara…"
-          aria-label="Katman veya kurum ara"
-        />
-        {query && <button type="button" className="icon-ghost" onClick={() => setQuery("")} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
-      </label>
-
-      <details className="advanced-layer-filters">
-      <summary>Tür ve bağlantı filtreleri {kind !== "all" || availability !== "all" ? <span>Filtre etkin</span> : null}</summary>
       <div className="filter-row" role="group" aria-label="Katman türü filtresi">
         {kinds.map((item) => (
           <button

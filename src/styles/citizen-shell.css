@@ -331,3 +331,7 @@ html[data-experience="v57"] .catalog-overview { display: grid !important; overfl
   html[data-experience="v57"] .group-heading { min-height: 36px; margin-block: 2px; }
   html[data-experience="v57"] .panel-zone.is-mobile-visible :is(.main-panel, .operations-panel) { position: absolute !important; }
 }
+
+@media (max-width: 760px) {
+  html[data-experience="v57"] .catalog-overview { display: none !important; }
+}
