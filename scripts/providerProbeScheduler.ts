@@ -53,7 +53,8 @@ export async function mapWithProviderConcurrency<T, R>(
         active += 1;
         activeByLane.set(job.lane, (activeByLane.get(job.lane) ?? 0) + 1);
 
-        void mapper(job.item, job.index)
+        void Promise.resolve()
+          .then(() => mapper(job.item, job.index))
           .then((result) => {
             results[job.index] = result;
             completed += 1;
