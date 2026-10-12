@@ -23,6 +23,11 @@ export interface CitizenReadiness {
  * progress. A service without a LayerView sample is not treated as failed: some
  * ArcGIS layer types legitimately produce their first render signal later.
  *
+ * A stable LayerView is the final citizen-visible truth. ArcGIS can finish the
+ * first frame before the outer service activation promise has returned, so a
+ * lagging metadata status of "loading" must not downgrade an already rendered
+ * layer back to "preparing".
+ *
  * The render snapshot contract is deliberately structural and minimal. This
  * keeps the maximum-strict citizen contract independent from the event/store
  * implementation while allowing the real LayerRenderHealthSnapshot to satisfy
@@ -34,7 +39,11 @@ export function deriveCitizenReadiness(
   online: boolean
 ): CitizenReadiness {
   const visible = services.filter((service) => service.visible);
-  const loading = visible.filter((service) => service.status === "loading").length;
+  const loading = visible.filter((service) => {
+    if (service.status !== "loading") return false;
+    const renderState = renderHealth[service.id]?.state;
+    return renderState !== "ready" && renderState !== "failed";
+  }).length;
   const serviceFailedIds = new Set(
     visible.filter((service) => service.status === "error").map((service) => service.id)
   );
