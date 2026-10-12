@@ -6,13 +6,14 @@ import {
   type NetworkQualitySnapshot
 } from "../platform/networkQuality";
 import { classifyServiceError, type ServiceFailureClass } from "../lib/serviceRuntime";
+import { providerLaneKey, providerRouteClass } from "../lib/providerTopology";
 import { cancelAllTrackedLayerLoads, cancelTrackedLayerLoad } from "./layerLoadRegistry";
 
 export type LayerLoadPriority = "interactive" | "retry" | "restore";
 
 type LoadHealthSignal = Pick<ServiceDefinition, "kind"> & Partial<Pick<
   ServiceDefinition,
-  "availability" | "verificationLatencyMs" | "latencyMs" | "failureCount" | "verificationStale"
+  "availability" | "verificationLatencyMs" | "latencyMs" | "failureCount" | "verificationStale" | "url"
 >>;
 
 type LayerLoadOutcomeLike = {
@@ -501,6 +502,12 @@ export function globalLimitFor(profile: PerformanceProfile): number {
  */
 export function laneLimitFor(profile: PerformanceProfile, service: LoadHealthSignal): number {
   if (service.kind === "WMS" || service.kind === "WFS") return 1;
+
+  // ArcGIS Portal federation proxy routes showed repeatable burst sensitivity in
+  // production observability. Keep this gateway serialized even on high-end
+  // clients; direct /server/rest/services traffic remains a separate lane.
+  if (providerRouteClass(service.url, service.kind) === "arcgis-sharing-proxy") return 1;
+
   if (profile !== "high") return 1;
   return loadHealthRank(service) >= 2 ? 1 : 2;
 }
@@ -580,13 +587,7 @@ function measuredLatency(service: LoadHealthSignal): number {
 }
 
 function loadLane(service: Pick<ServiceDefinition, "kind" | "url">): string {
-  try {
-    const parsed = new URL(service.url, "https://local.invalid");
-    if (parsed.hostname && parsed.hostname !== "local.invalid") return `${parsed.protocol}//${parsed.host}`;
-  } catch {
-    // Fall through to a non-sensitive kind lane for malformed/sentinel URLs.
-  }
-  return `kind:${service.kind}`;
+  return providerLaneKey(service.url, service.kind);
 }
 
 function createLaneHealth(): LaneRuntimeHealth {
