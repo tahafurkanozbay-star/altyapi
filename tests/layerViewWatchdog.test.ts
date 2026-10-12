@@ -6,6 +6,7 @@ import {
   layerViewRecoveryScale,
   layerViewScaleIntersection,
   layerViewStallTimeoutMs,
+  shouldDeferLayerViewRecovery,
   shouldRecycleLayerView
 } from "../src/gis/layerViewWatchdog";
 
@@ -111,6 +112,23 @@ describe("LayerView provider-scale watchdog", () => {
     expect(layerViewRecoveryDelayMs(1)).toBe(320);
     expect(layerViewRecoveryDelayMs(2)).toBe(900);
     expect(layerViewRecoveryDelayMs(9)).toBe(900);
+  });
+
+  it("defers destructive recycle while the startup scene is still updating", () => {
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 26_000)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 44_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: true }, "normal", 45_000)).toBe(false);
+  });
+
+  it("extends recovery grace under real main-thread pressure but keeps it bounded", () => {
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: false }, "busy", 50_000)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: false }, "critical", 89_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: false, updating: false }, "normal", 89_999)).toBe(true);
+    expect(shouldDeferLayerViewRecovery({ stationary: false, updating: true }, "critical", 90_000)).toBe(false);
+  });
+
+  it("allows normal settled-scene stalls to recover without extra grace", () => {
+    expect(shouldDeferLayerViewRecovery({ stationary: true, updating: false }, "normal", 26_000)).toBe(false);
   });
 
   it("never retries permanent authentication or configuration failures", () => {
