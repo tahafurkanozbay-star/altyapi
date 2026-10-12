@@ -79,6 +79,7 @@ describe("LayerView provider-scale watchdog", () => {
   it("requires a visible, in-scale and settled LayerView before declaring render readiness", () => {
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, updating: false })).toBe(true);
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, updating: true })).toBe(false);
+    expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: true, suspended: true, updating: false })).toBe(false);
     expect(isLayerViewRenderStable({ visible: true, visibleAtCurrentScale: false, updating: false })).toBe(false);
     expect(isLayerViewRenderStable({ visible: false, visibleAtCurrentScale: true, updating: false })).toBe(false);
   });

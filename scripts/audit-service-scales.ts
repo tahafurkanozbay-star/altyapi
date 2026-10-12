@@ -1,16 +1,18 @@
+import { parseServicesDocument } from "../src/lib/catalog";
+import type { RawServiceDefinition } from "../src/types";
+import { networkErrorCode, parseRemoteMetadata, type QueryParameters, type TextProbeResponse, type ScaleProbeResponse, type ScaleAuditResult } from "./probeTypes";
 import { readFile, writeFile } from "node:fs/promises";
 
-const catalog = JSON.parse(await readFile("public/services.json", "utf8"));
-const services = Array.isArray(catalog.services) ? catalog.services : [];
+const services = parseServicesDocument(JSON.parse(await readFile("public/services.json", "utf8")));
 const TIMEOUT_MS = 20_000;
 
-function addQuery(url, params) {
+function addQuery(url: string, params: QueryParameters) {
   const target = new URL(url);
   for (const [key, value] of Object.entries(params)) target.searchParams.set(key, String(value));
   return target.toString();
 }
 
-function isRuntimeTucbsService(service) {
+function isRuntimeTucbsService(service: RawServiceDefinition) {
   try {
     const target = new URL(service.tokenUrl);
     return target.hostname.toLowerCase() === "ucbp-api.tucbs.gov.tr" && target.pathname.startsWith("/__runtime__/");
@@ -19,7 +21,7 @@ function isRuntimeTucbsService(service) {
   }
 }
 
-async function fetchText(url, accept = "*/*") {
+async function fetchText(url: string, accept = "*/*"): Promise<TextProbeResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const started = performance.now();
@@ -43,26 +45,25 @@ async function fetchText(url, accept = "*/*") {
       ms: Math.round(performance.now() - started),
       type: "",
       text: "",
-      error: error?.cause?.code ?? (error instanceof Error ? error.name : "network-error")
+      error: networkErrorCode(error)
     };
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchJson(url) {
+async function fetchJson(url: string): Promise<ScaleProbeResponse> {
   const response = await fetchText(url, "application/json,*/*");
-  let data;
-  try { data = JSON.parse(response.text); } catch {}
+  const data = parseRemoteMetadata(response.text);
   return { ...response, data };
 }
 
-function scale(value) {
+function scale(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
 }
 
-function safeNote(value) {
+function safeNote(value: unknown) {
   return String(value ?? "")
     .replace(/https?:\/\/\S+/gi, "[url]")
     .replace(/[A-Za-z0-9_-]{48,}/g, "[redacted]")
@@ -71,17 +72,17 @@ function safeNote(value) {
     .slice(0, 180);
 }
 
-function parseMapServer(url) {
+function parseMapServer(url: string) {
   const match = url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
   return match ? { root: match[1], layerId: match[2] === undefined ? undefined : Number(match[2]) } : { root: url };
 }
 
-function xmlValue(block, tag) {
+function xmlValue(block: string, tag: string) {
   const match = block.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([^<]+)</${tag}>`, "i"));
   return match?.[1]?.trim();
 }
 
-function wmsNamedLayer(xml) {
+function wmsNamedLayer(xml: string) {
   const blocks = [...xml.matchAll(/<Layer(?:\s[^>]*)?>([\s\S]*?)<\/Layer>/gi)];
   for (const match of blocks) {
     const body = match[1];
@@ -101,7 +102,7 @@ function wmsNamedLayer(xml) {
   return undefined;
 }
 
-async function auditMapServer(service) {
+async function auditMapServer(service: RawServiceDefinition): Promise<ScaleAuditResult> {
   const { root, layerId } = parseMapServer(service.tokenUrl);
   const target = layerId === undefined ? root : `${root}/${layerId}`;
   const meta = await fetchJson(addQuery(target, { f: "pjson" }));
@@ -126,8 +127,8 @@ async function auditMapServer(service) {
   let derived = false;
 
   if (!minScale && !maxScale && childRanges.length) {
-    const mins = childRanges.map((item) => item.minScale).filter(Boolean);
-    const maxs = childRanges.map((item) => item.maxScale).filter(Boolean);
+    const mins = childRanges.map((item) => item.minScale).filter((value): value is number => value !== undefined);
+    const maxs = childRanges.map((item) => item.maxScale).filter((value): value is number => value !== undefined);
     minScale = mins.length ? Math.max(...mins) : undefined;
     maxScale = maxs.length ? Math.min(...maxs) : undefined;
     derived = true;
@@ -151,7 +152,7 @@ async function auditMapServer(service) {
   };
 }
 
-async function auditFeatureServer(service) {
+async function auditFeatureServer(service: RawServiceDefinition): Promise<ScaleAuditResult> {
   const meta = await fetchJson(addQuery(service.tokenUrl, { f: "pjson" }));
   if (!meta.ok || !meta.data || meta.data.error) {
     return { reachable: false, source: "arcgis-metadata", http: meta.status, latencyMs: meta.ms, note: safeNote(meta.data?.error?.message || meta.error || `HTTP ${meta.status}`) };
@@ -170,7 +171,7 @@ async function auditFeatureServer(service) {
   };
 }
 
-async function auditSceneServer(service) {
+async function auditSceneServer(service: RawServiceDefinition): Promise<ScaleAuditResult> {
   const root = await fetchJson(addQuery(service.tokenUrl, { f: "pjson" }));
   const layer = await fetchJson(addQuery(service.tokenUrl.replace(/\/$/, "") + "/layers/0", { f: "pjson" }));
   const data = layer.ok && layer.data && !layer.data.error ? layer.data : root.data;
@@ -192,7 +193,7 @@ async function auditSceneServer(service) {
   };
 }
 
-async function auditWms(service) {
+async function auditWms(service: RawServiceDefinition): Promise<ScaleAuditResult> {
   const caps = await fetchText(addQuery(service.tokenUrl, { SERVICE: "WMS", VERSION: "1.3.0", REQUEST: "GetCapabilities" }), "application/xml,text/xml,*/*");
   const valid = caps.ok && /WMS_Capabilities|WMT_MS_Capabilities/i.test(caps.text) && !/ServiceException|ExceptionReport|ExceptionText/i.test(caps.text);
   if (!valid) {
@@ -217,7 +218,7 @@ async function auditWms(service) {
   };
 }
 
-async function auditWfs(service) {
+async function auditWfs(service: RawServiceDefinition): Promise<ScaleAuditResult> {
   const caps = await fetchText(addQuery(service.tokenUrl, { SERVICE: "WFS", VERSION: "2.0.0", REQUEST: "GetCapabilities" }), "application/xml,text/xml,*/*");
   const valid = caps.ok && /WFS_Capabilities/i.test(caps.text) && !/ServiceException|ExceptionReport|ExceptionText/i.test(caps.text);
   if (!valid) {
@@ -233,7 +234,7 @@ async function auditWfs(service) {
   };
 }
 
-async function audit(service) {
+async function audit(service: RawServiceDefinition): Promise<ScaleAuditResult> {
   if (isRuntimeTucbsService(service)) {
     return {
       reachable: false,

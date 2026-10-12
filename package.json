@@ -1,6 +1,6 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "57.0.0",
+  "version": "58.0.0",
   "private": true,
   "type": "module",
   "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, TypeScript-only first-party kaynak sözleşmesi, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, tek kaynaklı vatandaş komut/kısayol sözleşmesi, shadow-DOM-aware typed citizen action executor, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-topology farkındalıklı gateway izolasyonu ve gözlemlenebilirlik, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması, render-aware vatandaş hazır olma modeli, telefon/tablet/masaüstü responsive çalışma kabuğu, inert mobil modal arka planı, focus restoration, modifier-tabanlı erişilebilir klavye sözleşmesi ve v55 tek citizen-shell stil giriş noktası sunan profesyonel 3B CBS platformu.",
@@ -13,7 +13,7 @@
     "build:watch": "npm run prepare:assets && npm run build:sw && vite build --watch",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "preview:host": "vite preview --host 0.0.0.0 --port 4173",
-    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.contracts.json --pretty false && tsc -p tsconfig.sw.json --pretty false && tsc -p tsconfig.worker.json --pretty false && tsc -p tsconfig.e2e.json --pretty false",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.contracts.json --pretty false && tsc -p tsconfig.sw.json --pretty false && tsc -p tsconfig.worker.json --pretty false && tsc -p tsconfig.e2e.json --pretty false && tsc -p tsconfig.tooling.json --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:dependencies": "node --import tsx scripts/validate-dependencies.ts",
@@ -28,7 +28,8 @@
     "validate:scale-audit": "node --import tsx scripts/validate-scale-audit.ts",
     "summary:observability": "node --import tsx scripts/write-observability-summary.ts",
     "prepare:assets": "node --import tsx scripts/prepare-sdk-assets.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:live": "playwright test --config playwright.live.config.ts"
   },
   "dependencies": {
     "@arcgis/common-components": "5.1.26",

@@ -1,8 +1,23 @@
 {
   "compilerOptions": {
-    "target": "ES2023", "lib": ["ES2023", "DOM"], "module": "ESNext",
-    "moduleResolution": "Bundler", "strict": true, "noEmit": true,
-    "skipLibCheck": true, "noUncheckedIndexedAccess": true, "types": ["node"]
+    "target": "ES2023",
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "types": [
+      "node"
+    ]
   },
-  "include": ["e2e", "playwright.config.ts"]
+  "include": [
+    "e2e",
+    "playwright.config.ts",
+    "playwright.live.config.ts"
+  ]
 }

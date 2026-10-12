@@ -20,7 +20,7 @@ jobs:
       matrix:
         node: [22, 24]
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -32,7 +32,7 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -42,6 +42,9 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run build
+      - name: Render public GIS layers in the production browser
+        run: npm run test:live
       - name: Probe public providers without protected TUCBS credentials
         run: npm run probe:services && npm run validate:health && npm run audit:scales && npm run validate:scale-audit && npm run summary:observability >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
@@ -51,6 +54,8 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            test-results-live/
+            playwright-live-report/
             public/service-health.json
             service-scale-audit.json
           retention-days: 7

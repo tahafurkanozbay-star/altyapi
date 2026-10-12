@@ -11,3 +11,5 @@ coverage/
 public/sdk-assets/
 playwright-report/
 test-results/
+playwright-live-report/
+test-results-live/

@@ -1,8 +1,13 @@
+import { parseServicesDocument } from "../src/lib/catalog";
+import { parseServiceHealthSnapshot } from "../src/lib/serviceHealth";
+import type { ServiceHealthSnapshot } from "../src/types";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const catalog = JSON.parse(await readFile(resolve("public/services.json"), "utf8"));
-const snapshot = JSON.parse(await readFile(resolve("public/service-health.json"), "utf8"));
+const catalog = { services: parseServicesDocument(JSON.parse(await readFile(resolve("public/services.json"), "utf8"))) };
+const rawSnapshot: unknown = JSON.parse(await readFile(resolve("public/service-health.json"), "utf8"));
+parseServiceHealthSnapshot(rawSnapshot);
+const snapshot = rawSnapshot as ServiceHealthSnapshot;
 const errors = [];
 
 const allowedAvailability = new Set(["verified", "degraded", "unavailable", "unknown"]);
@@ -31,7 +36,7 @@ for (const [index, entry] of healthServices.entries()) {
   if (entry.kind !== catalogEntry.servisTuruAdi) errors.push(`health #${index + 1}: servis türü katalogla eşleşmiyor.`);
   if (!allowedAvailability.has(entry.availability)) errors.push(`health #${index + 1}: availability geçersiz.`);
   if (!allowedAccess.has(entry.access)) errors.push(`health #${index + 1}: access geçersiz.`);
-  if (![true, false, null].includes(entry.browserCompatible)) errors.push(`health #${index + 1}: browserCompatible true/false/null olmalı.`);
+  if (![true, false, null].some((value) => value === entry.browserCompatible)) errors.push(`health #${index + 1}: browserCompatible true/false/null olmalı.`);
   if (entry.latencyMs !== undefined && (typeof entry.latencyMs !== "number" || !Number.isFinite(entry.latencyMs) || entry.latencyMs < 0 || entry.latencyMs > 120000)) {
     errors.push(`health #${index + 1}: latencyMs geçersiz.`);
   }
