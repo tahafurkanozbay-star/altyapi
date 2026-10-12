@@ -2,6 +2,8 @@ import type Layer from "@arcgis/core/layers/Layer.js";
 import type ArcGISMap from "@arcgis/core/Map.js";
 import type Camera from "@arcgis/core/Camera.js";
 import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
+import type Basemap from "@arcgis/core/Basemap.js";
+import { BASEMAP_OPTIONS, supportedBasemapId, type BasemapId } from "../lib/basemaps";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { LayerIntentTracker } from "../lib/layerIntent";
@@ -111,6 +113,9 @@ type ArcGISComponentElement = HTMLElement & {
   locationEnabled?: boolean;
   popupEnabled?: boolean;
   resultGraphicEnabled?: boolean;
+  // The gallery's documented array input autocasts to LocalBasemapsSource.
+  source?: Basemap[];
+  activeBasemap?: unknown;
   componentOnReady?: () => Promise<unknown>;
   destroy?: () => Promise<void>;
 };
@@ -123,6 +128,7 @@ export interface GraphicsRecoveryEvent {
 export interface RuntimeCallbacks {
   onIdentify?: (result: IdentifyResult | null) => void;
   onTelemetry?: (telemetry: SceneTelemetry) => void;
+  onBasemapChange?: (basemap: BasemapId) => void;
   onCamera?: (camera: CameraState) => void;
   onGraphicsRecovery?: (event: GraphicsRecoveryEvent) => void;
 }
@@ -1249,15 +1255,26 @@ export class ArcGISRuntime {
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
 
     let tagName: string;
+    const properties: Partial<ArcGISComponentElement> = {};
     switch (tool) {
       case "legend":
         await import("@arcgis/map-components/components/arcgis-legend");
         tagName = "arcgis-legend";
         break;
-      case "basemap":
-        await import("@arcgis/map-components/components/arcgis-basemap-gallery");
+      case "basemap": {
+        const [{ default: Basemap }] = await Promise.all([
+          import("@arcgis/core/Basemap.js"),
+          import("@arcgis/map-components/components/arcgis-basemap-gallery")
+        ]);
+        properties.source = BASEMAP_OPTIONS.map(([id, title]) => {
+          const basemap = Basemap.fromId(id);
+          if (!basemap) throw new Error(`Harita görünümü hazırlanamadı: ${title}`);
+          basemap.title = title;
+          return basemap;
+        });
         tagName = "arcgis-basemap-gallery";
         break;
+      }
       case "distance":
         await import("@arcgis/map-components/components/arcgis-direct-line-measurement-3d");
         tagName = "arcgis-direct-line-measurement-3d";
@@ -1285,12 +1302,22 @@ export class ArcGISRuntime {
     }
 
     if (!this.scene || this.destroyed) throw new Error("Harita motoru hazır değil.");
-    const component = this.createConnectedComponent(tagName);
+    const component = this.createConnectedComponent(tagName, properties);
+    if (tool === "basemap") this.bindBasemapSelection(component);
     if (tool === "elevation") component.profiles = [{ type: "ground" }];
     component.classList.add("arcgis-tool-component");
     container.append(component);
     await component.componentOnReady?.();
     return component;
+  }
+
+  private bindBasemapSelection(component: ArcGISComponentElement): void {
+    component.addEventListener("arcgisPropertyChange", (event) => {
+      if (this.destroyed || !component.isConnected) return;
+      if (!(event instanceof CustomEvent) || event.detail?.name !== "activeBasemap") return;
+      const id = supportedBasemapId(component.activeBasemap);
+      if (id) this.callbacks.onBasemapChange?.(id);
+    });
   }
 
   async recoverGraphics(): Promise<boolean> {

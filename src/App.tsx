@@ -49,17 +49,9 @@ import { OperationsPanel } from "./components/OperationsPanel";
 import { BookmarkDialog } from "./components/BookmarkDialog";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { Icon } from "./components/Icon";
+import { BASEMAP_OPTIONS } from "./lib/basemaps";
 
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
-const basemaps = [
-  ["hybrid", "Hibrit"],
-  ["satellite", "Uydu"],
-  ["topo-vector", "Topoğrafik"],
-  ["streets-vector", "Sokak"],
-  ["dark-gray-vector", "Koyu Gri"],
-  ["gray-vector", "Açık Gri"]
-] as const;
-
 export default function App() {
   const initialPreferences = useMemo(() => loadPreferences(), []);
   const effectivePerformance: PerformanceProfile = useMemo(() => detectPerformanceProfile(), []);
@@ -207,6 +199,12 @@ export default function App() {
           {
             onIdentify: setIdentify,
             onTelemetry: setTelemetry,
+            onBasemapChange: (basemap) => setPreferences((current) => {
+              if (current.basemap === basemap) return current;
+              const next = { ...current, basemap };
+              savePreferences(next);
+              return next;
+            }),
             onCamera: (camera) => saveCamera(camera),
             onGraphicsRecovery: (event) => {
               pushToast(
@@ -732,7 +730,7 @@ export default function App() {
         <div ref={searchRef} className="global-search" role="search" aria-label="Adres ve yer arama" tabIndex={-1} />
         <div className="top-actions">
           <select className="compact-select" value={preferences.basemap} onChange={(event) => changeBasemap(event.target.value)} aria-label="Harita görünümü">
-            {basemaps.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {BASEMAP_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
           <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Haritaya odaklan" aria-label={focusMode ? "Odak modundan çık" : "Haritaya odaklan"} aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
           <button type="button" className="primary-button share-button" onClick={() => void shareView()} aria-label="Mevcut harita görünümünü paylaş"><Icon name="share" /> Paylaş</button>

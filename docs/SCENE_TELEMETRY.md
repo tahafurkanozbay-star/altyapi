@@ -24,3 +24,10 @@ Aynı production testinde sekiz harita aracı gerçek SDK bileşenleriyle açıl
 `arcgisReady` olayı, Scene bağlantısı, görünürlük ve panel kapatıldığında
 bileşenin kaldırılması doğrulanır. Her araç için ekran görüntüsü ve açılış
 süresi test artifact'ına eklenir; bu adım runtime fixture kullanmaz.
+
+Harita görünümü galerisi ve üst menü aynı altı Türkçe seçeneği kullanır.
+Galeri, rastgele portal grubu keşfi yerine bu bilinen basemap listesinden
+beslenir. Galerideki seçim üst menü, yer imi/paylaşım için kullanılan uygulama
+durumu ve kalıcı tercihle eşlenir. Kapanmış galeriden gelen geç olaylar dikkate
+alınmaz. Canlı test gerçek Topoğrafik seçimini, Scene basemap'ini, tercihin
+kaydedilmesini ve üst menüden Hibrit'e dönüşün galeriye yansımasını doğrular.

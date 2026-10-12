@@ -118,6 +118,19 @@ test("production scene renders all public layers and reopens cached layers", asy
     await expect(component).toBeVisible();
     await expect(component).toHaveAttribute("data-live-component-ready", "true");
     expect(await component.evaluate((element) => (element as unknown as { referenceElement: Element }).referenceElement === document.querySelector("arcgis-scene"))).toBe(true);
+    if (tool === "basemap") {
+      await expect(component.getByRole("radio")).toHaveCount(6);
+      const topoItem = component.locator("arcgis-basemap-gallery-item").filter({ hasText: "Topoğrafik" });
+      await expect.poll(() => topoItem.evaluate((element) => (element as unknown as { item: { state: string } }).item.state)).toBe("ready");
+      await component.getByRole("radio", { name: "Topoğrafik", exact: true }).click();
+      await expect(page.getByRole("combobox", { name: "Harita görünümü", exact: true })).toHaveValue("topo-vector");
+      await expect.poll(() => page.locator("arcgis-scene").evaluate((element) => (element as unknown as { map: { basemap: { id: string } } }).map.basemap.id)).toBe("topo-vector");
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem("altyapi:preferences:v5") ?? "{}").basemap)).toBe("topo-vector");
+      // Restore the original basemap through the header and verify the gallery
+      // also tracks changes in the opposite direction.
+      await page.getByRole("combobox", { name: "Harita görünümü", exact: true }).selectOption("hybrid");
+      await expect(component.getByRole("radio", { name: "Hibrit", exact: true })).toHaveAttribute("aria-checked", "true");
+    }
     toolMetrics.push({ tool, readyMs: Date.now() - openedAt });
     await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
     await page.locator(".map-tool-header button").click();
