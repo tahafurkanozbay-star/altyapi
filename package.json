@@ -1,9 +1,9 @@
 {
   "name": "altyapi-3d-gis",
-  "version": "54.0.0",
+  "version": "55.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, tek kaynaklı vatandaş komut/kısayol sözleşmesi, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması, render-aware vatandaş hazır olma modeli, telefon/tablet/masaüstü responsive çalışma kabuğu, inert mobil modal arka planı, focus restoration, modifier-tabanlı erişilebilir klavye sözleşmesi ve v54 tek citizen-shell stil giriş noktası sunan profesyonel 3B CBS platformu.",
+  "description": "Ankara Kent Rehberi için ArcGIS 5.1 component-first, uçtan uca strict TypeScript 7, TypeScript-only first-party kaynak sözleşmesi, typed Dedicated Worker OGC metadata çözümleme, TypeScript kaynaklı PWA service worker, typed runtime event bus, tek kaynaklı vatandaş komut/kısayol sözleşmesi, shadow-DOM-aware typed citizen action executor, runtime-doğrulamalı JSON sınırları, cooperative background scheduling, tekil/batch atomik katman aktivasyonu, event-driven çevrimdışı kurtarma, starvation-safe katman yükleme, provider-local circuit breaker, gerçek in-flight ArcGIS iptali, canlı provider/LayerView ölçek doğrulaması, WGS84/Web Mercator kapsam farkındalığı, tarayıcı-otoriteli güvenli servis sağlık hafızası, deterministik katman çizim sırası, tam çalışma görünümü yer imleri, yüksek görünürlük kartografisi, WMS/WFS failover, onaylı-IP TUCBS sağlık uzlaştırması, render-aware vatandaş hazır olma modeli, telefon/tablet/masaüstü responsive çalışma kabuğu, inert mobil modal arka planı, focus restoration, modifier-tabanlı erişilebilir klavye sözleşmesi ve v55 tek citizen-shell stil giriş noktası sunan profesyonel 3B CBS platformu.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4173",
     "dev:host": "vite --host 0.0.0.0 --port 4173",
@@ -17,9 +17,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:dependencies": "tsx scripts/validate-dependencies.ts",
+    "validate:language": "tsx scripts/validate-source-language.ts",
     "validate:services": "tsx scripts/validate-services.ts",
     "verify:build": "tsx scripts/verify-build.ts",
-    "check": "npm run validate:dependencies && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
+    "check": "npm run validate:dependencies && npm run validate:language && npm run validate:services && npm run validate:health && npm run validate:navigation && npm run typecheck && npm run test && npm run build",
     "validate:health": "tsx scripts/validate-service-health.ts",
     "probe:services": "tsx scripts/probe-service-health.ts",
     "validate:navigation": "tsx scripts/validate-service-navigation.ts",

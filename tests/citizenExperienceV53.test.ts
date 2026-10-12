@@ -3,20 +3,24 @@ import { describe, expect, it } from "vitest";
 import { CITIZEN_SHORTCUTS, MAP_TOOL_METADATA, shortcutFor } from "../src/platform/citizenActions";
 import { resolveCitizenShortcut, type AppShortcutKeyEvent } from "../src/lib/globalShortcutGuard";
 
-describe("v54 unified citizen experience", () => {
-  it("installs one stable citizen-shell stylesheet entry point and v54 shell generation", async () => {
-    const [entry, shellCss] = await Promise.all([
+describe("v54+ unified citizen experience", () => {
+  it("installs one stable citizen-shell stylesheet entry point across newer shell generations", async () => {
+    const [entry, shellCss, packageText] = await Promise.all([
       readFile("src/main.tsx", "utf8"),
-      readFile("src/styles/citizen-shell.css", "utf8")
+      readFile("src/styles/citizen-shell.css", "utf8"),
+      readFile("package.json", "utf8")
     ]);
 
+    const packageJson = JSON.parse(packageText) as { version: string };
+    const major = packageJson.version.split(".")[0];
+    expect(Number(major)).toBeGreaterThanOrEqual(54);
     expect(entry).toContain('import "./styles/citizen-shell.css"');
     expect(entry).not.toContain('import "./styles/experience-v53.css"');
-    expect(entry).toContain('dataset.experience = "v54"');
+    expect(entry).toContain(`dataset.experience = "v${major}"`);
     expect(shellCss).toContain('@import "./experience-v43.css"');
     expect(shellCss).toContain('@import "./experience-v53.css"');
     expect(shellCss.indexOf('experience-v43.css')).toBeLessThan(shellCss.indexOf('experience-v53.css'));
-    expect(shellCss).toContain('html[data-experience="v54"]');
+    expect(shellCss).toContain(`html[data-experience="v${major}"]`);
   });
 
   it("keeps one typed shortcut registry for runtime matching, visible help and aria metadata", async () => {
@@ -122,17 +126,19 @@ describe("v54 unified citizen experience", () => {
     });
   });
 
-  it("ships v54 application and PWA cache generations together", async () => {
+  it("keeps v54+ application and PWA cache generations together", async () => {
     const [packageText, sourceWorker, generatedWorker] = await Promise.all([
       readFile("package.json", "utf8"),
       readFile("src/sw/sw.ts", "utf8"),
       readFile("public/sw.js", "utf8")
     ]);
 
-    expect(JSON.parse(packageText)).toMatchObject({ version: "54.0.0" });
-    expect(sourceWorker).toContain('altyapi-shell-v54');
-    expect(sourceWorker).toContain('altyapi-data-v54');
-    expect(generatedWorker).toContain('altyapi-shell-v54');
-    expect(generatedWorker).toContain('altyapi-data-v54');
+    const packageJson = JSON.parse(packageText) as { version: string };
+    const major = packageJson.version.split(".")[0];
+    expect(Number(major)).toBeGreaterThanOrEqual(54);
+    expect(sourceWorker).toContain(`altyapi-shell-v${major}`);
+    expect(sourceWorker).toContain(`altyapi-data-v${major}`);
+    expect(generatedWorker).toContain(`altyapi-shell-v${major}`);
+    expect(generatedWorker).toContain(`altyapi-data-v${major}`);
   });
 });

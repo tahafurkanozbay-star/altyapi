@@ -1,10 +1,9 @@
 /*
  * Ankara Kent Rehberi — unified citizen shell stylesheet.
  *
- * Historical experience fragments are imported in their original cascade order
- * so v54 can expose one stable stylesheet entry point without changing proven
- * layout behavior. New releases extend this file instead of adding another
- * top-level import to main.tsx.
+ * Historical experience fragments are imported in their original cascade order.
+ * v55 keeps one stable stylesheet entry point and adds page-wide accessibility,
+ * long-list rendering and modern responsive contracts here.
  */
 @import "./experience-v43.css";
 @import "./experience-v44.css";
@@ -17,13 +16,20 @@
 @import "./experience-v52.css";
 @import "./experience-v53.css";
 
-html[data-experience="v54"] {
+html[data-experience="v55"] {
   --citizen-focus-ring: 3px solid #0b63ce;
   --citizen-focus-offset: 3px;
   --citizen-touch-target: 44px;
+  --citizen-safe-top: env(safe-area-inset-top, 0px);
+  --citizen-safe-right: env(safe-area-inset-right, 0px);
+  --citizen-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --citizen-safe-left: env(safe-area-inset-left, 0px);
+  color-scheme: light;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
-html[data-experience="v54"] :where(
+html[data-experience="v55"] :where(
   button,
   a[href],
   input,
@@ -35,60 +41,113 @@ html[data-experience="v54"] :where(
   outline-offset: var(--citizen-focus-offset) !important;
 }
 
-html[data-experience="v54"] :where(.tool-button, .top-icon-button, .mobile-menu, .icon-ghost) {
+html[data-experience="v55"] :where(button, a[href], select, input[type="checkbox"], input[type="range"]) {
+  touch-action: manipulation;
+}
+
+html[data-experience="v55"] :where(.tool-button, .top-icon-button, .mobile-menu, .icon-ghost) {
   min-width: var(--citizen-touch-target);
   min-height: var(--citizen-touch-target);
 }
 
-html[data-experience="v54"] [data-v54-inert="true"] {
+/* The modal supervisor still owns this legacy data attribute; v55 preserves it
+   so an in-flight v54 DOM state can upgrade without losing interaction isolation. */
+html[data-experience="v55"] [data-v54-inert="true"] {
   pointer-events: none !important;
   user-select: none !important;
 }
 
-html[data-experience="v54"] :where(.brand, .workspace-summary, .operations-heading, .catalog-card, .health-note) {
+html[data-experience="v55"] :where(.brand, .workspace-summary, .operations-heading, .catalog-card, .health-note) {
   min-width: 0;
 }
 
-html[data-experience="v54"] :where(.brand strong, .brand span, .workspace-summary span, .catalog-card strong, .health-note span) {
+html[data-experience="v55"] :where(.brand strong, .brand span, .workspace-summary span, .catalog-card strong, .health-note span) {
   overflow-wrap: anywhere;
 }
 
-html[data-experience="v54"] .panel-zone :where(.main-panel, .operations-panel)[aria-modal="true"] {
+html[data-experience="v55"] :where(.panel-content, .operations-panel, .map-tool-host) {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+html[data-experience="v55"] .layer-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 112px;
+}
+
+html[data-experience="v55"] :where(.search-field input, .global-search, .top-actions, .workspace-summary) {
+  min-width: 0;
+}
+
+html[data-experience="v55"] .panel-zone :where(.main-panel, .operations-panel)[aria-modal="true"] {
   overscroll-behavior: contain;
   touch-action: pan-y;
 }
 
 @media (pointer: coarse) {
-  html[data-experience="v54"] :where(button, select, input[type="checkbox"], input[type="range"]) {
+  html[data-experience="v55"] :where(button, select, input[type="checkbox"], input[type="range"]) {
     min-height: var(--citizen-touch-target);
   }
 }
 
 @media (max-width: 760px) {
-  html[data-experience="v54"] .panel-zone.is-mobile-visible :where(.main-panel, .operations-panel)[aria-modal="true"] {
+  html[data-experience="v55"] .panel-zone.is-mobile-visible :where(.main-panel, .operations-panel)[aria-modal="true"] {
     max-height: min(86dvh, calc(var(--app-visual-height, 100dvh) - 76px));
-    scroll-padding-block: 16px;
+    scroll-padding-block: 16px calc(16px + var(--citizen-safe-bottom));
+    padding-bottom: max(0px, var(--citizen-safe-bottom));
   }
 
-  html[data-experience="v54"] .top-actions {
+  html[data-experience="v55"] .top-actions {
     min-width: 0;
   }
 
-  html[data-experience="v54"] .compact-select {
+  html[data-experience="v55"] .compact-select {
     max-width: min(42vw, 168px);
+  }
+
+  html[data-experience="v55"] .tool-rail {
+    padding-bottom: max(6px, var(--citizen-safe-bottom));
+  }
+
+  html[data-experience="v55"] .platform-status-stack {
+    max-width: calc(100vw - var(--citizen-safe-left) - var(--citizen-safe-right) - 20px);
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 760px) and (orientation: landscape) {
+  html[data-experience="v55"] .panel-zone.is-mobile-visible :where(.main-panel, .operations-panel)[aria-modal="true"] {
+    max-height: min(78dvh, calc(var(--app-visual-height, 100dvh) - 58px));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-experience="v54"] *,
-  html[data-experience="v54"] *::before,
-  html[data-experience="v54"] *::after {
+  html[data-experience="v55"] *,
+  html[data-experience="v55"] *::before,
+  html[data-experience="v55"] *::after {
     scroll-behavior: auto !important;
   }
 }
 
+@media (prefers-reduced-transparency: reduce) {
+  html[data-experience="v55"] :where(.topbar, .main-panel, .operations-panel, .map-tool-panel, .platform-status-stack > *) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  html[data-experience="v55"] :where(.layer-card, .catalog-card, .tool-button, .top-icon-button, .primary-button) {
+    border-width: 2px;
+  }
+}
+
 @media (forced-colors: active) {
-  html[data-experience="v54"] :focus-visible {
+  html[data-experience="v55"] :focus-visible {
     outline: 3px solid Highlight !important;
+  }
+
+  html[data-experience="v55"] :where(.layer-card, .catalog-card, .tool-button, .top-icon-button, .primary-button) {
+    forced-color-adjust: auto;
   }
 }
