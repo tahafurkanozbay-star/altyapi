@@ -22,6 +22,19 @@ describe("service health monitor workflow", () => {
     expect(workflow).toContain("node-version: 24");
   });
 
+  it("keeps public health probes provider-aware instead of bursting one gateway", async () => {
+    const probe = await readFile("scripts/probe-service-health.ts", "utf8");
+    const scheduler = await readFile("scripts/providerProbeScheduler.ts", "utf8");
+
+    expect(probe).toContain("mapWithProviderConcurrency");
+    expect(probe).toContain("providerLaneKey");
+    expect(probe).toContain("providerRouteClass");
+    expect(probe).toContain('"arcgis-sharing-proxy" ? 1 : 2');
+    expect(probe).not.toContain("mapWithConcurrency(services");
+    expect(scheduler).toContain("activeByLane");
+    expect(scheduler).toContain("laneLimitFor");
+  });
+
   it("uses tested TypeScript tooling instead of duplicating coverage arithmetic in workflow YAML", async () => {
     const workflow = await readFile(".github/workflows/service-health.yml", "utf8");
     const packageJson = await readFile("package.json", "utf8");
