@@ -92,8 +92,41 @@ test("production scene renders all public layers and reopens cached layers", asy
     page.off("response", onResponse);
     await toggle.click();
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, metrics, runtimeErrors, failedSdkAssets }, null, 2));
+  // Exercise the actual lazy SDK components, beyond the isolated UI fixture.
+  // arcgisReady is the SDK's signal that a component can be interacted with.
+  await page.evaluate(() => {
+    document.addEventListener("arcgisReady", (event) => {
+      const component = event.composedPath()[0];
+      if (component instanceof HTMLElement) component.dataset.liveComponentReady = "true";
+    }, true);
+  });
+  const tools = [
+    ["legend", "arcgis-legend"],
+    ["basemap", "arcgis-basemap-gallery"],
+    ["distance", "arcgis-direct-line-measurement-3d"],
+    ["area", "arcgis-area-measurement-3d"],
+    ["daylight", "arcgis-daylight"],
+    ["slice", "arcgis-slice"],
+    ["lineOfSight", "arcgis-line-of-sight"],
+    ["elevation", "arcgis-elevation-profile"]
+  ] as const;
+  const toolMetrics: Array<{ tool: string; readyMs: number }> = [];
+  for (const [tool, tag] of tools) {
+    const openedAt = Date.now();
+    await page.locator(`[data-tool-target="${tool}"]`).click();
+    const component = page.locator(".map-tool-host " + tag);
+    await expect(component).toBeVisible();
+    await expect(component).toHaveAttribute("data-live-component-ready", "true");
+    expect(await component.evaluate((element) => (element as unknown as { referenceElement: Element }).referenceElement === document.querySelector("arcgis-scene"))).toBe(true);
+    toolMetrics.push({ tool, readyMs: Date.now() - openedAt });
+    await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
+    await page.locator(".map-tool-header button").click();
+    await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+    await expect(component).toHaveCount(0);
+  }
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, metrics, toolMetrics, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);
+  expect(toolMetrics).toHaveLength(8);
 });

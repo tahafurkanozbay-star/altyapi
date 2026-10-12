@@ -19,3 +19,8 @@ Beş runtime regresyon testi ilk açılışı, fare gerektirmeyen navigasyonu,
 pointer örneklerinin birleştirilmesini, sekmeye dönüşü ve temizlemeyi doğrular.
 Production canlı testi başlangıç ölçeğini ve her katman açıldıktan sonraki
 ölçeği gerçek SDK değeriyle karşılaştırır.
+
+Aynı production testinde sekiz harita aracı gerçek SDK bileşenleriyle açılır.
+`arcgisReady` olayı, Scene bağlantısı, görünürlük ve panel kapatıldığında
+bileşenin kaldırılması doğrulanır. Her araç için ekran görüntüsü ve açılış
+süresi test artifact'ına eklenir; bu adım runtime fixture kullanmaz.
