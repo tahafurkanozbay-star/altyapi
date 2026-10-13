@@ -52,6 +52,7 @@ import { NotificationPortal } from "./components/NotificationPortal";
 import { Icon } from "./components/Icon";
 import { BASEMAP_OPTIONS } from "./lib/basemaps";
 import { MAP_TOOL_METADATA } from "./platform/citizenActions";
+import { isQueryCancellation } from "./gis/queryTask";
 
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 export default function App() {
@@ -504,13 +505,14 @@ export default function App() {
     });
   }, [layerLoadScheduler, patchService, persistLayerPreferences, preferences.layerOrder, pushToast, recordIncident]);
 
-  const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions): Promise<AttributeTableResult> => {
+  const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions, signal?: AbortSignal): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
     if (!runtime) throw new Error("Harita henüz hazır değil.");
     const startedAt = performance.now();
     try {
-      return await runtime.queryAttributes(service, options);
+      return await runtime.queryAttributes(service, options, signal);
     } catch (error) {
+      if (signal?.aborted || isQueryCancellation(error)) throw error;
       recordIncident({
         severity: "error",
         kind: "query",

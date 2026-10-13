@@ -2,8 +2,8 @@ import type { AttributeField, AttributeFilter, AttributeQueryOptions } from "../
 
 export function sanitizeQueryOptions(options: AttributeQueryOptions): AttributeQueryOptions {
   return {
-    limit: Math.min(500, Math.max(1, Math.trunc(options.limit || 100))),
-    offset: Math.max(0, Math.trunc(options.offset || 0)),
+    limit: Math.min(500, Math.max(1, Math.trunc(Number.isFinite(options.limit) ? options.limit || 100 : 100))),
+    offset: Math.min(2_147_483_647, Math.max(0, Math.trunc(Number.isFinite(options.offset) ? options.offset : 0))),
     filter: options.filter,
     orderBy: options.orderBy
   };

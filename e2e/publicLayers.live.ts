@@ -227,7 +227,28 @@ test("production scene renders all public layers and reopens cached layers", asy
     await closeMapTool(page);
     await expect(page.locator(".map-tool-panel")).toHaveCount(0);
   }
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, runtimeErrors, failedSdkAssets }, null, 2));
+  // Exercise the real server query transport and page-size refresh on the
+  // public startup FeatureLayer, including the SDK's AbortSignal options.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator('[data-panel-target="data"]').click();
+  await page.getByRole("combobox", { name: "Katman", exact: true }).selectOption(startupId!);
+  const pageSize = page.getByRole("combobox", { name: "Sayfa boyutu", exact: true });
+  await pageSize.selectOption("50");
+  await page.getByRole("button", { name: "Veriyi getir", exact: true }).click();
+  await expect.poll(() => page.locator(".attribute-table tbody tr").count()).toBeGreaterThan(0);
+  await expect(page.locator(".data-error")).toHaveCount(0);
+  await pageSize.selectOption("100");
+  await expect(page.locator(".attribute-table caption")).toContainText("sayfa boyutu 100");
+  await expect(page.locator(".data-workbench")).toHaveAttribute("aria-busy", "false");
+  await expect.poll(() => page.locator(".attribute-table tbody tr").count()).toBeGreaterThan(0);
+  await expect(page.locator(".data-error")).toHaveCount(0);
+  const attributeQuery = {
+    rows: await page.locator(".attribute-table tbody tr").count(),
+    pageSize: await pageSize.inputValue(),
+    pagination: await page.locator(".data-pagination").innerText()
+  };
+  await page.screenshot({ path: info.outputPath("public-attribute-query.png"), animations: "disabled" });
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);

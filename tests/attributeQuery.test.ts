@@ -43,4 +43,9 @@ describe("attribute query builder", () => {
     expect(filterNeedsValue("isNull")).toBe(false);
     expect(filterNeedsValue("equals")).toBe(true);
   });
+  it("keeps invalid numeric page inputs out of provider requests", () => {
+    expect(sanitizeQueryOptions({ limit: NaN, offset: Infinity })).toMatchObject({ limit: 100, offset: 0 });
+    expect(sanitizeQueryOptions({ limit: Infinity, offset: NaN })).toMatchObject({ limit: 100, offset: 0 });
+    expect(sanitizeQueryOptions({ limit: -20, offset: Number.MAX_VALUE })).toMatchObject({ limit: 1, offset: 2_147_483_647 });
+  });
 });

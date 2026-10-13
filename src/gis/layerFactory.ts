@@ -78,7 +78,7 @@ export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): v
  * retry. v17 uses that property to rotate between equivalent WMS/WFS transports
  * for the same logical TUCBS dataset without changing UI identity.
  */
-export async function createLayer(service: ServiceDefinition): Promise<Layer> {
+export async function createLayer(service: ServiceDefinition, options: { trackLoad?: boolean } = {}): Promise<Layer> {
   const effectiveService = nextCreationService(service);
   if (isUnconfiguredTucbsUrl(effectiveService.url)) {
     // v40 migration marker: legacy "altyapi:tucbs-access-required" CustomEvent
@@ -146,7 +146,7 @@ export async function createLayer(service: ServiceDefinition): Promise<Layer> {
   }
 
   effectiveServiceByLayer.set(layer, effectiveService);
-  trackLayerLoad(service.id, layer);
+  if (options.trackLoad !== false) trackLayerLoad(service.id, layer);
   return layer;
 }
 

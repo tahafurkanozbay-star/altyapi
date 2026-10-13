@@ -144,7 +144,7 @@ test("loading announces progress and changing the layer ignores an older respons
   await page.getByRole("button", { name: "Veriyi getir", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Kayıtlar yükleniyor" })).toBeVisible();
   await expect(page.locator(".data-empty")).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: "Sayfa boyutu", exact: true })).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "Sayfa boyutu", exact: true })).toBeEnabled();
   const layer = page.getByRole("combobox", { name: "Katman", exact: true });
   const selected = await layer.inputValue();
   const other = await layer.locator("option").evaluateAll((options, selected) => options.map((option) => option.getAttribute("value")).find((value) => value && value !== selected), selected);

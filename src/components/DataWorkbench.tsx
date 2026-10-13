@@ -1,6 +1,7 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { defaultVisibleFields, filterAttributeRows, formatCell, rowsToCsv } from "../lib/attributeTable";
 import { filterNeedsValue, filterOperatorsForField } from "../lib/attributeQuery";
+import { isQueryCancellation } from "../gis/queryTask";
 import type {
   AttributeFilter,
   AttributeFilterOperator,
@@ -12,7 +13,7 @@ import { Icon } from "./Icon";
 
 interface Props {
   services: ServiceDefinition[];
-  onQuery: (service: ServiceDefinition, options: AttributeQueryOptions) => Promise<AttributeTableResult>;
+  onQuery: (service: ServiceDefinition, options: AttributeQueryOptions, signal?: AbortSignal) => Promise<AttributeTableResult>;
 }
 
 const limits = [50, 100, 250, 500] as const;
@@ -23,6 +24,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
     [services]
   );
   const queryGenerationRef = useRef(0);
+  const queryControllerRef = useRef<AbortController | null>(null);
   const [serviceId, setServiceId] = useState("");
   const [limit, setLimit] = useState<number>(100);
   const [result, setResult] = useState<AttributeTableResult | null>(null);
@@ -39,23 +41,40 @@ export function DataWorkbench({ services, onQuery }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedQuery, setFailedQuery] = useState<AttributeQueryOptions | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => () => {
+  const invalidateQuery = useCallback(() => {
     queryGenerationRef.current += 1;
+    queryControllerRef.current?.abort();
+    queryControllerRef.current = null;
   }, []);
 
-  useEffect(() => {
-    if (queryable.length === 0) {
-      if (serviceId) queryGenerationRef.current += 1;
-      setServiceId("");
-      setBusy(false);
-      return;
-    }
-    if (serviceId && queryable.some((service) => service.id === serviceId)) return;
-    queryGenerationRef.current += 1;
+  const resetForService = useCallback((id: string) => {
+    invalidateQuery();
     setBusy(false);
-    setServiceId(queryable.find((service) => service.visible)?.id ?? queryable[0]!.id);
-  }, [queryable, serviceId]);
+    setServiceId(id);
+    setResult(null);
+    setError(null);
+    setFailedQuery(null);
+    setNotice(null);
+    setSelectedFields([]);
+    setFilter("");
+    setAppliedFilter(undefined);
+    setAppliedSort(undefined);
+    setServerField("");
+    setServerValue("");
+    setSortField("");
+    setSortDirection("asc");
+  }, [invalidateQuery]);
+
+  useEffect(() => () => {
+    invalidateQuery();
+  }, [invalidateQuery]);
+
+  useEffect(() => {
+    if (serviceId && queryable.some((service) => service.id === serviceId)) return;
+    resetForService(queryable.find((service) => service.visible)?.id ?? queryable[0]?.id ?? "");
+  }, [queryable, serviceId, resetForService]);
 
   const activeService = queryable.find((service) => service.id === serviceId);
   const visibleFields = useMemo(
@@ -86,20 +105,26 @@ export function DataWorkbench({ services, onQuery }: Props) {
     nextSort: AttributeQueryOptions["orderBy"] | null = appliedSort,
     requestedLimit = limit
   ) => {
-    if (!activeService || busy) return;
+    if (!activeService) return;
     const generation = ++queryGenerationRef.current;
+    queryControllerRef.current?.abort();
+    const controller = new AbortController();
+    queryControllerRef.current = controller;
     const requestedService = activeService;
     setBusy(true);
     setError(null);
     setFailedQuery(null);
+    setNotice(null);
     const options = { limit: requestedLimit, offset, filter: nextFilter ?? undefined, orderBy: nextSort ?? undefined };
     try {
-      const next = await onQuery(requestedService, options);
+      const next = await onQuery(requestedService, options, controller.signal);
       if (generation !== queryGenerationRef.current) return;
+      controller.signal.throwIfAborted();
       setResult(next);
       setLimit(next.limit);
       setAppliedFilter(options.filter);
       setAppliedSort(options.orderBy);
+      setNotice(null);
       setSelectedFields((current) => {
         const available = new Set(next.fields.map((field) => field.name));
         const retained = current.filter((field) => available.has(field));
@@ -108,11 +133,17 @@ export function DataWorkbench({ services, onQuery }: Props) {
       setFilter("");
     } catch (reason) {
       if (generation !== queryGenerationRef.current) return;
-      setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
-      setFailedQuery(options);
-      if (result) setLimit(result.limit);
+      setLimit(result?.limit ?? requestedLimit);
+      if (controller.signal.aborted || isQueryCancellation(reason)) setNotice("Sorgu durduruldu.");
+      else {
+        setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
+        setFailedQuery(options);
+      }
     } finally {
-      if (generation === queryGenerationRef.current) setBusy(false);
+      if (generation === queryGenerationRef.current) {
+        setBusy(false);
+        queryControllerRef.current = null;
+      }
     }
   };
 
@@ -166,20 +197,18 @@ export function DataWorkbench({ services, onQuery }: Props) {
     });
   };
 
-  const resetForService = (id: string) => {
-    queryGenerationRef.current += 1;
+  const cancelQuery = () => {
+    invalidateQuery();
     setBusy(false);
-    setServiceId(id);
-    setResult(null);
+    setLimit(result?.limit ?? limit);
     setError(null);
     setFailedQuery(null);
-    setFilter("");
-    setAppliedFilter(undefined);
-    setAppliedSort(undefined);
-    setServerField("");
-    setServerValue("");
-    setSortField("");
-    setSortDirection("asc");
+    setNotice("Sorgu durduruldu.");
+  };
+
+  const changePageSize = (next: number) => {
+    setLimit(next);
+    if (result || busy) void load(0, appliedFilter, appliedSort, next);
   };
 
   return (
@@ -202,11 +231,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
         </label>
         <label>
           <span>Sayfa boyutu</span>
-          <select value={limit} disabled={busy || !activeService} onChange={(event) => {
-            const nextLimit = Number(event.target.value);
-            setLimit(nextLimit);
-            if (result) void load(0, appliedFilter, appliedSort, nextLimit);
-          }}>
+          <select value={limit} disabled={!activeService} onChange={(event) => changePageSize(Number(event.target.value))}>
             {limits.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
@@ -214,9 +239,9 @@ export function DataWorkbench({ services, onQuery }: Props) {
           <Icon name={busy ? "refresh" : "table"} size={16} /> {busy ? "Sorgulanıyor…" : "Veriyi getir"}
         </button>
       </div>
-
-      <div className="data-query-status" role="status" aria-live="polite" aria-atomic="true">
-        {busy ? <><Icon name="refresh" size={16} /> Kayıtlar yükleniyor…</> : result && !error ? `${result.total.toLocaleString("tr-TR")} kayıt bulundu. Bu sayfada ${result.rows.length.toLocaleString("tr-TR")} kayıt var.` : null}
+      {busy && <button type="button" className="catalog-action data-query-cancel" onClick={cancelQuery}><Icon name="close" size={16} /> Sorguyu durdur</button>}
+      <div className={`data-query-status${notice ? " data-query-notice" : ""}`} role="status" aria-live="polite" aria-atomic="true">
+        {busy ? <><Icon name="refresh" size={16} /> Kayıtlar yükleniyor…{result && " Önceki başarılı sonuçlar gösteriliyor."}</> : notice ?? (result && !error ? `${result.total.toLocaleString("tr-TR")} kayıt bulundu. Bu sayfada ${result.rows.length.toLocaleString("tr-TR")} kayıt var.` : null)}
       </div>
 
       {error && (
@@ -343,7 +368,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
 
           <div className="attribute-table-wrap" role="region" aria-label="Öznitelik sonuç tablosu" tabIndex={0}>
             <table className="attribute-table">
-              <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları</caption>
+              <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları, {Math.floor(result.offset / result.limit) + 1}. sayfa, sayfa boyutu {result.limit}</caption>
               <thead>
                 <tr>{visibleFields.map((field) => <th key={field.name} title={field.name}>{field.alias}</th>)}</tr>
               </thead>
