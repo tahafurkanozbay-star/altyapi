@@ -42,7 +42,16 @@ describe("attributeTable", () => {
   });
 
   it("protects formula-like headers while preserving numeric signs and RFC quoting", () => {
-    expect(rowsToCsv([{ ADI: -7.5 }], [{ name: "ADI", alias: "=Adı" }])).toBe('\uFEFF\'=Adı\n"-7,5"');
+    expect(rowsToCsv([{ ADI: -7.5 }], [{ name: "ADI", alias: "=Adı" }])).toBe('\uFEFF\'=Adı\n-7.5');
     expect(rowsToCsv([{ ADI: '=HYPERLINK("x", "y")' }], [{ name: "ADI", alias: "Adı" }])).toBe('\uFEFFAdı\n"\'=HYPERLINK(""x"", ""y"")"');
+  });
+
+  it("keeps coordinate precision in the readable table and record details", () => {
+    expect(formatCell(32.85423275)).toBe("32,85423275");
+    expect(formatCell(0.00000012345678)).toBe("0,00000012345678");
+  });
+
+  it("exports numeric IDs and coordinates without grouping or display rounding", () => {
+    expect(rowsToCsv([{ OBJECTID: 1234567, ADI: 32.85423275, DURUM: -0.00000012345678 }], fields)).toBe("\uFEFFID,Adı,Durum\n1234567,32.85423275,-1.2345678e-7");
   });
 });

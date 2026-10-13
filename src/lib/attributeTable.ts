@@ -21,7 +21,7 @@ export function filterAttributeRows(rows: AttributeRow[], fields: AttributeField
 export function formatCell(value: AttributeValue | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Evet" : "Hayır";
-  if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString("tr-TR") : "—";
+  if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString("tr-TR", { maximumSignificantDigits: 21 }) : "—";
   return value;
 }
 
@@ -29,7 +29,7 @@ export function rowsToCsv(rows: AttributeRow[], fields: AttributeField[]): strin
   const header = fields.map((field) => csvEscape(spreadsheetText(field.alias || field.name))).join(",");
   const body = rows.map((row) => fields.map((field) => {
     const value = row[field.name];
-    const formatted = formatCell(value);
+    const formatted = typeof value === "number" && Number.isFinite(value) ? String(value) : formatCell(value);
     return csvEscape(typeof value === "string" ? spreadsheetText(formatted) : formatted);
   }).join(",")).join("\n");
   return "\uFEFF" + [header, body].filter(Boolean).join("\n");

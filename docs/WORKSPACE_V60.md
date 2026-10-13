@@ -34,7 +34,7 @@ Sonuç yüklendiğinde tanıtım kartı yerini kayıt sayısına bırakır. Filt
 
 Her satırın İncele düğmesi, gizlenen sütunlar dahil bütün alanları ve uzun değerleri satırlara ayrılmış biçimde gösterir. Kapat düğmesi odağı aynı kaydın düğmesine döndürür; yeni başarılı sayfa veya katman değişimi eski kaydı temizler. İnceleme için geometri veya ek servis verisi istenmez. En az bir sütun görünür kalır; son sütun seçiminin kaldırılması arayüzde devre dışıdır.
 
-Hızlı arama, yalnız yüklenen sayfanın tüm alanlarını tarar; sütun gizlemek arama sonucunu değiştirmez ve yeni servis isteği başlatılmaz. CSV kapsamı gösterilen satırlar ve seçilen sütunlar olarak açıklanır. Servisten gelen metin ve başlıklardaki formül başlangıçları, RFC CSV kaçışından önce tek tırnakla metne çevrilir; gerçek sayısal değerlerin işareti korunur. Bu koruma üretilen dosyaya aittir; hesap tablosunda yeniden kaydetmek kaçışı kaldırabilir. Referans: https://community.owasp.org/attacks/CSV_Injection
+Hızlı arama, yalnız yüklenen sayfanın tüm alanlarını tarar; sütun gizlemek arama sonucunu değiştirmez ve yeni servis isteği başlatılmaz. CSV kapsamı gösterilen satırlar ve seçilen sütunlar olarak açıklanır. Sayısal kimlikler ve koordinatlar CSV'de binlik ayracı veya görüntüleme yuvarlaması olmadan, tarayıcıda alınan sayı basamaklarıyla aktarılır. Tablo ve ayrıntılar da koordinatları üç ondalık basamağa düşürmez. Servisten gelen metin ve başlıklardaki formül başlangıçları, RFC CSV kaçışından önce tek tırnakla metne çevrilir; gerçek sayısal değerlerin işareti korunur. Bu koruma üretilen dosyaya aittir; hesap tablosunda yeniden kaydetmek kaçışı kaldırabilir. Referans: https://community.owasp.org/attacks/CSV_Injection
 
 ## Teknoloji ve doğrulama
 
