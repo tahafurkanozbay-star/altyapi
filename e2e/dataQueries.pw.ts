@@ -75,6 +75,8 @@ test("changing the layer cancels the previous request and ignores its late succe
 
 test("a failed filter keeps the last successful table and its pagination query", async ({ page }) => {
   await page.getByRole("button", { name: "Veriyi getir", exact: true }).click(); await expect(rows(page)).toHaveCount(100);
+  await page.locator(".server-query-heading").click();
+  await page.getByRole("combobox", { name: "Alan", exact: true }).selectOption("id");
   await page.getByRole("textbox", { name: "Değer", exact: true }).fill("5");
   await mode(page, "fail"); await page.getByRole("button", { name: "Sorguyu uygula", exact: true }).click();
   await expect(page.locator(".data-error")).toContainText("Deneme sorgusu reddedildi.");
@@ -94,8 +96,23 @@ test("page size restarts at the first page and cancellation restores consistent 
   expect((await requests(page)).at(-1)!.options).toMatchObject({ offset: 50, limit: 50 });
   await mode(page, "hold"); await size.selectOption("250");
   await expect(page.getByRole("button", { name: "Sorguyu durdur", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "CSV", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /CSV olarak indir/ })).toBeDisabled();
   await page.getByRole("button", { name: "Sorguyu durdur", exact: true }).click();
   await expect(size).toHaveValue("50"); await expect(rows(page)).toHaveCount(50);
   await expect(page.locator(".data-pagination")).toContainText("51–100 / 205");
+});
+
+test("changing page size replaces a pending query and keeps its late result out of the table", async ({ page }) => {
+  await page.getByRole("button", { name: "Veriyi getir", exact: true }).click(); await expect(rows(page)).toHaveCount(100);
+  const size = page.getByRole("combobox", { name: "Sayfa boyutu", exact: true });
+  await mode(page, "late"); await size.selectOption("250");
+  await expect(page.getByRole("button", { name: "Sorguyu durdur", exact: true })).toBeVisible();
+  await size.selectOption("50"); await expect(rows(page)).toHaveCount(50);
+  await expect.poll(async () => (await requests(page))[1]!.finished).toBe(true);
+  expect((await requests(page))[1]!.aborted).toBe(true);
+  expect((await requests(page)).at(-1)!.options).toMatchObject({ offset: 0, limit: 50 });
+  await expect(size).toHaveValue("50");
+  await expect(page.locator(".data-pagination")).toContainText("1–50 / 205");
+  await expect(rows(page)).toHaveCount(50);
+  await expect(page.locator(".data-error")).toHaveCount(0);
 });

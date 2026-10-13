@@ -40,6 +40,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
   const [appliedSort, setAppliedSort] = useState<AttributeQueryOptions["orderBy"]>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedQuery, setFailedQuery] = useState<AttributeQueryOptions | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const invalidateQuery = useCallback(() => {
@@ -54,6 +55,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
     setServiceId(id);
     setResult(null);
     setError(null);
+    setFailedQuery(null);
     setNotice(null);
     setSelectedFields([]);
     setFilter("");
@@ -88,10 +90,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
 
   useEffect(() => {
     if (!result?.fields.length) return;
-    if (!serverField || !result.fields.some((field) => field.name === serverField)) {
-      setServerField(result.fields[0]!.name);
-      setServerOperator(filterOperatorsForField(result.fields[0])[0]!.value);
-    }
+    if (serverField && !result.fields.some((field) => field.name === serverField)) setServerField("");
   }, [result, serverField]);
 
   useEffect(() => {
@@ -102,9 +101,9 @@ export function DataWorkbench({ services, onQuery }: Props) {
 
   const load = async (
     offset = 0,
-    nextFilter: AttributeFilter | undefined = appliedFilter,
-    nextSort: AttributeQueryOptions["orderBy"] = appliedSort,
-    pageLimit = limit
+    nextFilter: AttributeFilter | undefined | null = appliedFilter,
+    nextSort: AttributeQueryOptions["orderBy"] | null = appliedSort,
+    requestedLimit = limit
   ) => {
     if (!activeService) return;
     const generation = ++queryGenerationRef.current;
@@ -114,15 +113,17 @@ export function DataWorkbench({ services, onQuery }: Props) {
     const requestedService = activeService;
     setBusy(true);
     setError(null);
-    setNotice(result ? "Sorgu sürerken önceki başarılı sonuç gösteriliyor." : "Veri sorgusu çalışıyor…");
+    setFailedQuery(null);
+    setNotice(null);
+    const options = { limit: requestedLimit, offset, filter: nextFilter ?? undefined, orderBy: nextSort ?? undefined };
     try {
-      const next = await onQuery(requestedService, { limit: pageLimit, offset, filter: nextFilter, orderBy: nextSort }, controller.signal);
+      const next = await onQuery(requestedService, options, controller.signal);
       if (generation !== queryGenerationRef.current) return;
       controller.signal.throwIfAborted();
       setResult(next);
       setLimit(next.limit);
-      setAppliedFilter(nextFilter);
-      setAppliedSort(nextSort);
+      setAppliedFilter(options.filter);
+      setAppliedSort(options.orderBy);
       setNotice(null);
       setSelectedFields((current) => {
         const available = new Set(next.fields.map((field) => field.name));
@@ -132,11 +133,11 @@ export function DataWorkbench({ services, onQuery }: Props) {
       setFilter("");
     } catch (reason) {
       if (generation !== queryGenerationRef.current) return;
-      setLimit(result?.limit ?? pageLimit);
+      setLimit(result?.limit ?? requestedLimit);
       if (controller.signal.aborted || isQueryCancellation(reason)) setNotice("Sorgu durduruldu.");
       else {
         setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
-        setNotice(result ? "Önceki başarılı sonuç korunuyor." : null);
+        setFailedQuery(options);
       }
     } finally {
       if (generation === queryGenerationRef.current) {
@@ -147,21 +148,27 @@ export function DataWorkbench({ services, onQuery }: Props) {
   };
 
   const applyServerQuery = async () => {
-    if (!result || !serverField) return;
-    const nextFilter: AttributeFilter = {
+    if (!result || busy || (serverField && filterNeedsValue(serverOperator) && !serverValue.trim())) return;
+    const nextFilter: AttributeFilter | undefined = serverField ? {
       field: serverField,
       operator: serverOperator,
       ...(filterNeedsValue(serverOperator) ? { value: serverValue } : {})
-    };
+    } : undefined;
     const nextSort = sortField ? { field: sortField, direction: sortDirection } as const : undefined;
-    await load(0, nextFilter, nextSort);
+    await load(0, nextFilter ?? null, nextSort ?? null);
   };
 
   const clearServerQuery = async () => {
+    setServerField("");
     setServerValue("");
     setSortField("");
     setSortDirection("asc");
-    await load(0, undefined, undefined);
+    await load(0, null, null);
+  };
+
+  const retryQuery = () => {
+    if (!failedQuery) return;
+    void load(failedQuery.offset, failedQuery.filter ?? null, failedQuery.orderBy ?? null, failedQuery.limit);
   };
 
   const exportCsv = () => {
@@ -195,6 +202,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
     setBusy(false);
     setLimit(result?.limit ?? limit);
     setError(null);
+    setFailedQuery(null);
     setNotice("Sorgu durduruldu.");
   };
 
@@ -204,7 +212,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
   };
 
   return (
-    <div className="operations-body data-workbench" aria-busy={busy}>
+    <div className="operations-body data-workbench">
       <div className="data-workbench-hero">
         <span className="data-hero-icon"><Icon name="database" size={22} /></span>
         <div>
@@ -216,14 +224,14 @@ export function DataWorkbench({ services, onQuery }: Props) {
       <div className="data-controls">
         <label>
           <span>Katman</span>
-          <select value={serviceId} onChange={(event) => resetForService(event.target.value)}>
+          <select value={serviceId} disabled={queryable.length === 0} onChange={(event) => resetForService(event.target.value)}>
             {queryable.length === 0 && <option value="">Sorgulanabilir servis yok</option>}
             {queryable.map((service) => <option key={service.id} value={service.id}>{service.displayName} · {service.kind}</option>)}
           </select>
         </label>
         <label>
           <span>Sayfa boyutu</span>
-          <select value={limit} onChange={(event) => changePageSize(Number(event.target.value))}>
+          <select value={limit} disabled={!activeService} onChange={(event) => changePageSize(Number(event.target.value))}>
             {limits.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
@@ -232,27 +240,44 @@ export function DataWorkbench({ services, onQuery }: Props) {
         </button>
       </div>
       {busy && <button type="button" className="catalog-action data-query-cancel" onClick={cancelQuery}><Icon name="close" size={16} /> Sorguyu durdur</button>}
-      {notice && <p className="data-query-notice" role="status" aria-live="polite">{notice}</p>}
+      <div className={`data-query-status${notice ? " data-query-notice" : ""}`} role="status" aria-live="polite" aria-atomic="true">
+        {busy ? <><Icon name="refresh" size={16} /> Kayıtlar yükleniyor…{result && " Önceki başarılı sonuçlar gösteriliyor."}</> : notice ?? (result && !error ? `${result.total.toLocaleString("tr-TR")} kayıt bulundu. Bu sayfada ${result.rows.length.toLocaleString("tr-TR")} kayıt var.` : null)}
+      </div>
 
-      {error && <div className="data-error" role="alert"><Icon name="warning" /><div><strong>Sorgu tamamlanamadı</strong><span>{error}</span></div></div>}
+      {error && (
+        <div className="data-error" role="alert">
+          <Icon name="warning" />
+          <div>
+            <strong>Sorgu tamamlanamadı</strong>
+            <span>{error}</span>
+            {result && <span>Son başarılı sonuçlar gösteriliyor.</span>}
+            {failedQuery && <button type="button" className="catalog-action" disabled={busy} onClick={retryQuery}><Icon name="refresh" size={14} /> Yeniden dene</button>}
+          </div>
+        </div>
+      )}
+
+      <div className="data-results" aria-busy={busy}>
 
       {result && (
         <>
-          <section className="server-query-studio" aria-label="Sunucu sorgusu">
-            <div className="server-query-heading">
-              <div><strong>Sunucu sorgusu</strong><span>Filtreler servis tarafında çalışır; yalnız ilgili sayfa tarayıcıya gelir.</span></div>
-              {(appliedFilter || appliedSort) && <span className="query-active-badge">AKTİF</span>}
-            </div>
+          <details className="server-query-studio">
+            <summary className="server-query-heading">
+              <strong>Filtre ve sıralama</strong>
+              {(appliedFilter || appliedSort) && <span className="query-active-badge">Uygulandı</span>}
+            </summary>
+            <p className="server-query-note">Bir filtre seçebilir veya yalnızca sıralama uygulayabilirsiniz. Bu ayarlar tüm kayıtlarda çalışır.</p>
+            <form onSubmit={(event) => { event.preventDefault(); void applyServerQuery(); }}>
             <div className="server-query-grid">
               <label>
                 <span>Alan</span>
-                <select value={serverField} onChange={(event) => setServerField(event.target.value)}>
+                <select value={serverField} disabled={busy} onChange={(event) => { setServerField(event.target.value); setServerValue(""); }}>
+                  <option value="">Filtre yok</option>
                   {result.fields.map((field) => <option key={field.name} value={field.name}>{field.alias}</option>)}
                 </select>
               </label>
               <label>
                 <span>Operatör</span>
-                <select value={serverOperator} onChange={(event) => setServerOperator(event.target.value as AttributeFilterOperator)}>
+                <select value={serverOperator} disabled={busy || !serverField} onChange={(event) => setServerOperator(event.target.value as AttributeFilterOperator)}>
                   {operatorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
@@ -261,33 +286,36 @@ export function DataWorkbench({ services, onQuery }: Props) {
                 <input
                   value={serverValue}
                   onChange={(event) => setServerValue(event.target.value)}
-                  disabled={!filterNeedsValue(serverOperator)}
-                  placeholder={filterNeedsValue(serverOperator) ? "Filtre değeri…" : "Değer gerekmiyor"}
+                  disabled={busy || !serverField || !filterNeedsValue(serverOperator)}
+                  required={Boolean(serverField) && filterNeedsValue(serverOperator)}
+                  inputMode={/integer|double|single|oid|int|float/i.test(selectedServerField?.type ?? "") ? "decimal" : "text"}
+                  placeholder={!serverField ? "Önce bir filtre alanı seçin" : filterNeedsValue(serverOperator) ? "Filtre değeri…" : "Değer gerekmiyor"}
                 />
               </label>
               <label>
                 <span>Sırala</span>
-                <select value={sortField} onChange={(event) => setSortField(event.target.value)}>
+                <select value={sortField} disabled={busy} onChange={(event) => setSortField(event.target.value)}>
                   <option value="">Sıralama yok</option>
                   {result.fields.map((field) => <option key={field.name} value={field.name}>{field.alias}</option>)}
                 </select>
               </label>
               <label>
                 <span>Yön</span>
-                <select value={sortDirection} onChange={(event) => setSortDirection(event.target.value as "asc" | "desc")} disabled={!sortField}>
+                <select value={sortDirection} onChange={(event) => setSortDirection(event.target.value as "asc" | "desc")} disabled={busy || !sortField}>
                   <option value="asc">Artan</option>
                   <option value="desc">Azalan</option>
                 </select>
               </label>
             </div>
             <div className="server-query-actions">
-              <button type="button" className="primary-button" disabled={busy || !serverField || (filterNeedsValue(serverOperator) && !serverValue.trim())} onClick={() => void applyServerQuery()}>
+              <button type="submit" className="primary-button" disabled={busy || Boolean(serverField && filterNeedsValue(serverOperator) && !serverValue.trim())}>
                 <Icon name="search" size={14} /> Sorguyu uygula
               </button>
               <button type="button" className="catalog-action" disabled={busy || (!appliedFilter && !appliedSort)} onClick={() => void clearServerQuery()}>
                 <Icon name="refresh" size={14} /> Temizle
               </button>
             </div>
+            </form>
             <details className="query-preview">
               <summary>Sorgu ayrıntıları</summary>
               <div className="query-expression" title={result.where}>
@@ -295,7 +323,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
                 {result.orderBy && <><span>ORDER</span><code>{result.orderBy}</code></>}
               </div>
             </details>
-          </section>
+          </details>
 
           <div className="data-summary">
             <div><strong>{result.total.toLocaleString("tr-TR")}</strong><span>eşleşen kayıt</span></div>
@@ -320,8 +348,8 @@ export function DataWorkbench({ services, onQuery }: Props) {
               <input aria-label="Bu sayfada hızlı ara" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Bu sayfada hızlı ara…" />
               {filter && <button type="button" className="icon-ghost" onClick={() => setFilter("")} aria-label="Filtreyi temizle"><Icon name="close" size={13} /></button>}
             </label>
-            <button type="button" className="catalog-action" onClick={exportCsv} disabled={busy || filteredRows.length === 0}>
-              <Icon name="download" size={14} /> CSV
+            <button type="button" className="catalog-action" onClick={exportCsv} disabled={busy || filteredRows.length === 0} aria-label={`Görünen ${filteredRows.length} kaydı CSV olarak indir`}>
+              <Icon name="download" size={14} /> CSV indir
             </button>
           </div>
 
@@ -330,11 +358,12 @@ export function DataWorkbench({ services, onQuery }: Props) {
             <div className="field-picker-grid">
               {result.fields.map((field) => (
                 <label key={field.name} title={field.name}>
-                  <input type="checkbox" checked={selectedFields.includes(field.name)} onChange={() => toggleField(field.name)} />
+                  <input type="checkbox" checked={selectedFields.includes(field.name)} disabled={selectedFields.length === 1 && selectedFields.includes(field.name)} onChange={() => toggleField(field.name)} />
                   <span>{field.alias}</span>
                 </label>
               ))}
             </div>
+            <p className="field-picker-note">En az bir sütun seçili kalır.</p>
           </details>
 
           <div className="attribute-table-wrap" role="region" aria-label="Öznitelik sonuç tablosu" tabIndex={0}>
@@ -351,12 +380,12 @@ export function DataWorkbench({ services, onQuery }: Props) {
                 ))}
               </tbody>
             </table>
-            {filteredRows.length === 0 && <div className="empty-state compact"><Icon name="search" size={22} /><strong>Kayıt bulunamadı</strong><span>İstemci aramasını veya sunucu sorgusunu değiştirin.</span></div>}
+            {filteredRows.length === 0 && <div className="empty-state compact"><Icon name="search" size={22} /><strong>Kayıt bulunamadı</strong><span>{filter ? "Bu sayfadaki aramayla eşleşen kayıt yok." : "Seçilen sorguyla eşleşen kayıt yok."}</span>{filter ? <button type="button" className="catalog-action" onClick={() => setFilter("")}>Sayfa aramasını temizle</button> : (appliedFilter || appliedSort) ? <button type="button" className="catalog-action" disabled={busy} onClick={() => void clearServerQuery()}>Sorguyu temizle</button> : null}</div>}
           </div>
 
           <div className="data-footer">
             <span>{filteredRows.length.toLocaleString("tr-TR")} satır gösteriliyor</span>
-            <span>Salt-okunur · geometri indirilmez · sunucu sayfalama</span>
+            <span>CSV yalnızca bu sayfadaki görünen kayıtları içerir.</span>
           </div>
         </>
       )}
@@ -364,10 +393,11 @@ export function DataWorkbench({ services, onQuery }: Props) {
       {!result && !error && !busy && (
         <div className="empty-state data-empty">
           <Icon name="table" size={30} />
-          <strong>Sorgu stüdyosunu başlatın</strong>
-          <span>Bir FeatureServer veya SceneServer seçip ilk sayfayı yükleyin.</span>
+          <strong>{activeService ? "Katman kayıtlarını görüntüleyin" : "Sorgulanabilir katman yok"}</strong>
+          <span>{activeService ? "Bir katman seçin ve Veriyi getir düğmesiyle kayıtları yükleyin." : "Bu katalogdaki katmanlar öznitelik sorgusunu desteklemiyor."}</span>
         </div>
       )}
+      </div>
     </div>
   );
 }
