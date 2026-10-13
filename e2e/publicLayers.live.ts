@@ -239,7 +239,7 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(page.locator(".data-error")).toHaveCount(0);
   await pageSize.selectOption("100");
   await expect(page.locator(".attribute-table caption")).toContainText("sayfa boyutu 100");
-  await expect(page.locator(".data-workbench")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator(".data-results")).toHaveAttribute("aria-busy", "false");
   await expect.poll(() => page.locator(".attribute-table tbody tr").count()).toBeGreaterThan(0);
   await expect(page.locator(".data-error")).toHaveCount(0);
   const attributeQuery = {
