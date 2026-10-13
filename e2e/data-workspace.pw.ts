@@ -182,7 +182,13 @@ test("expanded filters and long field labels reflow at 200 percent text size", a
   await loadData(page);
   await openQuery(page);
   await page.locator(".field-picker > summary").click();
+  const inputs = [page.locator(".server-value-field input"), page.locator(".data-search input")];
+  const originalSizes = await Promise.all(inputs.map((input) => input.evaluate((element) => parseFloat(getComputedStyle(element).fontSize))));
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  for (const [index, input] of inputs.entries()) {
+    const info = await input.evaluate((element) => ({ name: element.outerHTML.slice(0, 80), font: getComputedStyle(element).fontSize, dataFont: getComputedStyle(element).getPropertyValue("--data-font"), rootFont: getComputedStyle(document.documentElement).fontSize }));
+    await expect.poll(() => input.evaluate((element) => parseFloat(getComputedStyle(element).fontSize)), { message: JSON.stringify(info) }).toBeGreaterThanOrEqual(originalSizes[index]! * 1.95);
+  }
   await expect.poll(() => page.locator(".data-query-status").evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(24);
   expect(await page.locator(".data-workbench").evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   const labels = page.locator(".field-picker-grid label span");

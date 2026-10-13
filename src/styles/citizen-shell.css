@@ -415,7 +415,7 @@ html[data-experience="v60"] .data-error strong { font-size: .875rem; }
 html[data-experience="v60"] .data-error > div { min-width: 0; }
 html[data-experience="v60"] .data-error button { margin-top: 10px; }
 html[data-experience="v60"] .data-workbench .empty-state :is(strong, span) { font-size: var(--data-font); line-height: 1.6; overflow-wrap: anywhere; }
-html[data-experience="v60"] .data-search input { font-size: var(--data-font); }
+html[data-experience="v60"] .data-search input { font-size: var(--data-font) !important; min-height: 44px; }
 html[data-experience="v60"] .field-picker-grid label { min-height: 44px; align-items: flex-start; }
 html[data-experience="v60"] .field-picker-grid label span { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.6; }
 html[data-experience="v60"] .field-picker-note { margin: 0; padding: 10px; color: var(--workspace-muted); font-size: var(--data-small); line-height: 1.6; }
@@ -515,6 +515,7 @@ html[data-experience="v60"] .is-focus-mode .topbar { opacity: 1; }
   html[data-experience="v60"] :is(.workspace-dialog, .tucbs-access-dialog) { max-height: calc(var(--v44-visual-height, 100dvh) - 20px); }
   html[data-experience="v60"] .workspace-dialog-card { padding: 18px; }
   html[data-experience="v60"] input:not([type="checkbox"]):not([type="range"]), html[data-experience="v60"] textarea { font-size: 16px; }
+  html[data-experience="v60"] .data-workbench input:not([type="checkbox"]):not([type="range"]) { font-size: max(1rem, var(--data-font)) !important; }
   html[data-experience="v60"] .global-search .esri-input { font-size: 16px !important; }
 }
 @media (max-width: 380px) {
