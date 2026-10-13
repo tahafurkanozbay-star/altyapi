@@ -242,10 +242,34 @@ test("production scene renders all public layers and reopens cached layers", asy
   await expect(page.locator(".data-results")).toHaveAttribute("aria-busy", "false");
   await expect.poll(() => page.locator(".attribute-table tbody tr").count()).toBeGreaterThan(0);
   await expect(page.locator(".data-error")).toHaveCount(0);
+  const queryToggle = page.locator(".server-query-studio > summary");
+  await expect(page.locator(".server-query-studio")).not.toHaveAttribute("open");
+  await queryToggle.click();
+  const sort = page.getByRole("combobox", { name: "Sırala", exact: true });
+  const sortField = await sort.locator("option").nth(1).getAttribute("value");
+  await sort.selectOption(sortField!);
+  await page.getByRole("combobox", { name: "Yön", exact: true }).selectOption("desc");
+  await page.getByRole("button", { name: "Sorguyu uygula", exact: true }).click();
+  await expect(queryToggle).toContainText("azalan");
+  await expect(page.locator(".data-results")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator(".data-error")).toHaveCount(0);
+  await queryToggle.click();
+  await page.getByRole("button", { name: "Tabloya git", exact: true }).click();
+  const attributeTable = page.getByRole("region", { name: "Öznitelik sonuç tablosu", exact: true });
+  await expect(attributeTable).toBeFocused();
+  await expect(attributeTable).toBeInViewport();
+  await page.locator(".data-record-open").first().click();
+  await expect(page.locator(".data-record-detail")).toBeFocused();
+  await expect.poll(() => page.locator(".data-record-fields > div").count()).toBeGreaterThan(0);
+  await page.screenshot({ path: info.outputPath("public-record-detail.png"), animations: "disabled" });
+  await page.getByRole("button", { name: "Kayıt ayrıntılarını kapat", exact: true }).click();
+  await expect(page.locator(".data-record-open").first()).toBeFocused();
   const attributeQuery = {
     rows: await page.locator(".attribute-table tbody tr").count(),
     pageSize: await pageSize.inputValue(),
-    pagination: await page.locator(".data-pagination").innerText()
+    pagination: await page.locator(".data-pagination").innerText(),
+    sortField,
+    queryDescription: await queryToggle.innerText()
   };
   await page.screenshot({ path: info.outputPath("public-attribute-query.png"), animations: "disabled" });
   await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, runtimeErrors, failedSdkAssets }, null, 2));

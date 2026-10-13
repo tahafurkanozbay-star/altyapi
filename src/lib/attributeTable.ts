@@ -21,13 +21,17 @@ export function filterAttributeRows(rows: AttributeRow[], fields: AttributeField
 export function formatCell(value: AttributeValue | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Evet" : "Hayır";
-  if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString("tr-TR") : "—";
+  if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString("tr-TR", { maximumSignificantDigits: 21 }) : "—";
   return value;
 }
 
 export function rowsToCsv(rows: AttributeRow[], fields: AttributeField[]): string {
-  const header = fields.map((field) => csvEscape(field.alias || field.name)).join(",");
-  const body = rows.map((row) => fields.map((field) => csvEscape(formatCell(row[field.name]))).join(",")).join("\n");
+  const header = fields.map((field) => csvEscape(spreadsheetText(field.alias || field.name))).join(",");
+  const body = rows.map((row) => fields.map((field) => {
+    const value = row[field.name];
+    const formatted = typeof value === "number" && Number.isFinite(value) ? String(value) : formatCell(value);
+    return csvEscape(typeof value === "string" ? spreadsheetText(formatted) : formatted);
+  }).join(",")).join("\n");
   return "\uFEFF" + [header, body].filter(Boolean).join("\n");
 }
 
@@ -39,4 +43,10 @@ export function defaultVisibleFields(fields: AttributeField[], maxColumns = 8): 
 function csvEscape(value: string): string {
   if (!/[",\n\r]/.test(value)) return value;
   return `"${value.replace(/"/g, '""')}"`;
+}
+
+// Prefix untrusted text before RFC escaping. Numbers keep their numeric sign.
+// This protects the generated export; spreadsheet re-saving can remove escapes.
+function spreadsheetText(value: string): string {
+  return /^[\t\r\n]|^\s*[=+\-@＝＋－＠]/u.test(value) ? `'${value}` : value;
 }

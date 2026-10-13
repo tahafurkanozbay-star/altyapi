@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import { defaultVisibleFields, filterAttributeRows, formatCell, rowsToCsv } from "../lib/attributeTable";
 import { filterNeedsValue, filterOperatorsForField } from "../lib/attributeQuery";
 import { isQueryCancellation } from "../gis/queryTask";
@@ -6,6 +6,7 @@ import type {
   AttributeFilter,
   AttributeFilterOperator,
   AttributeQueryOptions,
+  AttributeRow,
   AttributeTableResult,
   ServiceDefinition
 } from "../types";
@@ -25,6 +26,12 @@ export function DataWorkbench({ services, onQuery }: Props) {
   );
   const queryGenerationRef = useRef(0);
   const queryControllerRef = useRef<AbortController | null>(null);
+  const csvScopeId = useId();
+  const recordHeadingId = useId();
+  const tableRef = useRef<HTMLDivElement>(null);
+  const recordRef = useRef<HTMLElement>(null);
+  const recordTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [inspectedRow, setInspectedRow] = useState<AttributeRow | null>(null);
   const [serviceId, setServiceId] = useState("");
   const [limit, setLimit] = useState<number>(100);
   const [result, setResult] = useState<AttributeTableResult | null>(null);
@@ -65,6 +72,8 @@ export function DataWorkbench({ services, onQuery }: Props) {
     setServerValue("");
     setSortField("");
     setSortDirection("asc");
+    setInspectedRow(null);
+    recordTriggerRef.current = null;
   }, [invalidateQuery]);
 
   useEffect(() => () => {
@@ -82,11 +91,17 @@ export function DataWorkbench({ services, onQuery }: Props) {
     [result, selectedFields]
   );
   const filteredRows = useMemo(
-    () => result ? filterAttributeRows(result.rows, visibleFields.length ? visibleFields : result.fields, deferredFilter) : [],
-    [result, visibleFields, deferredFilter]
+    () => result ? filterAttributeRows(result.rows, result.fields, deferredFilter) : [],
+    [result, deferredFilter]
   );
   const selectedServerField = result?.fields.find((field) => field.name === serverField);
   const operatorOptions = useMemo(() => filterOperatorsForField(selectedServerField), [selectedServerField]);
+
+  useEffect(() => {
+    if (!inspectedRow) return;
+    recordRef.current?.scrollIntoView({ block: "nearest" });
+    recordRef.current?.focus({ preventScroll: true });
+  }, [inspectedRow]);
 
   useEffect(() => {
     if (!result?.fields.length) return;
@@ -124,6 +139,9 @@ export function DataWorkbench({ services, onQuery }: Props) {
       setLimit(next.limit);
       setAppliedFilter(options.filter);
       setAppliedSort(options.orderBy);
+      if (recordRef.current?.contains(document.activeElement)) goToTable();
+      setInspectedRow(null);
+      recordTriggerRef.current = null;
       setNotice(null);
       setSelectedFields((current) => {
         const available = new Set(next.fields.map((field) => field.name));
@@ -211,15 +229,35 @@ export function DataWorkbench({ services, onQuery }: Props) {
     if (result || busy) void load(0, appliedFilter, appliedSort, next);
   };
 
+  const goToTable = () => {
+    tableRef.current?.scrollIntoView({ block: "nearest" });
+    tableRef.current?.focus({ preventScroll: true });
+  };
+
+  const closeRecord = () => {
+    setInspectedRow(null);
+    if (recordTriggerRef.current?.isConnected) recordTriggerRef.current.focus();
+    else goToTable();
+    recordTriggerRef.current = null;
+  };
+
+  const appliedField = result?.fields.find((field) => field.name === appliedFilter?.field);
+  const appliedOperator = filterOperatorsForField(appliedField).find((option) => option.value === appliedFilter?.operator)?.label;
+  const appliedSortField = result?.fields.find((field) => field.name === appliedSort?.field);
+  const queryDescription = [
+    appliedFilter ? `${appliedField?.alias ?? appliedFilter.field}: ${appliedOperator ?? appliedFilter.operator}${appliedFilter.value != null ? ` ${appliedFilter.value}` : ""}` : "Filtre yok",
+    appliedSort ? `${appliedSortField?.alias ?? appliedSort.field} ${appliedSort.direction === "asc" ? "artan" : "azalan"}` : "Sıralama yok"
+  ].join(" · ");
+
   return (
     <div className="operations-body data-workbench">
-      <div className="data-workbench-hero">
+      {!result && <div className="data-workbench-hero">
         <span className="data-hero-icon"><Icon name="database" size={22} /></span>
         <div>
           <strong>Harita verisini inceleyin</strong>
           <span>Katman seçin, kayıtları filtreleyin ve sonuç tablosunu CSV olarak indirin.</span>
         </div>
-      </div>
+      </div>}
 
       <div className="data-controls">
         <label>
@@ -264,6 +302,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
             <summary className="server-query-heading">
               <strong>Filtre ve sıralama</strong>
               {(appliedFilter || appliedSort) && <span className="query-active-badge">Uygulandı</span>}
+              <span className="data-query-description">{queryDescription}</span>
             </summary>
             <p className="server-query-note">Bir filtre seçebilir veya yalnızca sıralama uygulayabilirsiniz. Bu ayarlar tüm kayıtlarda çalışır.</p>
             <form onSubmit={(event) => { event.preventDefault(); void applyServerQuery(); }}>
@@ -328,8 +367,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
           <div className="data-summary">
             <div><strong>{result.total.toLocaleString("tr-TR")}</strong><span>eşleşen kayıt</span></div>
             <div><strong>{result.rows.length.toLocaleString("tr-TR")}</strong><span>bu sayfa</span></div>
-            <div><strong>{result.fields.length}</strong><span>alan</span></div>
-            <div><strong>{Math.floor(result.offset / result.limit) + 1}</strong><span>sayfa</span></div>
+            <button type="button" className="catalog-action" onClick={goToTable}><Icon name="table" size={16} /> Tabloya git</button>
           </div>
 
           <div className="data-pagination" aria-label="Sunucu sayfalama">
@@ -345,13 +383,14 @@ export function DataWorkbench({ services, onQuery }: Props) {
           <div className="data-toolbar">
             <label className="search-field data-search">
               <Icon name="search" size={15} />
-              <input aria-label="Bu sayfada hızlı ara" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Bu sayfada hızlı ara…" />
+              <input aria-label="Bu sayfada hızlı ara" aria-describedby={csvScopeId} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Bu sayfada hızlı ara…" />
               {filter && <button type="button" className="icon-ghost" onClick={() => setFilter("")} aria-label="Filtreyi temizle"><Icon name="close" size={13} /></button>}
             </label>
-            <button type="button" className="catalog-action" onClick={exportCsv} disabled={busy || filteredRows.length === 0} aria-label={`Görünen ${filteredRows.length} kaydı CSV olarak indir`}>
+            <button type="button" className="catalog-action" aria-describedby={csvScopeId} onClick={exportCsv} disabled={busy || filteredRows.length === 0} aria-label={`Görünen ${filteredRows.length} kaydı CSV olarak indir`}>
               <Icon name="download" size={14} /> CSV indir
             </button>
           </div>
+          <p id={csvScopeId} className="data-scope-note">Arama bu sayfadaki tüm alanları tarar. CSV: gösterilen {filteredRows.length.toLocaleString("tr-TR")} satır ve {visibleFields.length} sütun.</p>
 
           <details className="field-picker">
             <summary><Icon name="table" size={14} /> Sütunlar <span>{selectedFields.length}/{result.fields.length}</span></summary>
@@ -363,18 +402,24 @@ export function DataWorkbench({ services, onQuery }: Props) {
                 </label>
               ))}
             </div>
-            <p className="field-picker-note">En az bir sütun seçili kalır.</p>
+            <p className="field-picker-note">En az bir sütun seçili kalır. İncele düğmesi kaydın bütün alanlarını gösterir.</p>
           </details>
 
-          <div className="attribute-table-wrap" role="region" aria-label="Öznitelik sonuç tablosu" tabIndex={0}>
+          {inspectedRow && <section className="data-record-detail" aria-labelledby={recordHeadingId} tabIndex={-1} ref={recordRef}>
+            <div className="data-record-heading"><h3 id={recordHeadingId}>Kayıt ayrıntıları</h3><button type="button" className="icon-ghost" aria-label="Kayıt ayrıntılarını kapat" onClick={closeRecord}><Icon name="close" size={16} /></button></div>
+            <div className="data-record-values" role="region" aria-label="Kayıt alanları" tabIndex={0}><dl className="data-record-fields">{result.fields.map((field) => <div key={field.name}><dt title={field.name}>{field.alias || field.name}</dt><dd>{formatCell(inspectedRow[field.name])}</dd></div>)}</dl></div>
+          </section>}
+
+          <div className="attribute-table-wrap" role="region" aria-label="Öznitelik sonuç tablosu" tabIndex={0} ref={tableRef}>
             <table className="attribute-table">
               <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları, {Math.floor(result.offset / result.limit) + 1}. sayfa, sayfa boyutu {result.limit}</caption>
               <thead>
-                <tr>{visibleFields.map((field) => <th key={field.name} title={field.name}>{field.alias}</th>)}</tr>
+                <tr><th scope="col">Kayıt</th>{visibleFields.map((field) => <th scope="col" key={field.name} title={field.name}>{field.alias}</th>)}</tr>
               </thead>
               <tbody>
                 {filteredRows.map((row, index) => (
-                  <tr key={result.objectIdField && row[result.objectIdField] != null ? String(row[result.objectIdField]) : index}>
+                  <tr key={result.objectIdField && row[result.objectIdField] != null ? String(row[result.objectIdField]) : index} className={inspectedRow === row ? "is-inspected" : undefined}>
+                    <td><button type="button" className="catalog-action data-record-open" aria-label={`${result.objectIdField && row[result.objectIdField] != null ? formatCell(row[result.objectIdField]) : result.offset + index + 1}. kaydı incele`} aria-pressed={inspectedRow === row} onClick={(event) => { recordTriggerRef.current = event.currentTarget; setInspectedRow(row); }}>İncele</button></td>
                     {visibleFields.map((field) => <td key={field.name} title={formatCell(row[field.name])}>{formatCell(row[field.name])}</td>)}
                   </tr>
                 ))}
@@ -384,8 +429,8 @@ export function DataWorkbench({ services, onQuery }: Props) {
           </div>
 
           <div className="data-footer">
-            <span>{filteredRows.length.toLocaleString("tr-TR")} satır gösteriliyor</span>
-            <span>CSV yalnızca bu sayfadaki görünen kayıtları içerir.</span>
+            <span role="status" aria-live="polite">{filteredRows.length.toLocaleString("tr-TR")} / {result.rows.length.toLocaleString("tr-TR")} satır gösteriliyor · {Math.floor(result.offset / result.limit) + 1}. sayfa</span>
+            <span>Geometri indirilmez</span>
           </div>
         </>
       )}

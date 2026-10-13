@@ -80,7 +80,7 @@ test("sorting works without a filter and clearing removes both server options", 
   await page.getByRole("combobox", { name: "Sırala", exact: true }).selectOption("id");
   await page.getByRole("combobox", { name: "Yön", exact: true }).selectOption("desc");
   await page.getByRole("button", { name: "Sorguyu uygula", exact: true }).click();
-  await expect(page.locator(".attribute-table tbody tr").first().locator("td").first()).toHaveText("130");
+  await expect(page.locator(".attribute-table tbody tr").first().locator("td").nth(1)).toHaveText("130");
   await page.getByRole("combobox", { name: "Alan", exact: true }).selectOption("ilce");
   await page.getByRole("textbox", { name: "Değer", exact: true }).fill("Mamak");
   await page.getByRole("textbox", { name: "Değer", exact: true }).press("Enter");
@@ -88,7 +88,7 @@ test("sorting works without a filter and clearing removes both server options", 
   await page.getByRole("button", { name: "Temizle", exact: true }).click();
   await expect(page.locator(".query-active-badge")).toHaveCount(0);
   await expect(page.locator(".attribute-table tbody tr")).toHaveCount(100);
-  await expect(page.locator(".attribute-table tbody tr").first().locator("td").first()).toHaveText("1");
+  await expect(page.locator(".attribute-table tbody tr").first().locator("td").nth(1)).toHaveText("1");
   const options = await page.evaluate(() => (window as typeof window & { queryBoundary: QueryBoundary }).queryBoundary.requests.at(-1));
   expect(options?.filter).toBeUndefined();
   expect(options?.orderBy).toBeUndefined();
@@ -107,7 +107,7 @@ test("page size starts at the first page and next pages have no gaps or duplicat
   await expect(page.locator(".data-pagination")).toContainText("1–50 / 130");
   await page.getByRole("button", { name: "Sonraki ›", exact: true }).click();
   await expect(page.locator(".data-pagination")).toContainText("51–100 / 130");
-  await expect(page.locator(".attribute-table tbody tr").first().locator("td").first()).toHaveText("51");
+  await expect(page.locator(".attribute-table tbody tr").first().locator("td").nth(1)).toHaveText("51");
   await page.getByRole("button", { name: "Sonraki ›", exact: true }).click();
   await expect(page.locator(".attribute-table tbody tr")).toHaveCount(30);
   await expect(page.locator(".data-pagination")).toContainText("101–130 / 130");
