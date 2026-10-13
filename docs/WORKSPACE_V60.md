@@ -22,6 +22,14 @@ Güncel görünüm sistemindeki tablet araç penceresi SDK'nın en az 300 px gen
 
 Altlık galerisindeki altı seçenek, üst bölüm, yer imleri ve paylaşım tercihleriyle aynı sözleşmeyi kullanmaya devam eder. Kesit, görüş hattı ve gölge araçları için veri gereksinimleri yönergede açıklanır.
 
+## Veri sorguları
+
+Veri panelinde çalışan sorgu kullanıcı tarafından durdurulabilir. Katman değişimi veya panelin kapanması da sorguyu iptal eder. İptal sinyali SDK'nın kayıt ve sayım isteklerine birlikte iletilir; bekleme süreleri katman oluşturma/hazırlığında 20, öznitelik sorgusunda 25 saniyeyle sınırlıdır. Geç gelen sonuç yeni sorguyu değiştiremez. İptal, kullanıcıya hata veya olay kaydı olarak gösterilmez.
+
+Sorgunun oluşturduğu geçici katman temizlenir; haritada kullanılan ortak katman sorgu iptali nedeniyle kaldırılmaz ve ortak metadata yüklemesi iptal edilmez. Geçici sorgu katmanı, görünür katmanların yükleme kayıtlarını devralmaz. Başarısız paralel istekte diğer istek de durdurulur.
+
+Sunucu filtresi/sıralaması yalnız başarılı yanıttan sonra uygulanmış sayılır. Hata veya iptal önceki başarılı tabloyu ve sayfalama sorgusunu korur. Sayfa boyutu değiştiğinde ilk sayfa yeni boyutla otomatik yüklenir; iptal/hata durumunda boyut önceki sonuçla uyumlu kalır. Sorgu sürerken CSV dışa aktarımı devre dışıdır ve gösterilen tablonun önceki başarılı sonuç olduğu açıklanır. Tablo başlığı ekran okuyucuya sayfayı ve sayfa boyutunu bildirir.
+
 ## Teknoloji ve doğrulama
 
 Haritada nesne seçimi son tıklamaya aittir. Önceki tıklamanın geç tamamlanan sonucu veya hatası yeni seçimi değiştiremez. Detay penceresi kapatıldığında, kamera hareket ettiğinde, sekme değiştiğinde veya harita oturumu kapandığında bekleyen seçim geçersiz olur. Mesafe/alan, kesit, görüş hattı ve profil araçları harita tıklamasını kullanırken nesne sorgusu başlatılmaz; bu koruma araç yüklenirken de geçerlidir. Pasif araç açıkken nesne seçmek detayları açar ve araç penceresini kapatır. Dar ekranda detaylar çalışma paneliyle çakışmaz.
@@ -34,7 +42,7 @@ Açılışta küçük TypeScript bootstrap önce görünür; ağır uygulama mod
 - ArcGIS core/map/common paketleri birlikte tam 5.1.27 sürümüne sabitlenir. Bağımlılık doğrulayıcı üç paketin eşleşmesini zorunlu kılar. Vitest 5.0.4 kullanılır.
 - PWA shell/data cache nesli v60'tır. Üretim doğrulayıcısı paket sürümüyle eşleşmesini kontrol eder.
 - `npm run check`: katalog/sağlık/navigasyon doğrulamaları, strict tip kontrolü, birim testleri ve üretim paketi.
-- `npm run test:e2e`: masaüstü, telefon ve tablette 33 senaryo; panel sınırları, klavye kullanımı, WCAG kontrolleri, hata sonrası araç yeniden denemesi ve geciken/başarısız açılıştan kurtarma.
-- `npm run test:live`: üretim paketinde gerçek SDK ile 10 halka açık katmanın çizim kanıtı ve önbellekten yeniden açılışı; sekiz araçta gerçek SDK hazırlığı; altlık tercih senkronizasyonu ve haritaya iki nokta yerleştirerek mesafe ölçümü. Ekran görüntüleri ve süreler CI artifact olarak saklanır.
+- `npm run test:e2e`: masaüstü, telefon ve tablette panel sınırları, klavye kullanımı, WCAG kontrolleri, sorgu iptali/geç yanıt, filtre ve sayfalama, bildirimler, araç yeniden denemesi ve açılıştan kurtarma. Yalnız mobil için tanımlanan kontroller diğer iki profilde atlanır.
+- `npm run test:live`: üretim paketinde gerçek SDK ile 10 halka açık katmanın çizim kanıtı ve önbellekten yeniden açılışı; sekiz araçta gerçek SDK hazırlığı; altlık tercih senkronizasyonu, iki noktayla sayısal mesafe ölçümü ve halka açık FeatureLayer'dan geometri indirmeden gerçek öznitelik sorgusu/sayfa boyutu yenileme. Ekran görüntüleri ve süreler CI artifact olarak saklanır.
 
 Kaynak IP izni gerektiren 10 TUCBS katmanı halka açık canlı testten ayrıdır. Bunların doğrulanması tarayıcıdaki yetkili erişim akışında, onaylı IP üzerinden yapılır; gizli URL veya kimlik bilgisi repository'ye yazılmaz.

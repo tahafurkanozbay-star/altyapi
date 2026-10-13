@@ -5,6 +5,7 @@ import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import type Basemap from "@arcgis/core/Basemap.js";
 import { watch as reactiveWatch } from "@arcgis/core/core/reactiveUtils.js";
 import { waitForComponentReady } from "./componentReadiness";
+import { runQueryStage } from "./queryTask";
 import { SDK_REQUEST_TIMEOUT_MS } from "./requestTiming";
 import { BASEMAP_OPTIONS, supportedBasemapId, type BasemapId } from "../lib/basemaps";
 import { createLayer, finalizeLoadedLayer } from "./layerFactory";
@@ -182,6 +183,7 @@ export class ArcGISRuntime {
   private toolController?: AbortController;
   private activeToolId: ToolId = null;
   private identifyGeneration = 0;
+  private readonly queryControllers = new Set<AbortController>();
   private readonly visibilityIntents = new LayerIntentTracker();
   private searchWidget?: ArcGISComponentElement;
   private navigationWidgets: ArcGISComponentElement[] = [];
@@ -480,39 +482,47 @@ export class ArcGISRuntime {
 
   async queryAttributes(
     service: ServiceDefinition,
-    options: AttributeQueryOptions = { limit: 100, offset: 0 }
+    options: AttributeQueryOptions = { limit: 100, offset: 0 },
+    signal?: AbortSignal
   ): Promise<AttributeTableResult> {
     if (this.destroyed) throw new Error("Harita oturumu kapatıldı.");
+    signal?.throwIfAborted();
     if (service.kind !== "FeatureServer" && service.kind !== "SceneServer") {
       throw new Error("Öznitelik tablosu yalnız FeatureServer ve SceneServer katmanlarında destekleniyor.");
     }
 
     const safeOptions = sanitizeQueryOptions(options);
+    const controller = new AbortController();
+    const cancel = () => controller.abort(signal?.reason);
+    signal?.addEventListener("abort", cancel, { once: true });
+    this.queryControllers.add(controller);
     let layer = this.layers.get(service.id);
-    let temporary = false;
-
-    if (!layer) {
-      layer = await createLayer({ ...service, visible: false });
-      temporary = true;
-    }
-
-    const queryable = layer as Layer & {
-      fields?: Array<{ name: string; alias?: string; type?: string }>;
-      objectIdField?: string;
-      createQuery?: () => {
-        where?: string;
-        outFields?: string[];
-        returnGeometry?: boolean;
-        num?: number;
-        start?: number;
-        orderByFields?: string[];
-      };
-      queryFeatures?: (query: unknown) => Promise<{ features?: Array<{ attributes?: Record<string, unknown> }> }>;
-      queryFeatureCount?: (query: unknown) => Promise<number>;
-    };
+    const temporary = !layer;
 
     try {
-      await withTimeout(layer.load(), 20_000, "Katman sorgu hazırlığı");
+      if (!layer) {
+        layer = await runQueryStage(
+          () => createLayer({ ...service, visible: false }, { trackLoad: false }), controller, 20_000,
+          "Sorgu katmanının hazırlanması", (orphan) => orphan.destroy()
+        );
+      }
+      const queryable = layer as Layer & {
+        fields?: Array<{ name: string; alias?: string; type?: string }>;
+        objectIdField?: string;
+        createQuery?: () => {
+          where?: string;
+          outFields?: string[];
+          returnGeometry?: boolean;
+          num?: number;
+          start?: number;
+          orderByFields?: string[];
+        };
+        queryFeatures?: (query: unknown, options?: { signal: AbortSignal }) => Promise<{ features?: Array<{ attributes?: Record<string, unknown> }> }>;
+        queryFeatureCount?: (query: unknown, options?: { signal: AbortSignal }) => Promise<number>;
+      };
+      const ownedLayer = layer;
+      // A query may cancel its own temporary metadata load, never a shared map layer's load.
+      await runQueryStage(() => temporary ? ownedLayer.load({ signal: controller.signal }) : ownedLayer.load(), controller, 20_000, "Katman sorgu hazırlığı");
       if (!queryable.createQuery || !queryable.queryFeatures) {
         throw new Error("Bu katman tarayıcı üzerinden öznitelik sorgusunu desteklemiyor.");
       }
@@ -535,13 +545,11 @@ export class ArcGISRuntime {
       countQuery.where = where;
       countQuery.returnGeometry = false;
 
-      const [featureSet, total] = await withTimeout(
-        Promise.all([
-          queryable.queryFeatures(query),
-          queryable.queryFeatureCount ? queryable.queryFeatureCount(countQuery) : Promise.resolve(undefined)
-        ]),
-        25_000,
-        "Öznitelik sorgusu"
+      const [featureSet, total] = await runQueryStage(
+        () => Promise.all([
+          queryable.queryFeatures!(query, { signal: controller.signal }),
+          queryable.queryFeatureCount ? queryable.queryFeatureCount(countQuery, { signal: controller.signal }) : Promise.resolve(undefined)
+        ]), controller, 25_000, "Öznitelik sorgusu"
       );
 
       const rows = (featureSet.features ?? []).map((feature) =>
@@ -568,7 +576,13 @@ export class ArcGISRuntime {
         orderBy
       };
     } finally {
-      if (temporary) layer.destroy();
+      controller.abort();
+      signal?.removeEventListener("abort", cancel);
+      this.queryControllers.delete(controller);
+      if (temporary && layer) {
+        try { layer.cancelLoad(); } catch { /* Metadata cancellation is best-effort. */ }
+        layer.destroy();
+      }
     }
   }
 
@@ -723,6 +737,8 @@ export class ArcGISRuntime {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    for (const controller of this.queryControllers) controller.abort();
+    this.queryControllers.clear();
     window.clearTimeout(this.cameraTimer);
     window.clearTimeout(this.scaleGuardTimer);
     cancelAnimationFrame(this.telemetryFrame);

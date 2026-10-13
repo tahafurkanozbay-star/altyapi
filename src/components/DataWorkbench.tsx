@@ -1,6 +1,7 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { defaultVisibleFields, filterAttributeRows, formatCell, rowsToCsv } from "../lib/attributeTable";
 import { filterNeedsValue, filterOperatorsForField } from "../lib/attributeQuery";
+import { isQueryCancellation } from "../gis/queryTask";
 import type {
   AttributeFilter,
   AttributeFilterOperator,
@@ -12,7 +13,7 @@ import { Icon } from "./Icon";
 
 interface Props {
   services: ServiceDefinition[];
-  onQuery: (service: ServiceDefinition, options: AttributeQueryOptions) => Promise<AttributeTableResult>;
+  onQuery: (service: ServiceDefinition, options: AttributeQueryOptions, signal?: AbortSignal) => Promise<AttributeTableResult>;
 }
 
 const limits = [50, 100, 250, 500] as const;
@@ -23,6 +24,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
     [services]
   );
   const queryGenerationRef = useRef(0);
+  const queryControllerRef = useRef<AbortController | null>(null);
   const [serviceId, setServiceId] = useState("");
   const [limit, setLimit] = useState<number>(100);
   const [result, setResult] = useState<AttributeTableResult | null>(null);
@@ -38,23 +40,39 @@ export function DataWorkbench({ services, onQuery }: Props) {
   const [appliedSort, setAppliedSort] = useState<AttributeQueryOptions["orderBy"]>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => () => {
+  const invalidateQuery = useCallback(() => {
     queryGenerationRef.current += 1;
+    queryControllerRef.current?.abort();
+    queryControllerRef.current = null;
   }, []);
 
-  useEffect(() => {
-    if (queryable.length === 0) {
-      if (serviceId) queryGenerationRef.current += 1;
-      setServiceId("");
-      setBusy(false);
-      return;
-    }
-    if (serviceId && queryable.some((service) => service.id === serviceId)) return;
-    queryGenerationRef.current += 1;
+  const resetForService = useCallback((id: string) => {
+    invalidateQuery();
     setBusy(false);
-    setServiceId(queryable.find((service) => service.visible)?.id ?? queryable[0]!.id);
-  }, [queryable, serviceId]);
+    setServiceId(id);
+    setResult(null);
+    setError(null);
+    setNotice(null);
+    setSelectedFields([]);
+    setFilter("");
+    setAppliedFilter(undefined);
+    setAppliedSort(undefined);
+    setServerField("");
+    setServerValue("");
+    setSortField("");
+    setSortDirection("asc");
+  }, [invalidateQuery]);
+
+  useEffect(() => () => {
+    invalidateQuery();
+  }, [invalidateQuery]);
+
+  useEffect(() => {
+    if (serviceId && queryable.some((service) => service.id === serviceId)) return;
+    resetForService(queryable.find((service) => service.visible)?.id ?? queryable[0]?.id ?? "");
+  }, [queryable, serviceId, resetForService]);
 
   const activeService = queryable.find((service) => service.id === serviceId);
   const visibleFields = useMemo(
@@ -85,17 +103,27 @@ export function DataWorkbench({ services, onQuery }: Props) {
   const load = async (
     offset = 0,
     nextFilter: AttributeFilter | undefined = appliedFilter,
-    nextSort: AttributeQueryOptions["orderBy"] = appliedSort
+    nextSort: AttributeQueryOptions["orderBy"] = appliedSort,
+    pageLimit = limit
   ) => {
-    if (!activeService || busy) return;
+    if (!activeService) return;
     const generation = ++queryGenerationRef.current;
+    queryControllerRef.current?.abort();
+    const controller = new AbortController();
+    queryControllerRef.current = controller;
     const requestedService = activeService;
     setBusy(true);
     setError(null);
+    setNotice(result ? "Sorgu sürerken önceki başarılı sonuç gösteriliyor." : "Veri sorgusu çalışıyor…");
     try {
-      const next = await onQuery(requestedService, { limit, offset, filter: nextFilter, orderBy: nextSort });
+      const next = await onQuery(requestedService, { limit: pageLimit, offset, filter: nextFilter, orderBy: nextSort }, controller.signal);
       if (generation !== queryGenerationRef.current) return;
+      controller.signal.throwIfAborted();
       setResult(next);
+      setLimit(next.limit);
+      setAppliedFilter(nextFilter);
+      setAppliedSort(nextSort);
+      setNotice(null);
       setSelectedFields((current) => {
         const available = new Set(next.fields.map((field) => field.name));
         const retained = current.filter((field) => available.has(field));
@@ -104,9 +132,17 @@ export function DataWorkbench({ services, onQuery }: Props) {
       setFilter("");
     } catch (reason) {
       if (generation !== queryGenerationRef.current) return;
-      setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
+      setLimit(result?.limit ?? pageLimit);
+      if (controller.signal.aborted || isQueryCancellation(reason)) setNotice("Sorgu durduruldu.");
+      else {
+        setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
+        setNotice(result ? "Önceki başarılı sonuç korunuyor." : null);
+      }
     } finally {
-      if (generation === queryGenerationRef.current) setBusy(false);
+      if (generation === queryGenerationRef.current) {
+        setBusy(false);
+        queryControllerRef.current = null;
+      }
     }
   };
 
@@ -118,14 +154,10 @@ export function DataWorkbench({ services, onQuery }: Props) {
       ...(filterNeedsValue(serverOperator) ? { value: serverValue } : {})
     };
     const nextSort = sortField ? { field: sortField, direction: sortDirection } as const : undefined;
-    setAppliedFilter(nextFilter);
-    setAppliedSort(nextSort);
     await load(0, nextFilter, nextSort);
   };
 
   const clearServerQuery = async () => {
-    setAppliedFilter(undefined);
-    setAppliedSort(undefined);
     setServerValue("");
     setSortField("");
     setSortDirection("asc");
@@ -158,18 +190,17 @@ export function DataWorkbench({ services, onQuery }: Props) {
     });
   };
 
-  const resetForService = (id: string) => {
-    queryGenerationRef.current += 1;
+  const cancelQuery = () => {
+    invalidateQuery();
     setBusy(false);
-    setServiceId(id);
-    setResult(null);
+    setLimit(result?.limit ?? limit);
     setError(null);
-    setAppliedFilter(undefined);
-    setAppliedSort(undefined);
-    setServerField("");
-    setServerValue("");
-    setSortField("");
-    setSortDirection("asc");
+    setNotice("Sorgu durduruldu.");
+  };
+
+  const changePageSize = (next: number) => {
+    setLimit(next);
+    if (result || busy) void load(0, appliedFilter, appliedSort, next);
   };
 
   return (
@@ -192,7 +223,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
         </label>
         <label>
           <span>Sayfa boyutu</span>
-          <select value={limit} onChange={(event) => setLimit(Number(event.target.value))}>
+          <select value={limit} onChange={(event) => changePageSize(Number(event.target.value))}>
             {limits.map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
@@ -200,6 +231,8 @@ export function DataWorkbench({ services, onQuery }: Props) {
           <Icon name={busy ? "refresh" : "table"} size={16} /> {busy ? "Sorgulanıyor…" : "Veriyi getir"}
         </button>
       </div>
+      {busy && <button type="button" className="catalog-action data-query-cancel" onClick={cancelQuery}><Icon name="close" size={16} /> Sorguyu durdur</button>}
+      {notice && <p className="data-query-notice" role="status" aria-live="polite">{notice}</p>}
 
       {error && <div className="data-error" role="alert"><Icon name="warning" /><div><strong>Sorgu tamamlanamadı</strong><span>{error}</span></div></div>}
 
@@ -287,7 +320,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
               <input aria-label="Bu sayfada hızlı ara" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Bu sayfada hızlı ara…" />
               {filter && <button type="button" className="icon-ghost" onClick={() => setFilter("")} aria-label="Filtreyi temizle"><Icon name="close" size={13} /></button>}
             </label>
-            <button type="button" className="catalog-action" onClick={exportCsv} disabled={filteredRows.length === 0}>
+            <button type="button" className="catalog-action" onClick={exportCsv} disabled={busy || filteredRows.length === 0}>
               <Icon name="download" size={14} /> CSV
             </button>
           </div>
@@ -306,7 +339,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
 
           <div className="attribute-table-wrap" role="region" aria-label="Öznitelik sonuç tablosu" tabIndex={0}>
             <table className="attribute-table">
-              <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları</caption>
+              <caption className="visually-hidden">{result.serviceName} öznitelik sonuçları, {Math.floor(result.offset / result.limit) + 1}. sayfa, sayfa boyutu {result.limit}</caption>
               <thead>
                 <tr>{visibleFields.map((field) => <th key={field.name} title={field.name}>{field.alias}</th>)}</tr>
               </thead>
@@ -328,7 +361,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
         </>
       )}
 
-      {!result && !error && (
+      {!result && !error && !busy && (
         <div className="empty-state data-empty">
           <Icon name="table" size={30} />
           <strong>Sorgu stüdyosunu başlatın</strong>
