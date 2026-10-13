@@ -16,7 +16,7 @@ interface Props {
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
   onDeleteBookmark: (bookmark: Bookmark) => void;
-  onQueryAttributes: (service: ServiceDefinition, options: AttributeQueryOptions) => Promise<AttributeTableResult>;
+  onQueryAttributes: (service: ServiceDefinition, options: AttributeQueryOptions, signal?: AbortSignal) => Promise<AttributeTableResult>;
 }
 
 export function OperationsPanel(props: Props) {
