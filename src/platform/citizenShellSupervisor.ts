@@ -20,7 +20,8 @@ const MOBILE_MODAL_BACKGROUND_SELECTORS = [
   "#kent-rehberi-map",
   "#kent-rehberi-tools",
   ".arcgis-navigation",
-  ".status-bar"
+  ".status-bar",
+  "#kent-rehberi-notices"
 ] as const;
 const FOCUSABLE_SELECTOR = [
   "button:not([disabled])",

@@ -32,7 +32,7 @@ export function PlatformStatusHost() {
   }, []);
 
   return (
-    <section className="platform-status-stack" aria-label="Kent Rehberi uygulama bildirimleri">
+    <section id="kent-rehberi-notices" className="platform-status-stack" aria-label="Kent Rehberi uygulama bildirimleri">
       {fault && (
         <aside className="runtime-fault-banner" role="alert">
           <span className="platform-status-icon is-warning" aria-hidden="true"><Icon name="warning" size={18} /></span>

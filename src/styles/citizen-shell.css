@@ -200,6 +200,7 @@ html[data-experience="v60"] .global-search {
   --calcite-border-corner-radius: 10px;
 }
 html[data-experience="v60"] .global-search :is(arcgis-search, .esri-search) { width: 100%; }
+html[data-experience="v60"] .global-search input { box-sizing: border-box; }
 html[data-experience="v60"] .global-search .esri-search__container { border-radius: 10px; box-shadow: none; }
 html[data-experience="v60"] .global-search .esri-input { font-size: 14px; }
 html[data-experience="v60"] .top-actions {
@@ -407,7 +408,8 @@ html[data-experience="v60"] .tucbs-access-dialog { font-size: 14px; border-radiu
 html[data-experience="v60"] :is(.tucbs-access-body p, .tucbs-access-paste, .tucbs-remember, .tucbs-access-status, .tucbs-access-error) { font-size: 13px; }
 html[data-experience="v60"] .tucbs-access-dialog > header { position: sticky; top: 0; z-index: 2; background: #fff; }
 html[data-experience="v60"] .tucbs-access-paste textarea { font-size: 13px; }
-html[data-experience="v60"] :is(.toast-stack, .platform-status-stack) { bottom: calc(var(--workspace-bottom) + 18px); }
+html[data-experience="v60"] :is(.tucbs-access-dialog > header span, .tucbs-access-or) { color: var(--workspace-muted); font-size: 12px; }
+html[data-experience="v60"] .tucbs-access-dialog .catalog-action { color: var(--workspace-ink); background: var(--workspace-soft); }
 html[data-experience="v60"] .toast { font-size: 13px; }
 html[data-experience="v60"] .toast-dismiss { min-width: 44px; min-height: 44px; }
 html[data-experience="v60"] .is-focus-mode :is(.panel-zone, .details-drawer) { opacity: 0; visibility: hidden; pointer-events: none; }
@@ -478,8 +480,6 @@ html[data-experience="v60"] .is-focus-mode .topbar { opacity: 1; }
   html[data-experience="v60"] .arcgis-navigation { top: calc(var(--workspace-header) + 12px) !important; }
   html[data-experience="v60"] .status-bar { inset: auto 0 var(--workspace-dock) !important; height: 34px; min-height: 34px !important; border-radius: 0 !important; padding: 0 10px !important; }
   html[data-experience="v60"] .status-coordinate { display: none; }
-  html[data-experience="v60"] :is(.toast-stack, .platform-status-stack, .offline-banner) { bottom: calc(var(--workspace-bottom) + 12px) !important; }
-  html[data-experience="v60"] .platform-status-stack { top: auto !important; }
   html[data-experience="v60"] .toggle-filters label { min-height: 44px; }
   html[data-experience="v60"] :is(.filter-reset, .filter-chip, .availability-chip) { min-height: 44px; }
   html[data-experience="v60"] :is(.workspace-dialog, .tucbs-access-dialog) { max-height: calc(var(--v44-visual-height, 100dvh) - 20px); }
@@ -509,6 +509,59 @@ html[data-experience="v60"] .is-focus-mode .topbar { opacity: 1; }
   html[data-experience="v60"] { --workspace-dock: calc(64px + var(--citizen-safe-bottom)); --workspace-bottom: var(--workspace-dock); }
   html[data-experience="v60"] .tool-button { height: 50px !important; min-height: 50px; }
   html[data-experience="v60"] .status-bar { display: none; }
+}
+
+/* All notices flow in one host; no independent fixed cards can collide. */
+html[data-experience="v60"] :is(#kent-rehberi-notices, #kent-rehberi-notices *) { box-sizing: border-box; }
+html[data-experience="v60"] #kent-rehberi-notices {
+  top: auto !important;
+  right: max(12px, var(--citizen-safe-right));
+  bottom: calc(var(--workspace-bottom) + 12px) !important;
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(var(--v44-visual-height, 100dvh) - var(--workspace-header) - var(--workspace-bottom) - 24px);
+  display: grid; grid-auto-rows: max-content; gap: 10px;
+  overflow-y: auto; overscroll-behavior: contain; pointer-events: auto;
+  scroll-padding-block: 8px;
+}
+html[data-experience="v60"] #kent-rehberi-notices :is(.toast-stack, .offline-banner) {
+  position: static !important; inset: auto !important;
+  width: 100% !important; max-width: none !important;
+  margin: 0; transform: none !important;
+}
+html[data-experience="v60"] #kent-rehberi-notices > * { min-width: 0; }
+html[data-experience="v60"] #kent-rehberi-notices .toast-stack:empty { display: none; }
+html[data-experience="v60"] #kent-rehberi-notices .offline-banner { display: flex !important; }
+html[data-experience="v60"] #kent-rehberi-notices :is(.platform-status-copy, .install-banner-copy) strong { font-size: 13px; line-height: 1.5; }
+html[data-experience="v60"] #kent-rehberi-notices :is(.platform-status-copy, .install-banner-copy) span { font-size: 12px; line-height: 1.5; }
+html[data-experience="v60"] #kent-rehberi-notices[data-v54-inert="true"] { visibility: hidden; pointer-events: none; }
+
+@media (max-width: 760px) {
+  html[data-experience="v60"] #kent-rehberi-notices {
+    left: max(8px, var(--citizen-safe-left)); right: max(8px, var(--citizen-safe-right)); width: auto;
+  }
+  /* Safari can pan the visual viewport without resizing the layout viewport. */
+  html[data-experience="v60"][data-virtual-keyboard="open"] .app-shell {
+    top: var(--workspace-visual-top, 0px); height: var(--v44-visual-height); min-height: 0;
+  }
+  html[data-experience="v60"][data-virtual-keyboard="open"] :is(.panel-zone, .map-tool-panel, .details-drawer) {
+    position: absolute !important; top: auto !important; bottom: 12px !important;
+    max-height: calc(var(--v44-visual-height) - var(--workspace-header) - 24px) !important;
+  }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .panel-zone {
+    height: calc(var(--v44-visual-height) - var(--workspace-header) - 24px) !important;
+  }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .layer-explorer-header :is(.eyebrow, .catalog-overview) { display: none !important; }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .layer-explorer-header { padding-block: 10px; }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .panel-heading { padding-bottom: 6px; }
+  html[data-experience="v60"][data-virtual-keyboard="open"] #kent-rehberi-notices { visibility: hidden; pointer-events: none; }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .workspace-dialog {
+    position: fixed; top: calc(var(--workspace-visual-top, 0px) + 12px); bottom: auto;
+    margin-block: 0; max-height: calc(var(--v44-visual-height) - 24px);
+  }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .tucbs-access-native {
+    position: fixed; top: var(--workspace-visual-top, 0px); bottom: auto;
+    margin: 0; height: var(--v44-visual-height);
+  }
 }
 @media (pointer: coarse) {
   html[data-experience="v60"] :is(.filter-chip, .availability-chip, .layer-stack-buttons .icon-ghost) { min-height: 44px; min-width: 44px; }
