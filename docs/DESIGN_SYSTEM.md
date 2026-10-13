@@ -45,10 +45,14 @@ Başlıklar ve katman adları eski sürümlere göre büyütülmüştür. Yardı
 - Ana simge düğmeleri en az 44×44 CSS px olur. Katman adı ve durum metni satır kırabilir; opaklık yüzdesi tek satırda kalır.
 - Veri paneli masaüstünde daha geniştir. Sonuç tablosu bağımsız yatay kaydırma ve klavye odağı sunar. Sorgu ayrıntıları isteğe bağlı açılır; boş sonuç aralığı 0–0 olarak gösterilir.
 - Yer imi ve yetkili erişim pencereleri kullanılabilir ekran yüksekliğine sığar. Azaltılmış hareket, yüksek kontrast ve zorunlu renkler desteklenir.
+- Mobil klavye açıldığında paneller ve native pencereler `VisualViewport` yüksekliği ve üst kaymasına göre yerleşir; arama ve kapatma kontrolleri görünür kalır.
+- Çevrimdışı, hata, güncelleme, yükleme ve geçici bildirimler tek kaydırılabilir alanda sıralanır. Mobil modal panel veya klavye açıkken bildirim alanı gizlenir; kalıcı bildirimler kapanınca yeniden görünür.
 
 ## Tarayıcı doğrulaması
 
 `e2e/layout.pw.ts`, sabit arama, son katman kontrolüne erişim, tüm araçlara klavye ile ilerleme, panel/dock çakışmaları, 320 px telefon ve kısa yatay ekran, veri tablosu kaydırma/arama, odak modundan geri dönüş ve native pencere sınırlarını kontrol eder. Katman kabuğu, yüklenmiş veri paneli ve kaydetme penceresinde axe erişilebilirlik analizi çalışır. Bu testlerde GIS transport fixture kullanılır; gerçek servis ve SDK doğrulaması ayrı `test:live` kapısında yapılır.
+
+`e2e/overlays.pw.ts`, eşzamanlı bildirimlerin çakışmamasını, mobil modal sırasında bildirimlerin korunmasını, klavye ve görünür ekran kayması altında panel/pencere sınırlarını, yetkili erişim penceresindeki hata ve erişilebilirlik durumunu doğrular.
 
 ## ArcGIS Web Components
 

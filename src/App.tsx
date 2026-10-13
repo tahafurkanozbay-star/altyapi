@@ -48,6 +48,7 @@ import { DetailsPanel } from "./components/DetailsPanel";
 import { OperationsPanel } from "./components/OperationsPanel";
 import { BookmarkDialog } from "./components/BookmarkDialog";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
+import { NotificationPortal } from "./components/NotificationPortal";
 import { Icon } from "./components/Icon";
 import { BASEMAP_OPTIONS } from "./lib/basemaps";
 import { MAP_TOOL_METADATA } from "./platform/citizenActions";
@@ -106,11 +107,14 @@ export default function App() {
     const header = headerRef.current;
     const shell = header?.closest<HTMLElement>(".app-shell");
     if (!header || !shell) return;
-    const measure = () => shell.style.setProperty("--workspace-header", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    const measure = () => document.documentElement.style.setProperty("--workspace-header", `${Math.ceil(header.getBoundingClientRect().height)}px`);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(header);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--workspace-header");
+    };
   }, []);
 
   useEffect(() => {
@@ -855,20 +859,21 @@ export default function App() {
 
       <DetailsPanel result={identify} onClose={closeIdentify} />
       <StatusBar telemetry={telemetry} services={services} />
-      <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
+      <NotificationPortal>
+        <ToastStack items={toasts} onDismiss={(id) => setToasts((items) => items.filter((item) => item.id !== id))} />
+        {!online && (
+          <div className="offline-banner" role="status" aria-live="polite">
+            <Icon name="warning" size={18} />
+            <div><strong>Bağlantı yok</strong><span>Önbellekteki harita kabuğu kullanılabilir; canlı katmanlar bağlantı geri geldiğinde yenilenir.</span></div>
+          </div>
+        )}
+      </NotificationPortal>
       <BookmarkDialog
         open={bookmarkDialogOpen}
         suggestedName={`Görünüm ${preferences.bookmarks.length + 1}`}
         onCancel={() => setBookmarkDialogOpen(false)}
         onSave={saveBookmark}
       />
-
-      {!online && (
-        <div className="offline-banner" role="status" aria-live="polite">
-          <Icon name="warning" size={18} />
-          <div><strong>Bağlantı yok</strong><span>Önbellekteki harita kabuğu kullanılabilir; canlı katmanlar bağlantı geri geldiğinde yenilenir.</span></div>
-        </div>
-      )}
 
       {!ready && !bootError && (
         <div className="boot-screen" role="status" aria-live="polite" aria-busy="true">

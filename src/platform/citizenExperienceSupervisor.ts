@@ -110,6 +110,7 @@ export function installCitizenExperienceSupervisor(): () => void {
     const keyboardInset = Math.max(0, window.innerHeight - viewportHeight - viewportOffsetTop);
 
     setCssPixelVariable(root, "--v44-visual-height", viewportHeight);
+    setCssPixelVariable(root, "--workspace-visual-top", viewportOffsetTop);
     setCssPixelVariable(root, "--v44-keyboard-inset", keyboardInset);
     setCssPixelVariable(root, "--v47-visual-width", viewportWidth);
     setDatasetValue(root, "virtualKeyboard", keyboardInset >= KEYBOARD_THRESHOLD_PX ? "open" : "closed");
@@ -398,6 +399,7 @@ export function installCitizenExperienceSupervisor(): () => void {
     document.removeEventListener("visibilitychange", syncVisibility);
     document.removeEventListener("click", onDocumentClick, true);
     root.style.removeProperty("--v44-visual-height");
+    root.style.removeProperty("--workspace-visual-top");
     root.style.removeProperty("--v44-keyboard-inset");
     root.style.removeProperty("--v47-visual-width");
     delete root.dataset.experience;
