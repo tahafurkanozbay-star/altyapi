@@ -45,6 +45,7 @@ export class ArcGISRuntime {
   }
   async reloadLayer(service) { return this.setLayerVisible(service, true); }
   setLayerOrder() {} setOpacity() {} setBasemap() {} destroy() {}
+  clearIdentify() { this.callbacks.onIdentify(null); }
   async zoomToLayer() { return true; }
   getCamera() { return this.camera; }
   async goTo(camera) { this.camera = camera; }

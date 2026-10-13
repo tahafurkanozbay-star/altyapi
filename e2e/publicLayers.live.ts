@@ -204,6 +204,7 @@ test("production scene renders all public layers and reopens cached layers", asy
         value: (await component.locator("output.value").first().innerText()).trim(),
         unit: (await component.locator(".unit").first().innerText()).trim()
       };
+      await expect(page.locator(".details-drawer")).toHaveCount(0);
     }
     toolMetrics.push({ tool, readyMs, completedMs: Date.now() - openedAt });
     await page.screenshot({ path: info.outputPath("tool-" + tool + ".png"), animations: "disabled" });
