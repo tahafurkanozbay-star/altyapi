@@ -44,6 +44,8 @@ Başlıklar ve katman adları eski sürümlere göre büyütülmüştür. Yardı
 - Telefon paneli, üst menü ile alt araç çubuğu arasına sığar. Yatay ve kısa ekranlarda başlık özeti küçülür; içerik kaydırılarak erişilir. Açık mobil panelin arka planı inert ve klavye odağı sınırlandırılmıştır.
 - Ana simge düğmeleri en az 44×44 CSS px olur. Katman adı ve durum metni satır kırabilir; opaklık yüzdesi tek satırda kalır.
 - Veri paneli masaüstünde daha geniştir. Sonuç tablosu bağımsız yatay kaydırma ve klavye odağı sunar. Sorgu ayrıntıları isteğe bağlı açılır; boş sonuç aralığı 0–0 olarak gösterilir.
+- Veri panelindeki filtre ve sıralama formu isteğe bağlı açılır. Sıralama tek başına uygulanabilir; sorgu durumu yalnız başarılı sonuçtan sonra değişir. Sayfa boyutu değişince ilk sayfa yüklenir; hata sonrası aynı işlem yeniden denenebilir.
+- Yükleme ve sonuç özeti ayrı canlı durum alanında duyurulur. Boş arama için temizleme eylemi, sütun seçiminde en az bir alan kuralı ve CSV'nin yalnız görünen satırları içerdiği bilgisi gösterilir. Veri paneli metinleri `rem` ile büyür; uzun alan adları satır kırar.
 - Yer imi ve yetkili erişim pencereleri kullanılabilir ekran yüksekliğine sığar. Azaltılmış hareket, yüksek kontrast ve zorunlu renkler desteklenir.
 - Mobil klavye açıldığında paneller ve native pencereler `VisualViewport` yüksekliği ve üst kaymasına göre yerleşir; arama ve kapatma kontrolleri görünür kalır.
 - Çevrimdışı, hata, güncelleme, yükleme ve geçici bildirimler tek kaydırılabilir alanda sıralanır. Mobil modal panel veya klavye açıkken bildirim alanı gizlenir; kalıcı bildirimler kapanınca yeniden görünür.
@@ -53,6 +55,8 @@ Başlıklar ve katman adları eski sürümlere göre büyütülmüştür. Yardı
 `e2e/layout.pw.ts`, sabit arama, son katman kontrolüne erişim, tüm araçlara klavye ile ilerleme, panel/dock çakışmaları, 320 px telefon ve kısa yatay ekran, veri tablosu kaydırma/arama, odak modundan geri dönüş ve native pencere sınırlarını kontrol eder. Katman kabuğu, yüklenmiş veri paneli ve kaydetme penceresinde axe erişilebilirlik analizi çalışır. Bu testlerde GIS transport fixture kullanılır; gerçek servis ve SDK doğrulaması ayrı `test:live` kapısında yapılır.
 
 `e2e/overlays.pw.ts`, eşzamanlı bildirimlerin çakışmamasını, mobil modal sırasında bildirimlerin korunmasını, klavye ve görünür ekran kayması altında panel/pencere sınırlarını, yetkili erişim penceresindeki hata ve erişilebilirlik durumunu doğrular.
+
+`e2e/data-workspace.pw.ts`, filtresiz sıralama, klavyeyle sorgu uygulama ve temizleme, tutarlı sayfalama, başarısız sorguyu tekrar deneme, eski yanıtın yeni katmana yazılmaması, boş aramadan geri dönüş, seçili sütun/satır CSV kapsamı ve yüzde 200 metin boyutunda erişilebilir yerleşimi kontrol eder.
 
 ## ArcGIS Web Components
 
