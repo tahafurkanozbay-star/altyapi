@@ -35,4 +35,14 @@ describe("attributeTable", () => {
     expect(defaultVisibleFields(fields, 2)).toEqual(["OBJECTID", "ADI"]);
     expect(formatCell(null)).toBe("—");
   });
+
+  it.each(["=1+1", "+SUM(A1)", "-SUM(A1)", "@SUM(A1)", "  =1+1", "\tvalue", "\rvalue", "\nvalue", "＝1+1", "＋1", "－1", "＠SUM(A1)"])("exports formula-like text as literal text: %j", (value) => {
+    const csv = rowsToCsv([{ ADI: value }], [{ name: "ADI", alias: "Adı" }]);
+    expect(csv).toContain(`'${value}`);
+  });
+
+  it("protects formula-like headers while preserving numeric signs and RFC quoting", () => {
+    expect(rowsToCsv([{ ADI: -7.5 }], [{ name: "ADI", alias: "=Adı" }])).toBe('\uFEFF\'=Adı\n"-7,5"');
+    expect(rowsToCsv([{ ADI: '=HYPERLINK("x", "y")' }], [{ name: "ADI", alias: "Adı" }])).toBe('\uFEFFAdı\n"\'=HYPERLINK(""x"", ""y"")"');
+  });
 });
