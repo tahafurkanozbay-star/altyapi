@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { AttributeQueryOptions, AttributeTableResult, Bookmark, PanelId, ServiceDefinition } from "../types";
 import { CITIZEN_SHORTCUTS, STATIC_HELP_SHORTCUTS, panelLabel } from "../platform/citizenActions";
 import { Icon } from "./Icon";
@@ -63,11 +63,44 @@ function PanelLoading({ label }: { label: string }) {
 }
 
 function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookmark }: Props) {
+  const [search, setSearch] = useState("");
+  const normalized = search.trim().normalize("NFKC").toLocaleLowerCase("tr-TR");
+  const visibleBookmarks = bookmarks.filter((bookmark) => bookmark.name.normalize("NFKC").toLocaleLowerCase("tr-TR").includes(normalized));
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const deletedIndexRef = useRef<number | null>(null);
+  const previousIdsRef = useRef(new Set(bookmarks.map((bookmark) => bookmark.id)));
+
+  useEffect(() => {
+    if (bookmarks.some((bookmark) => !previousIdsRef.current.has(bookmark.id))) setSearch("");
+    previousIdsRef.current = new Set(bookmarks.map((bookmark) => bookmark.id));
+    const index = deletedIndexRef.current;
+    if (index === null) return;
+    deletedIndexRef.current = null;
+    const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>(".bookmark-main");
+    const next = buttons?.[Math.min(index, buttons.length - 1)] ?? (bookmarks.length ? searchRef.current : addRef.current);
+    next?.focus();
+  }, [bookmarks]);
+
+  const clearSearch = () => {
+    setSearch("");
+    searchRef.current?.focus();
+  };
+
   return (
-    <div className="operations-body">
-      <button type="button" className="primary-button full" onClick={onAddBookmark}><Icon name="plus" /> Bu çalışma görünümünü kaydet</button>
-      <p className="section-note">Konum, açık katmanlar, saydamlıklar, katman çizim sırası ve harita görünümünü birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma alanına dönün.</p>
-      <div className="bookmark-list" aria-live="polite">
+    <div className="bookmarks-workspace">
+      <div className="bookmarks-controls">
+        <button ref={addRef} type="button" className="primary-button full" onClick={onAddBookmark}><Icon name="plus" /> Bu çalışma görünümünü kaydet</button>
+        {bookmarks.length > 0 && <label className="search-field bookmarks-search">
+          <Icon name="search" size={15} />
+          <input ref={searchRef} type="search" aria-label="Kayıtlı görünümlerde ara" placeholder="Görünüm adı ara…" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {search && <button type="button" className="icon-ghost" onClick={clearSearch} aria-label="Görünüm aramasını temizle"><Icon name="close" size={15} /></button>}
+        </label>}
+        <span className="bookmarks-count" role="status" aria-live="polite" aria-atomic="true">{visibleBookmarks.length} / {bookmarks.length} kayıtlı görünüm</span>
+      </div>
+      <div ref={listRef} className="bookmark-list">
+        <p className="section-note">Konum, açık katmanlar, saydamlıklar, katman çizim sırası ve harita görünümünü birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma alanına dönün.</p>
         {bookmarks.length === 0 && (
           <div className="empty-state">
             <Icon name="bookmark" size={28} />
@@ -75,12 +108,18 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
             <span>Haritada istediğiniz görünümü hazırlayın ve mevcut çalışma alanını kaydedin.</span>
           </div>
         )}
-        {bookmarks.map((bookmark) => (
+        {bookmarks.length > 0 && visibleBookmarks.length === 0 && <div className="empty-state">
+          <Icon name="search" size={28} />
+          <strong>Görünüm bulunamadı</strong>
+          <span>Aramanızla eşleşen kayıtlı görünüm yok.</span>
+          <button type="button" className="catalog-action" onClick={clearSearch}>Aramayı temizle</button>
+        </div>}
+        {visibleBookmarks.map((bookmark, index) => (
           <BookmarkCard
             key={bookmark.id}
             bookmark={bookmark}
             onGo={() => onGoBookmark(bookmark)}
-            onDelete={() => onDeleteBookmark(bookmark)}
+            onDelete={() => { deletedIndexRef.current = index; onDeleteBookmark(bookmark); }}
           />
         ))}
       </div>
@@ -90,6 +129,17 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
 
 function BookmarkCard({ bookmark, onGo, onDelete }: { bookmark: Bookmark; onGo: () => void; onDelete: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (confirmDelete) cancelRef.current?.focus();
+  }, [confirmDelete]);
+
+  const cancelDelete = () => {
+    setConfirmDelete(false);
+    requestAnimationFrame(() => deleteRef.current?.focus());
+  };
 
   return (
     <article className={`bookmark-card ${confirmDelete ? "is-confirming-delete" : ""}`}>
@@ -102,12 +152,13 @@ function BookmarkCard({ bookmark, onGo, onDelete }: { bookmark: Bookmark; onGo: 
       </button>
       {confirmDelete ? (
         <div className="bookmark-delete-confirm" role="group" aria-label={`${bookmark.name} silme onayı`}>
-          <span className="visually-hidden" role="status">Silme işlemini onaylayın veya vazgeçin.</span>
+          <span role="status">Silme işlemini onaylayın veya vazgeçin.</span>
           <button type="button" className="catalog-action is-danger" onClick={onDelete}>Sil</button>
-          <button type="button" className="icon-ghost" onClick={() => setConfirmDelete(false)} aria-label="Silmekten vazgeç"><Icon name="close" size={15} /></button>
+          <button ref={cancelRef} type="button" className="catalog-action" data-bookmark-cancel onClick={cancelDelete} aria-label="Silmekten vazgeç">Vazgeç</button>
         </div>
       ) : (
         <button
+          ref={deleteRef}
           type="button"
           className="icon-ghost is-danger"
           onClick={() => setConfirmDelete(true)}

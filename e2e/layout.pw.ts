@@ -169,7 +169,7 @@ test("object details and native save dialogs fit the viewport and keep close con
   await expect(page.locator(".details-grid > div")).toHaveCount(1);
   await expect(page.locator(".details-search [role=status]")).toHaveText("1 / 2 alan");
   await attributeSearch.fill("bulunmayan değer");
-  await expect(page.locator(".details-empty")).toHaveText("Aramanızla eşleşen alan bulunamadı.");
+  await expect(page.locator(".details-empty p")).toHaveText("Aramanızla eşleşen alan bulunamadı.");
   await attributeSearch.fill("");
   const detailAccessibility = await new AxeBuilder({ page }).include(".details-drawer").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(detailAccessibility.violations.map((violation) => violation.id)).toEqual([]);
