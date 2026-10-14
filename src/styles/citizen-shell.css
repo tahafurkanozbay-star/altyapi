@@ -191,7 +191,7 @@ html[data-experience="v60"] .global-search {
   position: static !important; inset: auto !important; order: 0;
   flex: 1 1 260px; min-width: 160px; width: auto !important;
   max-width: 520px !important; margin: 0 auto; z-index: auto !important;
-  --calcite-font-size: .875rem;
+  --calcite-font-size: 14px;
   --calcite-color-text-1: var(--workspace-ink);
   --calcite-color-text-2: var(--workspace-muted);
   --calcite-color-foreground-1: #fff;
@@ -268,7 +268,7 @@ html[data-experience="v60"] .map-tool-panel {
   bottom: auto; width: min(360px, 32vw);
   max-height: calc(100dvh - var(--workspace-header) - var(--workspace-bottom) - 24px);
   overflow: auto; scroll-padding-block: 60px 16px;
-  --calcite-font-size: 14px;
+  --calcite-font-size: .875rem;
   --calcite-color-text-1: var(--workspace-ink);
   --calcite-color-text-2: var(--workspace-muted);
   --calcite-color-border-1: var(--workspace-border);
@@ -652,6 +652,7 @@ html[data-experience="v60"] .map-tool-error p { margin: 0 0 10px; }
 html[data-experience="v60"] .map-tool-error .primary-button { min-height: 44px; }
 
 @media (max-width: 360px) {
+  html[data-experience="v60"] .map-tool-body { scrollbar-gutter: auto; scrollbar-width: none; }
   html[data-experience="v60"] .map-tool-host { padding: 0; scrollbar-gutter: auto; scrollbar-width: none; }
 }
 @media (max-width: 480px) {

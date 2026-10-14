@@ -205,5 +205,10 @@ test("tool guidance and controls share keyboard scrolling while close stays visi
   expect(await body.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await expect.poll(() => page.locator(".map-tool-guidance").evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(26);
   await accessible(page, ".map-tool-panel");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await end.scrollIntoViewIfNeeded();
+  await expect(end).toBeInViewport();
+  await inViewport(dismiss, page);
+  expect(await body.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await dismiss.click(); await expect(page.locator(".map-tool-panel")).toHaveCount(0);
 });
