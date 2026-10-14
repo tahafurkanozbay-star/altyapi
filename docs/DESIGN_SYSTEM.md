@@ -47,6 +47,8 @@ Başlıklar ve katman adları eski sürümlere göre büyütülmüştür. Yardı
 - Veri panelindeki filtre ve sıralama formu isteğe bağlı açılır. Sıralama tek başına uygulanabilir; sorgu durumu yalnız başarılı sonuçtan sonra değişir. Sayfa boyutu değişince ilk sayfa yüklenir; hata sonrası aynı işlem yeniden denenebilir.
 - Yükleme, iptal ve sonuç özeti tek canlı durum alanında duyurulur. Sorgu durdurulabilir; sayfa boyutunu değiştirmek bekleyen isteği iptal edip yeni sorgu başlatır. İptal veya hata son başarılı tablonun sayfa bilgisini korur. Boş arama için temizleme eylemi, sütun seçiminde en az bir alan kuralı ve CSV'nin yalnız görünen satırları içerdiği bilgisi gösterilir. Veri paneli metinleri `rem` ile büyür; uzun alan adları satır kırar.
 - Yer imi ve yetkili erişim pencereleri kullanılabilir ekran yüksekliğine sığar. Azaltılmış hareket, yüksek kontrast ve zorunlu renkler desteklenir.
+- Yer imlerinde kaydetme, Türkçe ad araması ve sonuç sayacı sabittir; uzun liste kendi alanında kayar. Mobil klavye açıkken arama ve sonuçlar tek kaydırma alanını paylaşır; panel kapatma düğmesi erişilebilir kalır. Silme onayında odak Vazgeç'e gider. Escape önce bu onayı kapatır; iptal ve silme sonrası odak ilgili kontrol, komşu görünüm, arama veya kaydetme düğmesine döner. Yeni görünüm kaydetmek eski aramayı temizler.
+- Nesne detaylarında başlık, kapatma ve arama sabittir; öznitelik listesi klavyeyle kaydırılabilir. Alan adı ve değer satır kırar, boş aramadan temizleme eylemiyle dönülür. Harita araçlarında yönerge, hata ve SDK içeriği tek kaydırma alanını paylaşır; kapatma düğmesi sabit kalır. Bu yüzeyler ve görünüm kaydetme penceresinin metinleri `rem` ile büyür.
 - Mobil klavye açıldığında paneller ve native pencereler `VisualViewport` yüksekliği ve üst kaymasına göre yerleşir; arama ve kapatma kontrolleri görünür kalır.
 - Çevrimdışı, hata, güncelleme, yükleme ve geçici bildirimler tek kaydırılabilir alanda sıralanır. Mobil modal panel veya klavye açıkken bildirim alanı gizlenir; kalıcı bildirimler kapanınca yeniden görünür.
 
@@ -57,6 +59,8 @@ Başlıklar ve katman adları eski sürümlere göre büyütülmüştür. Yardı
 `e2e/overlays.pw.ts`, eşzamanlı bildirimlerin çakışmamasını, mobil modal sırasında bildirimlerin korunmasını, klavye ve görünür ekran kayması altında panel/pencere sınırlarını, yetkili erişim penceresindeki hata ve erişilebilirlik durumunu doğrular.
 
 `e2e/data-workspace.pw.ts`, filtresiz sıralama, klavyeyle sorgu uygulama ve temizleme, tutarlı sayfalama, başarısız sorguyu tekrar deneme, eski yanıtın yeni katmana yazılmaması, boş aramadan geri dönüş, seçili sütun/satır CSV kapsamı ve yüzde 200 metin boyutunda erişilebilir yerleşimi kontrol eder.
+
+`e2e/saved-details.pw.ts`, 40 kayıtlı görünümde Türkçe arama, sabit kontroller, silme onayı ve odak geri dönüşü, kaydın kalıcılığı, yeni kayıtta aramanın temizlenmesi, uzun nesne özniteliklerinde klavye kaydırması, boş aramadan dönüş ve yüzde 200 metinde pencere/araç erişilebilirliğini kontrol eder.
 
 ## ArcGIS Web Components
 

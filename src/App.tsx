@@ -859,10 +859,12 @@ export default function App() {
       {activeTool && (
         <aside className="map-tool-panel" aria-labelledby="active-map-tool-title" data-tool-state={toolPhase}>
           <div className="map-tool-header"><strong id="active-map-tool-title">{toolTitle(activeTool)}</strong><button type="button" className="icon-ghost" onClick={() => setActiveTool(null)} aria-label={`${toolTitle(activeTool)} aracını kapat`}><Icon name="close" /></button></div>
+          <div className="map-tool-body" role="region" aria-label={`${toolTitle(activeTool)} araç içeriği`} tabIndex={0}>
           <p className="map-tool-guidance">{MAP_TOOL_METADATA[activeTool].instructions}</p>
           {toolPhase === "loading" && <div className="map-tool-loading" role="status">Araç hazırlanıyor…</div>}
           {toolPhase === "error" && <div className="map-tool-error" role="alert"><p>Bu araç açılamadı. Bağlantınızı kontrol edip yeniden deneyin.</p><button type="button" className="primary-button" onClick={() => { setToolPhase("loading"); setToolAttempt((attempt) => attempt + 1); }}><Icon name="refresh" /> Aracı yeniden dene</button></div>}
           <div ref={toolHostRef} className="map-tool-host" />
+          </div>
         </aside>
       )}
 

@@ -261,6 +261,16 @@ export function installCitizenShellSupervisor(): () => void {
       || event.shiftKey
     ) return;
 
+    const bookmarkCancel = event.target instanceof Element
+      ? event.target.closest(".bookmark-card.is-confirming-delete")?.querySelector<HTMLButtonElement>("[data-bookmark-cancel]")
+      : null;
+    if (bookmarkCancel) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      bookmarkCancel.click();
+      return;
+    }
+
     const snapshot = readCitizenShellSnapshot(mobileQuery.matches);
     const action = resolveCitizenDismissAction(snapshot);
     if (!action || action === "native-dialog") return;
