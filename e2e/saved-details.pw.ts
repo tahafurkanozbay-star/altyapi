@@ -27,6 +27,8 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".app-shell")).toBeVisible();
   await expect(page.locator(".boot-screen")).toHaveCount(0);
+  // Startup also persists preferences; finish it before a test prepares a reload.
+  await expect(page.locator(".layer-card.status-loading")).toHaveCount(0);
 });
 
 async function bookmarks(page: Page) {
@@ -123,6 +125,7 @@ test("deleting the only matching view returns to search and deleting the final v
   const close = page.locator(".panel-zone [data-panel-close]");
   if (await close.isVisible()) await close.click();
   await page.locator('[data-panel-target="bookmarks"]').click();
+  await expect(page.locator(".bookmark-card")).toHaveCount(1);
   await page.locator(".bookmark-card > .is-danger").click();
   await page.getByRole("button", { name: "Sil", exact: true }).click();
   await expect(page.getByRole("button", { name: "Bu çalışma görünümünü kaydet", exact: true })).toBeFocused();
