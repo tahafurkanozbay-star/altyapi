@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { decodeShareState } from "../src/lib/urlState";
 import type { RawServiceDefinition } from "../src/types";
 
 async function closeMapTool(page: Page) {
@@ -272,7 +273,38 @@ test("production scene renders all public layers and reopens cached layers", asy
     queryDescription: await queryToggle.innerText()
   };
   await page.screenshot({ path: info.outputPath("public-attribute-query.png"), animations: "disabled" });
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, runtimeErrors, failedSdkAssets }, null, 2));
+  await page.locator('[data-panel-target="layers"]').click();
+  const sharedCard = page.locator(`.layer-card[data-service-id="${startupId}"]`);
+  await sharedCard.locator(".visibility-button").click();
+  await expect(sharedCard).toHaveAttribute("data-render-state", "ready");
+  const opacity = sharedCard.getByRole("slider");
+  await opacity.focus(); await page.keyboard.press("Home");
+  for (let step = 0; step < 7; step++) await page.keyboard.press("ArrowRight");
+  await expect(opacity).toHaveValue("0.35");
+  const nativeOpacity = await page.locator("arcgis-scene").evaluate((element, id) => {
+    const scene = element as unknown as { map: { layers: { toArray(): Array<{ id: string; opacity: number }> } } };
+    return scene.map.layers.toArray().find(layer => layer.id === "svc-" + id)?.opacity;
+  }, startupId!);
+  expect(nativeOpacity).toBeCloseTo(0.35, 5);
+  await page.getByRole("button", { name: "Mevcut harita görünümünü paylaş", exact: true }).click();
+  const shareDialog = page.getByRole("dialog", { name: "Harita görünümünü paylaş", exact: true });
+  const shared = decodeShareState(new URL(await shareDialog.getByRole("textbox", { name: "Paylaşım bağlantısı", exact: true }).inputValue()).searchParams);
+  expect(shared?.layerOpacity?.[startupId!]).toBe(0.35);
+  expect(shared?.layerIds).toEqual([startupId]);
+  await page.screenshot({ path: info.outputPath("public-share-view.png"), animations: "disabled" });
+  await shareDialog.getByRole("button", { name: "Paylaşım penceresini kapat", exact: true }).click();
+  const pngPromise = page.waitForEvent("download");
+  await page.locator('[data-tool-action="screenshot"]').click();
+  const pngDownload = await pngPromise;
+  const png = await readFile((await pngDownload.path())!);
+  expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+  const mapCapture = { bytes: png.length, width: png.readUInt32BE(16), height: png.readUInt32BE(20), sharedOpacity: shared?.layerOpacity?.[startupId!] };
+  expect(mapCapture.bytes).toBeGreaterThan(1000);
+  expect(mapCapture.width).toBeGreaterThan(0); expect(mapCapture.width).toBeLessThanOrEqual(2400);
+  expect(mapCapture.height).toBeGreaterThan(0); expect(mapCapture.height).toBeLessThanOrEqual(2400);
+  await pngDownload.saveAs(info.outputPath("public-map-capture.png"));
+  await expect(page.locator('[data-tool-action="screenshot"]')).toBeEnabled();
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);

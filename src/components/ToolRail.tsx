@@ -39,9 +39,11 @@ interface Props {
   onTool: (tool: Exclude<ToolId, null>) => void;
   onHome: () => void;
   onScreenshot: () => void;
+  screenshotBusy?: boolean;
+  screenshotAvailable?: boolean;
 }
 
-export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onScreenshot }: Props) {
+export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onScreenshot, screenshotBusy = false, screenshotAvailable = true }: Props) {
   return (
     <nav id="kent-rehberi-tools" className="tool-rail" aria-label="Kent Rehberi ana araçları" aria-describedby="tool-rail-keyboard-hint">
       <span id="tool-rail-keyboard-hint" className="visually-hidden">Araçlar arasında ok tuşlarıyla, ilk ve son araca Home ve End tuşlarıyla geçebilirsiniz.</span>
@@ -75,7 +77,8 @@ export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onS
 
       <div className="tool-group tool-group-bottom" role="group" aria-label="Yardımcı araçlar" data-tool-group="utility">
         <span className="tool-group-label">Diğer</span>
-        <ToolButton icon="camera" label="Ekran görüntüsü" onClick={onScreenshot} />
+        <ToolButton icon={screenshotBusy ? "refresh" : "camera"} label={screenshotBusy ? "Ekran görüntüsü hazırlanıyor" : "Ekran görüntüsü"} visibleLabel={screenshotBusy ? "Hazırlanıyor…" : "Ekran görüntüsü"} actionTarget="screenshot" disabled={!screenshotAvailable || screenshotBusy} busy={screenshotBusy} onClick={onScreenshot} />
+        <span className="visually-hidden" role="status" aria-live="polite">{screenshotBusy ? "Harita görüntüsü hazırlanıyor…" : ""}</span>
         <ToolButton icon="help" label="Yardım ve kısayollar" visibleLabel="Yardım" shortcut={HELP_SHORTCUT} commandTarget="help" panelTarget="help" active={activePanel === "help"} onClick={() => onPanel("help")} />
       </div>
     </nav>
@@ -96,16 +99,22 @@ interface ToolButtonProps {
   panelTarget?: Exclude<PanelId, null>;
   toolTarget?: Exclude<ToolId, null>;
   active?: boolean;
+  busy?: boolean;
+  disabled?: boolean;
+  actionTarget?: "screenshot";
   onClick: () => void;
 }
 
-function ToolButton({ icon, label, visibleLabel, shortcut, commandTarget, panelTarget, toolTarget, active, onClick }: ToolButtonProps) {
+function ToolButton({ icon, label, visibleLabel, shortcut, commandTarget, panelTarget, toolTarget, active, busy, disabled, actionTarget, onClick }: ToolButtonProps) {
   const isToggle = active !== undefined;
   return (
     <button
       type="button"
       className={`tool-button ${active ? "is-active" : ""}`}
       onClick={onClick}
+      disabled={disabled}
+      aria-busy={busy || undefined}
+      data-tool-action={actionTarget}
       aria-label={label}
       aria-pressed={isToggle ? active : undefined}
       aria-keyshortcuts={shortcut?.ariaKeyShortcuts}
