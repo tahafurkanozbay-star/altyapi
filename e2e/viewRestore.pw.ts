@@ -10,6 +10,7 @@ type RestoreWindow = Window & {
   navigation: number[]; cameraMode: string; cameraStarts: number; releaseCamera?: () => void;
 };
 const transport = runtimeFixture
+  .replace("container.append(scene);", "container.append(scene); for (const name of ['pointerdown','wheel','keydown']) scene.addEventListener(name, event => event.stopPropagation());")
   .replace("this.desired = new Map();", "this.desired = new Map(); this.loaded = new Set();")
   .replace(/async setLayerVisible\(service, visible\) \{[\s\S]*?\n  \}/, `async setLayerVisible(service, visible) {
     this.desired.set(service.id, visible);
@@ -250,7 +251,7 @@ test("manual map navigation takes ownership before a pending saved view can move
   await first(page).click(); await expect(page.locator(".bookmark-restore-status")).toContainText("Konuma geçiliyor");
   await closeMobilePanel(page);
   const viewport = page.viewportSize()!;
-  await page.mouse.click(viewport.width * 0.8, viewport.height * 0.3);
+  await page.locator("#kent-rehberi-map").click({ position: { x: viewport.width * 0.8, y: viewport.height * 0.3 } });
   await expect(stop(page)).toHaveCount(0);
   await page.evaluate(() => (window as unknown as RestoreWindow).releaseCamera?.());
   expect(await page.evaluate(() => (window as unknown as RestoreWindow).navigation)).toEqual([]);

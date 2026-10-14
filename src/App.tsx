@@ -845,9 +845,9 @@ export default function App() {
         aria-label="Ankara 3B Kent Rehberi haritası"
         aria-describedby="map-usage-hint"
         aria-busy={!ready || shellMetrics.loading > 0}
-        onPointerDown={cancelBookmarkRestore}
-        onWheel={cancelBookmarkRestore}
-        onKeyDown={(event) => { if (MAP_NAVIGATION_KEYS.has(event.key) || MAP_NAVIGATION_KEYS.has(event.key.toLowerCase())) cancelBookmarkRestore(); }}
+        onPointerDownCapture={cancelBookmarkRestore}
+        onWheelCapture={cancelBookmarkRestore}
+        onKeyDownCapture={(event) => { if (MAP_NAVIGATION_KEYS.has(event.key) || MAP_NAVIGATION_KEYS.has(event.key.toLowerCase())) cancelBookmarkRestore(); }}
       />
       <div className="map-vignette" aria-hidden="true" />
 
