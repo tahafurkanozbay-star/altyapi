@@ -47,12 +47,13 @@ import { StatusBar } from "./components/StatusBar";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OperationsPanel } from "./components/OperationsPanel";
 import { BookmarkDialog } from "./components/BookmarkDialog";
+import { ShareDialog, type SharedView } from "./components/ShareDialog";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
 import { NotificationPortal } from "./components/NotificationPortal";
 import { Icon } from "./components/Icon";
 import { BASEMAP_OPTIONS } from "./lib/basemaps";
 import { MAP_TOOL_METADATA } from "./platform/citizenActions";
-import { isQueryCancellation } from "./gis/queryTask";
+import { isQueryCancellation, runQueryStage } from "./gis/queryTask";
 
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
 export default function App() {
@@ -74,6 +75,14 @@ export default function App() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [focusMode, setFocusMode] = useState(false);
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
+  const [sharedView, setSharedView] = useState<SharedView | null>(null);
+  const [screenshotBusy, setScreenshotBusy] = useState(false);
+  const screenshotControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    screenshotControllerRef.current?.abort();
+    screenshotControllerRef.current = null;
+  }, []);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -211,7 +220,7 @@ export default function App() {
           return {
             ...service,
             visible,
-            opacity: initialPreferences.layerOpacity[service.id] ?? service.opacity,
+            opacity: share?.layerOpacity?.[service.id] ?? initialPreferences.layerOpacity[service.id] ?? service.opacity,
             favorite: favoriteSet.has(service.id)
           };
         });
@@ -562,7 +571,7 @@ export default function App() {
     else host.focus();
   }, []);
 
-  const shareView = useCallback(async () => {
+  const shareView = useCallback(() => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     const visibleIds = servicesRef.current.filter((service) => service.visible).map((service) => service.id);
@@ -573,45 +582,41 @@ export default function App() {
     const params = encodeShareState({
       camera: runtime.getCamera(),
       layerIds: orderedVisibleIds,
-      basemap: preferences.basemap
+      basemap: preferences.basemap,
+      layerOpacity: Object.fromEntries(servicesRef.current.filter((service) => service.visible).map((service) => [service.id, service.opacity]))
     });
     const url = `${location.origin}${location.pathname}?${params.toString()}`;
 
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: "Ankara Kent Rehberi",
-          text: "Ankara Kent Rehberi harita görünümü",
-          url
-        });
-        pushToast("Harita görünümü paylaşıldı.", "success");
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API kullanılamıyor.");
-      await navigator.clipboard.writeText(url);
-      pushToast("Harita bağlantısı panoya kopyalandı.", "success");
-    } catch {
-      history.replaceState(null, "", `?${params.toString()}`);
-      pushToast("Paylaşım bağlantısı adres çubuğuna yazıldı.", "info");
-    }
-  }, [preferences.basemap, preferences.layerOrder, pushToast]);
+    setSharedView({ url, layerCount: orderedVisibleIds.length, basemapLabel: BASEMAP_OPTIONS.find(([id]) => id === preferences.basemap)?.[1] ?? preferences.basemap });
+  }, [preferences.basemap, preferences.layerOrder]);
 
   const takeScreenshot = useCallback(async () => {
-    const dataUrl = await runtimeRef.current?.takeScreenshot();
-    if (!dataUrl) {
-      pushToast("Ekran görüntüsü oluşturulamadı.", "error");
-      return;
+    const runtime = runtimeRef.current;
+    if (!runtime || screenshotControllerRef.current) return;
+    const controller = new AbortController();
+    screenshotControllerRef.current = controller;
+    setScreenshotBusy(true);
+    try {
+      const dataUrl = await runQueryStage(() => runtime.takeScreenshot(), controller, 20_000, "Ekran görüntüsü");
+      if (runtimeRef.current !== runtime || screenshotControllerRef.current !== controller) return;
+      if (!dataUrl) throw new Error("Screenshot unavailable");
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `ankara-kent-rehberi-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+      link.hidden = true;
+      document.body.append(link);
+      try { link.click(); } finally { link.remove(); }
+      pushToast("Harita görüntüsü için PNG indirme başlatıldı.", "success");
+    } catch (reason) {
+      if (runtimeRef.current === runtime && screenshotControllerRef.current === controller && !isQueryCancellation(reason)) {
+        pushToast(controller.signal.aborted && reason instanceof Error ? reason.message : "Ekran görüntüsü oluşturulamadı. Yeniden deneyebilirsiniz.", "error");
+      }
+    } finally {
+      if (screenshotControllerRef.current === controller) {
+        screenshotControllerRef.current = null;
+        setScreenshotBusy(false);
+      }
     }
-    const link = document.createElement("a");
-    link.href = dataUrl;
-    link.download = `ankara-kent-rehberi-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
-    link.click();
-    pushToast("Ekran görüntüsü hazırlandı.", "success");
   }, [pushToast]);
 
   const addBookmark = useCallback(() => {
@@ -719,7 +724,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (bookmarkDialogOpen) return;
+      if (bookmarkDialogOpen || sharedView) return;
       const target = event.target as HTMLElement | null;
       const typing = target?.matches("input, textarea, select, [contenteditable='true']");
       if (typing) return;
@@ -746,7 +751,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeTool, bookmarkDialogOpen, focusGlobalSearch, panel, selectPanel, toggleFullscreen]);
+  }, [activeTool, bookmarkDialogOpen, sharedView, focusGlobalSearch, panel, selectPanel, toggleFullscreen]);
 
   return (
     <main className={`app-shell ${focusMode ? "is-focus-mode" : ""}`} data-connection={online ? "online" : "offline"}>
@@ -801,7 +806,7 @@ export default function App() {
             {BASEMAP_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
           <button type="button" className="top-icon-button" onClick={() => setFocusMode((value) => !value)} title="Haritaya odaklan" aria-label={focusMode ? "Odak modundan çık" : "Haritaya odaklan"} aria-pressed={focusMode}><Icon name={focusMode ? "close" : "eye"} /></button>
-          <button type="button" className="primary-button share-button" onClick={() => void shareView()} aria-label="Mevcut harita görünümünü paylaş"><Icon name="share" /> Paylaş</button>
+          <button type="button" className="primary-button share-button" disabled={!ready} onClick={shareView} aria-label="Mevcut harita görünümünü paylaş"><Icon name="share" /> Paylaş</button>
         </div>
       </header>
 
@@ -814,6 +819,8 @@ export default function App() {
         onTool={selectTool}
         onHome={() => void runtimeRef.current?.goHome()}
         onScreenshot={() => void takeScreenshot()}
+        screenshotBusy={screenshotBusy}
+        screenshotAvailable={ready}
       />
 
       <div id="kent-rehberi-panels" className={`panel-zone ${panel && mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri" tabIndex={-1}>
@@ -872,6 +879,7 @@ export default function App() {
           </div>
         )}
       </NotificationPortal>
+      <ShareDialog view={sharedView} onClose={() => setSharedView(null)} />
       <BookmarkDialog
         open={bookmarkDialogOpen}
         suggestedName={`Görünüm ${preferences.bookmarks.length + 1}`}

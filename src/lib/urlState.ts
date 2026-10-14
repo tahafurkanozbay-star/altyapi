@@ -4,6 +4,7 @@ export interface ShareState {
   camera: CameraState;
   layerIds: string[];
   basemap?: string;
+  layerOpacity?: Record<string, number>;
 }
 
 const MAX_LAYER_IDS = 100;
@@ -21,13 +22,18 @@ export function encodeShareState(state: ShareState): URLSearchParams {
     heading: String(Math.round(camera.heading * 10) / 10),
     tilt: String(Math.round(camera.tilt * 10) / 10),
     layers: layerIds.join(","),
-    ...(basemap ? { basemap } : {})
+    ...(basemap ? { basemap } : {}),
+    ...(state.layerOpacity && layerIds.length ? { opacity: layerIds.map((id) => {
+      const value = state.layerOpacity?.[id];
+      return typeof value === "number" && Number.isFinite(value) ? String(Math.min(1, Math.max(0, value))) : "1";
+    }).join(",") } : {})
   });
 }
 
 export function decodeShareState(params: URLSearchParams): ShareState | undefined {
   const required = ["lon", "lat", "z", "heading", "tilt"] as const;
   if (required.some((key) => !params.has(key))) return undefined;
+  if (required.some((key) => !params.get(key)?.trim())) return undefined;
   const values = required.map((key) => Number(params.get(key)));
   if (values.some((value) => !Number.isFinite(value))) return undefined;
   const [longitude, latitude, z, heading, tilt] = values as [number, number, number, number, number];
@@ -47,6 +53,13 @@ export function decodeShareState(params: URLSearchParams): ShareState | undefine
     layerIds: sanitizeLayerIds((params.get("layers") ?? "").split(","))
   };
   if (basemap) decoded.basemap = basemap;
+  const rawOpacity = params.get("opacity");
+  if (rawOpacity && rawOpacity.length <= MAX_LAYER_IDS * 32) {
+    const values = rawOpacity.split(",");
+    if (values.length === decoded.layerIds.length && values.every((value) => value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1)) {
+      decoded.layerOpacity = Object.fromEntries(decoded.layerIds.map((id, index) => [id, Number(values[index])]));
+    }
+  }
   return decoded;
 }
 

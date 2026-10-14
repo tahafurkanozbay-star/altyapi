@@ -466,6 +466,24 @@ html[data-experience="v60"] .workspace-dialog-field > span { font-size: .8125rem
 html[data-experience="v60"] .workspace-dialog-field input { min-height: 46px; font-size: 1rem !important; }
 html[data-experience="v60"] .workspace-dialog-actions button { min-height: 44px; font-size: .8125rem; line-height: 1.5; white-space: normal; }
 html[data-experience="v60"] .workspace-dialog-actions { gap: 10px; }
+html[data-experience="v60"] .share-dialog { font-size: .875rem; }
+html[data-experience="v60"] .share-dialog .workspace-dialog-heading h2 { font-size: 1.25rem; overflow-wrap: anywhere; }
+html[data-experience="v60"] .share-dialog .workspace-dialog-card > p { font-size: .8125rem; }
+html[data-experience="v60"] .share-dialog .workspace-dialog-field > span { font-size: .8125rem; }
+html[data-experience="v60"] .share-dialog textarea { display: block; width: 100%; min-width: 0; min-height: 100px; max-height: 30dvh; resize: vertical; padding: 10px; border: 1px solid var(--workspace-border); border-radius: 10px; color: var(--workspace-ink); background: var(--workspace-soft); font-family: inherit; font-size: 1rem; font-weight: 400; line-height: 1.5; overflow-wrap: anywhere; }
+html[data-experience="v60"] .share-dialog .workspace-dialog-heading { position: sticky; top: 0; z-index: 1; background: #fff; padding-block: 4px; }
+html[data-experience="v60"] .share-dialog textarea:focus-visible { outline: 3px solid #1677d2; outline-offset: 2px; }
+html[data-experience="v60"] .share-dialog .share-view-summary { color: var(--workspace-ink); background: var(--workspace-soft); border-radius: 8px; padding: 8px 10px; }
+html[data-experience="v60"] .share-feedback { color: var(--workspace-muted); font-size: .8125rem; line-height: 1.6; overflow-wrap: anywhere; }
+html[data-experience="v60"] .share-feedback:empty { min-height: 0; }
+html[data-experience="v60"] .share-dialog-actions { flex-wrap: wrap; }
+html[data-experience="v60"] .share-dialog-actions button { flex: 1 1 150px; min-width: 0; white-space: normal; font-size: .8125rem; }
+html[data-experience="v60"] .share-dialog-actions .primary-button { flex-basis: 100%; grid-column: 1 / -1; }
+@media (max-width: 400px) {
+  html[data-experience="v60"] .share-dialog .workspace-dialog-heading { grid-template-columns: minmax(0, 1fr) 44px; }
+  html[data-experience="v60"] .share-dialog .workspace-dialog-icon { display: none; }
+}
+html[data-experience="v60"] .tool-button[aria-busy="true"] svg { animation: v48-spin .9s linear infinite; }
 html[data-experience="v60"] .tucbs-access-native { padding: 0; border: 0; background: transparent; max-width: none; max-height: none; width: 100%; height: 100%; }
 html[data-experience="v60"] .tucbs-access-native::backdrop { background: #102e4660; }
 html[data-experience="v60"] .tucbs-access-native .tucbs-access-backdrop { position: static; height: 100%; background: none; backdrop-filter: none; }

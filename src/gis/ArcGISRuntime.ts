@@ -12,6 +12,7 @@ import { createLayer, finalizeLoadedLayer } from "./layerFactory";
 import { profileToSceneQuality } from "../lib/performance";
 import { LayerIntentTracker } from "../lib/layerIntent";
 import { normalizeAttributeValue } from "../lib/attributeTable";
+import { mapCaptureSize } from "../lib/mapCapture";
 import { buildOrderBy, buildWhereClause, sanitizeQueryOptions } from "../lib/attributeQuery";
 import {
   clampScaleToOperationalRange,
@@ -722,13 +723,15 @@ export class ArcGISRuntime {
   }
 
   async takeScreenshot(): Promise<string | undefined> {
-    if (!this.scene || this.destroyed) return undefined;
+    const scene = this.scene;
+    if (!scene || this.destroyed) return undefined;
     try {
-      const result = await this.scene.takeScreenshot?.({
+      const size = mapCaptureSize(scene.clientWidth || innerWidth, scene.clientHeight || innerHeight, devicePixelRatio);
+      const result = await scene.takeScreenshot?.({
         format: "png",
-        width: Math.min(innerWidth * devicePixelRatio, 2400)
+        ...size
       });
-      return result?.dataUrl;
+      return !this.destroyed && this.scene === scene ? result?.dataUrl : undefined;
     } catch {
       return undefined;
     }

@@ -54,17 +54,18 @@ describe("v45 citizen workspace experience", () => {
   });
 
   it("ships the accessible naming flow, native sharing and runtime draw-order bridge", async () => {
-    const [app, dialog, explorer, runtime, shellCss, css] = await Promise.all([
+    const [app, dialog, explorer, runtime, shellCss, css, sharing] = await Promise.all([
       readFile("src/App.tsx", "utf8"),
       readFile("src/components/BookmarkDialog.tsx", "utf8"),
       readFile("src/components/LayerExplorer.tsx", "utf8"),
       readFile("src/gis/ArcGISRuntime.ts", "utf8"),
       readFile("src/styles/citizen-shell.css", "utf8"),
-      readFile("src/styles/experience-v45.css", "utf8")
+      readFile("src/styles/experience-v45.css", "utf8"),
+      readFile("src/components/ShareDialog.tsx", "utf8")
     ]);
 
     expect(app).not.toContain("window.prompt");
-    expect(app).toContain('typeof navigator.share === "function"');
+    expect(sharing).toContain('typeof navigator.share === "function"');
     expect(app).toContain("toggleFullscreen");
     expect(app).toContain("layerOrder={effectiveLayerOrder}");
     expect(app).toContain("<BookmarkDialog");

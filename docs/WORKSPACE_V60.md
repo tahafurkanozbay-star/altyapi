@@ -36,6 +36,14 @@ Her satırın İncele düğmesi, gizlenen sütunlar dahil bütün alanları ve u
 
 Hızlı arama, yalnız yüklenen sayfanın tüm alanlarını tarar; sütun gizlemek arama sonucunu değiştirmez ve yeni servis isteği başlatılmaz. CSV kapsamı gösterilen satırlar ve seçilen sütunlar olarak açıklanır. Sayısal kimlikler ve koordinatlar CSV'de binlik ayracı veya görüntüleme yuvarlaması olmadan, tarayıcıda alınan sayı basamaklarıyla aktarılır. Tablo ve ayrıntılar da koordinatları üç ondalık basamağa düşürmez. Servisten gelen metin ve başlıklardaki formül başlangıçları, RFC CSV kaçışından önce tek tırnakla metne çevrilir; gerçek sayısal değerlerin işareti korunur. Bu koruma üretilen dosyaya aittir; hesap tablosunda yeniden kaydetmek kaçışı kaldırabilir. Referans: https://community.owasp.org/attacks/CSV_Injection
 
+## Paylaşım ve harita görüntüsü
+
+Paylaş düğmesi, kopyalanabilir bağlantı içeren erişilebilir bir pencere açar. Kamera, altlık, açık katmanların sırası ve saydamlıkları bağlantıya alınır; alıcının yerel saydamlık tercihi paylaşılan değeri değiştirmez. Saydamlık içermeyen eski bağlantılar desteklenir. Boş kamera değerleri reddedilir; eşleşmeyen, aşırı uzun veya aralık dışı saydamlık listeleri kullanılmaz. Bağlantı servis adresi/kimlik bilgisi taşımaz; korumalı katmanların erişim koşulları alıcıda da geçerlidir.
+
+Pano izni olmayan tarayıcıda bağlantı seçilir ve elle kopyalama açıklanır. Cihaz paylaşımı yalnız destekleyen tarayıcılarda sunulur; iptal veya hata sonrasında bağlantı kullanılabilir. Çalışan kopyalama/paylaşım tekrar başlatılmaz. Pencere kapanınca geç tamamlanan işlem yeni pencerenin durumunu değiştiremez; Escape ve kapatma odağı paylaşım düğmesine döndürür. Paylaşmak mevcut adres çubuğunu değiştirmez.
+
+PNG düğmesi harita hazır olana kadar ve istek sürerken devre dışıdır; hazırlık durumunu bildirir. Kullanıcı beklemesi 20 saniyeyle sınırlıdır; hata/zaman aşımı sonrası yeniden denenebilir ve geç gelen görüntü indirilmez. Bu süre sınırı SDK'nın iç çizim işini iptal etmez. İndirme bağlantısı geçici DOM öğesiyle oluşturulur ve temizlenir. Görüntü ölçüleri gerçek harita alanı ve cihaz piksel yoğunluğundan hesaplanır; hem genişlik hem yükseklik en fazla 2400 pikseldir, en-boy oranı korunur. Harita oturumu değiştiğinde eski görüntü teslim edilmez.
+
 ## Teknoloji ve doğrulama
 
 Haritada nesne seçimi son tıklamaya aittir. Önceki tıklamanın geç tamamlanan sonucu veya hatası yeni seçimi değiştiremez. Detay penceresi kapatıldığında, kamera hareket ettiğinde, sekme değiştiğinde veya harita oturumu kapandığında bekleyen seçim geçersiz olur. Mesafe/alan, kesit, görüş hattı ve profil araçları harita tıklamasını kullanırken nesne sorgusu başlatılmaz; bu koruma araç yüklenirken de geçerlidir. Pasif araç açıkken nesne seçmek detayları açar ve araç penceresini kapatır. Dar ekranda detaylar çalışma paneliyle çakışmaz.
