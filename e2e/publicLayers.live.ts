@@ -331,9 +331,11 @@ test("production scene renders all public layers and reopens cached layers", asy
   const screenshotStarted = Date.now();
   await page.locator(".operations-panel").screenshot({ path: info.outputPath("public-bookmark-restore.png"), animations: "disabled", timeout: 45_000 });
   const bookmarkScreenshotMs = Date.now() - screenshotStarted;
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, bookmarkRestore: { ...bookmarkRestore, readyMs: bookmarkReadyMs }, bookmarkScreenshotMs, runtimeErrors, failedSdkAssets }, null, 2));
+  const verification = { testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, bookmarkRestore: { ...bookmarkRestore, readyMs: bookmarkReadyMs }, bookmarkScreenshotMs, runtimeErrors, failedSdkAssets };
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify(verification, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);
   expect(toolMetrics).toHaveLength(8);
+  console.info("LIVE_GIS_VERIFICATION " + JSON.stringify(verification));
 });
