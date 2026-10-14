@@ -43,6 +43,9 @@ async function readLayerDrawing(page: Page, id: string) {
 }
 
 test("production scene renders all public layers and reopens cached layers", async ({ page }, info) => {
+  // This full provider/tool matrix also covers sharing, PNG and saved views;
+  // leave bounded room for diagnostics on the software-rendered CI browser.
+  test.setTimeout(660_000);
   const runtimeErrors: string[] = [];
   const failedSdkAssets: string[] = [];
   page.on("pageerror", (error) => runtimeErrors.push(error.name));
@@ -324,8 +327,11 @@ test("production scene renders all public layers and reopens cached layers", asy
   }, startupId!);
   expect(bookmarkRestore.longitude).toBeCloseTo(savedCamera.longitude, 5); expect(bookmarkRestore.latitude).toBeCloseTo(savedCamera.latitude, 5);
   expect(bookmarkRestore.z).toBeCloseTo(savedCamera.z, 0); expect(bookmarkRestore.opacity).toBeCloseTo(0.35, 5); expect(bookmarkRestore.basemap).toBe("hybrid");
-  await page.screenshot({ path: info.outputPath("public-bookmark-restore.png"), animations: "disabled" });
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, bookmarkRestore: { ...bookmarkRestore, readyMs: Date.now() - restoreStarted }, runtimeErrors, failedSdkAssets }, null, 2));
+  const bookmarkReadyMs = Date.now() - restoreStarted;
+  const screenshotStarted = Date.now();
+  await page.locator(".operations-panel").screenshot({ path: info.outputPath("public-bookmark-restore.png"), animations: "disabled", timeout: 45_000 });
+  const bookmarkScreenshotMs = Date.now() - screenshotStarted;
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, bookmarkRestore: { ...bookmarkRestore, readyMs: bookmarkReadyMs }, bookmarkScreenshotMs, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);
