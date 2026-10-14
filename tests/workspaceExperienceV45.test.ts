@@ -1,9 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { sanitizePreferences } from "../src/lib/storage";
-import { mergeCapturedLayerOrder, moveVisibleLayer, normalizeLayerOrder } from "../src/lib/workspaceView";
+import { mergeCapturedLayerOrder, moveVisibleLayer, normalizeLayerOrder, workspaceRestoreTimeout } from "../src/lib/workspaceView";
 
 describe("v45 citizen workspace experience", () => {
+  it("gives larger serialized restores enough time without extending a small restore", () => {
+    expect(workspaceRestoreTimeout(0)).toBe(60_000);
+    expect(workspaceRestoreTimeout(2)).toBe(60_000);
+    expect(workspaceRestoreTimeout(3)).toBe(90_000);
+    expect(workspaceRestoreTimeout(8)).toBe(240_000);
+  });
+
+  it("caps large restore budgets and handles invalid counts safely", () => {
+    expect(workspaceRestoreTimeout(10)).toBe(300_000);
+    expect(workspaceRestoreTimeout(100)).toBe(300_000);
+    for (const value of [NaN, Infinity, -1]) expect(workspaceRestoreTimeout(value)).toBe(60_000);
+  });
+
   it("keeps a deterministic complete top-to-bottom layer order", () => {
     expect(normalizeLayerOrder(["c", "a", "c", "missing"], ["a", "b", "c", "d"]))
       .toEqual(["c", "a", "b", "d"]);

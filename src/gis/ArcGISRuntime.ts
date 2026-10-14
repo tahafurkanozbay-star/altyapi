@@ -200,6 +200,7 @@ export class ArcGISRuntime {
   private scaleGuardApplying = false;
   private activationGuardDepth = 0;
   private activationBatchDepth = 0;
+  private activationBatchEpoch = 0;
   private activationBatchNavigate = true;
   private activationNavigationChain: Promise<void> = Promise.resolve();
 
@@ -382,6 +383,7 @@ export class ArcGISRuntime {
   ): Promise<T> {
     const outermost = this.activationBatchDepth === 0;
     if (outermost) {
+      this.activationBatchEpoch += 1;
       this.activationBatchNavigate = options.navigate !== false;
       for (const serviceId of [...this.deferredActivationNavigations.keys()]) {
         this.releaseDeferredActivation(serviceId);
@@ -400,17 +402,19 @@ export class ArcGISRuntime {
       return result;
     } finally {
       this.activationBatchDepth = Math.max(0, this.activationBatchDepth - 1);
-      if (outermost) {
+      if (this.activationBatchDepth === 0) {
+        const epoch = this.activationBatchEpoch;
         try {
           if (completed && this.activationBatchNavigate && !this.destroyed) {
-            await this.flushDeferredActivationNavigation();
+            await this.flushDeferredActivationNavigation(epoch);
           }
         } finally {
-          for (const serviceId of [...this.deferredActivationNavigations.keys()]) {
-            this.releaseDeferredActivation(serviceId);
+          if (this.activationBatchEpoch === epoch) {
+            for (const serviceId of [...this.deferredActivationNavigations.keys()]) {
+              this.releaseDeferredActivation(serviceId);
+            }
+            this.activationBatchNavigate = true;
           }
-          this.activationBatchNavigate = true;
-          this.activationBatchDepth = 0;
           this.activationGuardDepth = Math.max(0, this.activationGuardDepth - 1);
           if (this.activationGuardDepth === 0) this.scheduleScaleGuard();
         }
@@ -695,16 +699,21 @@ export class ArcGISRuntime {
     await this.goTo(HOME_CAMERA);
   }
 
-  async goTo(camera: CameraState): Promise<void> {
+  async goTo(camera: CameraState, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     if (!this.scene || this.destroyed) return;
+    const scene = this.scene;
     const { default: CameraCtor } = await import("@arcgis/core/Camera.js");
-    if (!this.scene || this.destroyed) return;
+    signal?.throwIfAborted();
+    if (this.scene !== scene || this.destroyed) return;
     const target = new CameraCtor({
       position: pointProperties(camera),
       heading: camera.heading,
       tilt: camera.tilt
     });
-    await this.scene.goTo?.(target, { duration: 950, easing: "ease-in-out" });
+    await scene.goTo?.(target, { duration: 950, easing: "ease-in-out", ...(signal ? { signal } : {}) });
+    signal?.throwIfAborted();
+    if (this.scene !== scene || this.destroyed) return;
     this.enforceScaleGuard();
     this.scheduleScaleGuard();
   }
@@ -1052,7 +1061,7 @@ export class ArcGISRuntime {
     endAtomicLayerActivation(existing.layer.id);
   }
 
-  private async flushDeferredActivationNavigation(): Promise<OperationalNavigationResult> {
+  private async flushDeferredActivationNavigation(epoch = this.activationBatchEpoch): Promise<OperationalNavigationResult> {
     const scene = this.scene;
     if (!scene || this.destroyed || this.deferredActivationNavigations.size === 0) return { moved: false };
 
@@ -1079,8 +1088,9 @@ export class ArcGISRuntime {
     const selected = selectBatchActivationCandidate(planned);
     if (!selected) return { moved: false };
 
-    return this.queueActivationNavigation(() =>
-      this.executeAtomicActivationNavigation(
+    return this.queueActivationNavigation(() => this.activationBatchEpoch !== epoch || this.activationBatchDepth > 0
+      ? Promise.resolve({ moved: false })
+      : this.executeAtomicActivationNavigation(
         selected.value.service,
         selected.value.layer,
         selected.value.layerView

@@ -1,5 +1,11 @@
 import type { LayerOrderDirection } from "../types";
 
+/** Give serialized layer restores a bounded wait budget instead of timing out the whole stack after one minute. */
+export function workspaceRestoreTimeout(pendingLayerCount: number): number {
+  const count = Number.isFinite(pendingLayerCount) ? Math.max(0, Math.ceil(pendingLayerCount)) : 0;
+  return Math.min(300_000, Math.max(60_000, count * 30_000));
+}
+
 /** Returns every available service exactly once in deterministic top-to-bottom order. */
 export function normalizeLayerOrder(preferred: readonly string[], available: readonly string[]): string[] {
   const allowed = new Set(available);
