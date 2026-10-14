@@ -9,9 +9,9 @@ describe("v35 health-aware layer load scheduler integration", () => {
     expect(app).toContain("new LayerLoadScheduler(effectivePerformance)");
     expect(app).toContain('"restore",\n              () => runtime.setLayerVisible(service, true)');
     expect(app).toContain('priority: LayerLoadPriority = "interactive"');
-    expect(app).toContain('"retry",\n      () => runtime.reloadLayer(retryService)');
+    expect(app).toMatch(/"retry",\s+\(\) => runtime\.reloadLayer\(retryService\)/);
     expect(app).toContain("layerLoadScheduler.cancel(service.id)");
-    expect(app).toContain('toggleLayer(service, desired.has(service.id), "restore")');
+    expect(app).toContain('toggleLayer(service, desired.has(service.id), "restore", controller.signal)');
     expect(app).not.toContain("mapWithConcurrency");
 
     expect(scheduler).toContain("interactive: 0");

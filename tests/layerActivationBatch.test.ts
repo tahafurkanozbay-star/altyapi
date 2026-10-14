@@ -23,7 +23,7 @@ describe("v33 batch layer activation", () => {
     expect(app).toContain("{ navigate: false }");
 
     const bookmarkBatch = app.indexOf("const goBookmark");
-    const explicitCamera = app.indexOf("await runtime.goTo(bookmark.camera)", bookmarkBatch);
+    const explicitCamera = app.indexOf("await runtime.goTo(bookmark.camera, controller.signal)", bookmarkBatch);
     const suppressedBatch = app.indexOf("{ navigate: false }", bookmarkBatch);
     expect(bookmarkBatch).toBeGreaterThan(-1);
     expect(suppressedBatch).toBeGreaterThan(bookmarkBatch);

@@ -304,7 +304,28 @@ test("production scene renders all public layers and reopens cached layers", asy
   expect(mapCapture.height).toBeGreaterThan(0); expect(mapCapture.height).toBeLessThanOrEqual(2400);
   await pngDownload.saveAs(info.outputPath("public-map-capture.png"));
   await expect(page.locator('[data-tool-action="screenshot"]')).toBeEnabled();
-  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, runtimeErrors, failedSdkAssets }, null, 2));
+  await page.locator('[data-panel-target="bookmarks"]').click();
+  await page.getByRole("button", { name: "Bu çalışma görünümünü kaydet", exact: true }).click();
+  const savedViewDialog = page.getByRole("dialog", { name: "Bu görünümü kaydet", exact: true });
+  await savedViewDialog.getByRole("textbox", { name: "Görünüm adı", exact: true }).fill("Canlı doğrulama görünümü");
+  await savedViewDialog.getByRole("button", { name: "Görünümü kaydet", exact: true }).click();
+  const savedCamera = await page.locator("arcgis-scene").evaluate(element => {
+    const camera = (element as unknown as { camera: { position: { longitude: number; latitude: number; z: number } } }).camera;
+    return { longitude: camera.position.longitude, latitude: camera.position.latitude, z: camera.position.z };
+  });
+  const restoreStarted = Date.now();
+  const restoreButton = page.getByRole("button", { name: "Canlı doğrulama görünümü çalışma görünümüne git", exact: true });
+  await restoreButton.click();
+  await expect(page.locator(".toast-success").filter({ hasText: "Canlı doğrulama görünümü çalışma görünümü geri yüklendi" })).toHaveCount(1);
+  await expect(restoreButton).not.toHaveAttribute("aria-busy", "true");
+  const bookmarkRestore = await page.locator("arcgis-scene").evaluate((element, id) => {
+    const scene = element as unknown as { camera: { position: { longitude: number; latitude: number; z: number } }; map: { basemap: { id: string }; layers: { toArray(): Array<{ id: string; opacity: number }> } } };
+    return { longitude: scene.camera.position.longitude, latitude: scene.camera.position.latitude, z: scene.camera.position.z, basemap: scene.map.basemap.id, opacity: scene.map.layers.toArray().find(layer => layer.id === "svc-" + id)?.opacity };
+  }, startupId!);
+  expect(bookmarkRestore.longitude).toBeCloseTo(savedCamera.longitude, 5); expect(bookmarkRestore.latitude).toBeCloseTo(savedCamera.latitude, 5);
+  expect(bookmarkRestore.z).toBeCloseTo(savedCamera.z, 0); expect(bookmarkRestore.opacity).toBeCloseTo(0.35, 5); expect(bookmarkRestore.basemap).toBe("hybrid");
+  await page.screenshot({ path: info.outputPath("public-bookmark-restore.png"), animations: "disabled" });
+  await writeFile(info.outputPath("public-layer-timings.json"), JSON.stringify({ testedAt: new Date().toISOString(), startupReadyMs, startupDrawMs, startupBoundaryPixels, startupEvidence, metrics, toolMetrics, distanceMeasurement, attributeQuery, mapCapture, bookmarkRestore: { ...bookmarkRestore, readyMs: Date.now() - restoreStarted }, runtimeErrors, failedSdkAssets }, null, 2));
   expect(failedSdkAssets).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   expect(metrics).toHaveLength(10);

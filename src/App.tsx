@@ -24,7 +24,8 @@ import {
   mergeCapturedLayerOrder,
   moveVisibleLayer,
   normalizeLayerOrder,
-  visibleLayerOrder
+  visibleLayerOrder,
+  workspaceRestoreTimeout
 } from "./lib/workspaceView";
 import type {
   AppPreferences,
@@ -56,6 +57,7 @@ import { MAP_TOOL_METADATA } from "./platform/citizenActions";
 import { isQueryCancellation, runQueryStage } from "./gis/queryTask";
 
 const DEFAULT_CAMERA: CameraState = { longitude: 32.8542, latitude: 39.9208, z: 5200, heading: 2, tilt: 58 };
+const MAP_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "+", "-", "=", "w", "a", "s", "d", "j", "u", "b", "p", "n"]);
 export default function App() {
   const initialPreferences = useMemo(() => loadPreferences(), []);
   const effectivePerformance: PerformanceProfile = useMemo(() => detectPerformanceProfile(), []);
@@ -78,10 +80,15 @@ export default function App() {
   const [sharedView, setSharedView] = useState<SharedView | null>(null);
   const [screenshotBusy, setScreenshotBusy] = useState(false);
   const screenshotControllerRef = useRef<AbortController | null>(null);
+  const [restoringView, setRestoringView] = useState<{ id: string; name: string; phase: "layers" | "camera" } | null>(null);
+  const restoreControllerRef = useRef<{ id: string; controller: AbortController } | null>(null);
+  const layerOrderRef = useRef(initialPreferences.layerOrder);
 
   useEffect(() => () => {
     screenshotControllerRef.current?.abort();
     screenshotControllerRef.current = null;
+    restoreControllerRef.current?.controller.abort();
+    restoreControllerRef.current = null;
   }, []);
 
   const mapRef = useRef<HTMLDivElement>(null);
@@ -145,6 +152,14 @@ export default function App() {
     setToasts((items) => [...items.slice(-3), { id, message, tone }]);
     window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 4800);
   }, []);
+
+  const cancelBookmarkRestore = useCallback(() => {
+    if (!restoreControllerRef.current) return;
+    restoreControllerRef.current.controller.abort();
+    restoreControllerRef.current = null;
+    setRestoringView(null);
+    pushToast("Görünüm geri yükleme durduruldu. Açılmış katmanlar korundu.", "info");
+  }, [pushToast]);
 
   const recordIncident = useCallback((input: IncidentInput) => {
     incidentsRef.current = appendIncident(incidentsRef.current, createIncident(input));
@@ -232,6 +247,7 @@ export default function App() {
           ? mergeCapturedLayerOrder(initialPreferences.layerOrder, share.layerIds, allServiceIds)
           : normalizeLayerOrder(initialPreferences.layerOrder, allServiceIds);
         const restoredBasemap = share?.basemap ?? initialPreferences.basemap;
+        layerOrderRef.current = restoredOrder;
 
         setServices(restored);
         servicesRef.current = restored;
@@ -306,6 +322,7 @@ export default function App() {
                 ? { ...successPatch(result.durationMs), visible: true }
                 : failurePatch(service, result.error, result.durationMs)
             );
+            if (result.ok) runtime.setOpacity(service.id, servicesRef.current.find((item) => item.id === service.id)?.opacity ?? service.opacity);
             if (!result.ok) {
               recordIncident({
                 severity: "error",
@@ -320,7 +337,7 @@ export default function App() {
         }, { navigate: !share?.camera });
 
         if (cancelled) return;
-        runtime.setLayerOrder(restoredOrder);
+        runtime.setLayerOrder(layerOrderRef.current);
         persistLayerPreferences(servicesRef.current);
         if (suppressedRestores > 0) {
           pushToast(`${suppressedRestores} katman bağlantı durumuna göre başlangıçta açılmadı. İsterseniz Katmanlar bölümünden deneyebilirsiniz.`, "info");
@@ -371,13 +388,14 @@ export default function App() {
     };
   }, [activeTool, ready, toolAttempt]);
 
-  const toggleLayer = useCallback(async (
+  const toggleLayer = useCallback(async function toggleLayer(
     service: ServiceDefinition,
     visible: boolean,
-    priority: LayerLoadPriority = "interactive"
-  ) => {
+    priority: LayerLoadPriority = "interactive",
+    signal?: AbortSignal
+  ) {
     const runtime = runtimeRef.current;
-    if (!runtime) return;
+    if (!runtime || signal?.aborted) return;
 
     const intent = layerIntents.current.begin(service.id);
 
@@ -385,20 +403,30 @@ export default function App() {
     else patchService(service.id, { visible: false });
 
     const targetService = { ...service, visible };
+    const cancel = () => {
+      if (!visible || runtimeRef.current !== runtime || !layerIntents.current.isCurrent(service.id, intent)) return;
+      const latest = servicesRef.current.find((item) => item.id === service.id) ?? targetService;
+      void toggleLayer(latest, false).catch(() => undefined);
+    };
+    if (visible) signal?.addEventListener("abort", cancel, { once: true });
     let result;
-    if (visible) {
-      result = await layerLoadScheduler.schedule(
-        targetService,
-        priority,
-        () => runtime.setLayerVisible(targetService, true),
-        { ok: true, superseded: true }
-      );
-    } else {
-      layerLoadScheduler.cancel(service.id);
-      result = await runtime.setLayerVisible(targetService, false);
+    try {
+      if (visible) {
+        result = await layerLoadScheduler.schedule(
+          targetService,
+          priority,
+          () => runtime.setLayerVisible(targetService, true),
+          { ok: true, superseded: true }
+        );
+      } else {
+        layerLoadScheduler.cancel(service.id);
+        result = await runtime.setLayerVisible(targetService, false);
+      }
+    } finally {
+      signal?.removeEventListener("abort", cancel);
     }
 
-    if (result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
+    if (runtimeRef.current !== runtime || result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? {
           ...(visible ? successPatch(result.durationMs) : {}),
@@ -411,7 +439,8 @@ export default function App() {
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
-    runtime.setLayerOrder(normalizeLayerOrder(preferences.layerOrder, next.map((item) => item.id)));
+    if (result.ok && visible) runtime.setOpacity(service.id, next.find((item) => item.id === service.id)?.opacity ?? service.opacity);
+    runtime.setLayerOrder(normalizeLayerOrder(layerOrderRef.current, next.map((item) => item.id)));
 
     if (!result.ok) {
       pushToast(`${service.displayName} şu anda açılamıyor. Daha sonra yeniden deneyebilirsiniz.`, "error");
@@ -468,6 +497,7 @@ export default function App() {
     const nextOrder = moveVisibleLayer(currentOrder, visibleIds, serviceId, direction);
     if (nextOrder.every((id, index) => id === currentOrder[index])) return;
 
+    layerOrderRef.current = nextOrder;
     runtimeRef.current?.setLayerOrder(nextOrder);
     setPreferences((current) => {
       const next = { ...current, layerOrder: nextOrder };
@@ -477,23 +507,32 @@ export default function App() {
   }, [preferences.layerOrder]);
 
   const zoomLayer = useCallback(async (service: ServiceDefinition) => {
+    cancelBookmarkRestore();
     const ok = await runtimeRef.current?.zoomToLayer(service);
     if (!ok) pushToast("Bu katmanın harita kapsamı alınamadı.", "info");
-  }, [pushToast]);
+  }, [cancelBookmarkRestore, pushToast]);
 
-  const retryLayer = useCallback(async (service: ServiceDefinition) => {
+  const retryLayer = useCallback(async (service: ServiceDefinition, signal?: AbortSignal) => {
     const runtime = runtimeRef.current;
-    if (!runtime) return;
+    if (!runtime || signal?.aborted) return;
     const intent = layerIntents.current.begin(service.id);
     patchService(service.id, { visible: true, status: "loading", error: undefined });
     const retryService = { ...service, visible: true };
-    const result = await layerLoadScheduler.schedule(
-      retryService,
-      "retry",
-      () => runtime.reloadLayer(retryService),
-      { ok: true, superseded: true }
-    );
-    if (result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
+    const cancel = () => {
+      if (runtimeRef.current !== runtime || !layerIntents.current.isCurrent(service.id, intent)) return;
+      void toggleLayer(servicesRef.current.find((item) => item.id === service.id) ?? retryService, false).catch(() => undefined);
+    };
+    signal?.addEventListener("abort", cancel, { once: true });
+    let result;
+    try {
+      result = await layerLoadScheduler.schedule(
+        retryService,
+        "retry",
+        () => runtime.reloadLayer(retryService),
+        { ok: true, superseded: true }
+      );
+    } finally { signal?.removeEventListener("abort", cancel); }
+    if (runtimeRef.current !== runtime || result.superseded || !layerIntents.current.isCurrent(service.id, intent)) return;
     const patch: Partial<ServiceDefinition> = result.ok
       ? { ...successPatch(result.durationMs), visible: true }
       : failurePatch(service, result.error, result.durationMs);
@@ -501,7 +540,8 @@ export default function App() {
     const next = servicesRef.current.map((item) => item.id === service.id ? { ...item, ...patch } : item);
     servicesRef.current = next;
     persistLayerPreferences(next);
-    runtime.setLayerOrder(normalizeLayerOrder(preferences.layerOrder, next.map((item) => item.id)));
+    if (result.ok) runtime.setOpacity(service.id, next.find((item) => item.id === service.id)?.opacity ?? service.opacity);
+    runtime.setLayerOrder(normalizeLayerOrder(layerOrderRef.current, next.map((item) => item.id)));
     pushToast(result.ok ? `${service.displayName} açıldı.` : `${service.displayName} şu anda açılamıyor.`, result.ok ? "success" : "error");
     recordIncident({
       severity: result.ok ? "info" : "error",
@@ -512,7 +552,7 @@ export default function App() {
       durationMs: result.durationMs,
       recovered: result.ok
     });
-  }, [layerLoadScheduler, patchService, persistLayerPreferences, preferences.layerOrder, pushToast, recordIncident]);
+  }, [layerLoadScheduler, patchService, persistLayerPreferences, pushToast, recordIncident, toggleLayer]);
 
   const queryAttributes = useCallback(async (service: ServiceDefinition, options: AttributeQueryOptions, signal?: AbortSignal): Promise<AttributeTableResult> => {
     const runtime = runtimeRef.current;
@@ -555,13 +595,14 @@ export default function App() {
   }, [closeIdentify]);
 
   const changeBasemap = useCallback((basemap: string) => {
+    cancelBookmarkRestore();
     runtimeRef.current?.setBasemap(basemap);
     setPreferences((current) => {
       const next = { ...current, basemap };
       savePreferences(next);
       return next;
     });
-  }, []);
+  }, [cancelBookmarkRestore]);
 
   const focusGlobalSearch = useCallback(() => {
     const host = searchRef.current;
@@ -653,13 +694,18 @@ export default function App() {
 
   const goBookmark = useCallback(async (bookmark: Bookmark) => {
     const runtime = runtimeRef.current;
-    if (!runtime) return;
+    if (!runtime || restoreControllerRef.current?.id === bookmark.id) return;
+    restoreControllerRef.current?.controller.abort();
+    const controller = new AbortController();
+    restoreControllerRef.current = { id: bookmark.id, controller };
+    const current = () => runtimeRef.current === runtime && restoreControllerRef.current?.controller === controller;
+    setRestoringView({ id: bookmark.id, name: bookmark.name, phase: "layers" });
 
     const snapshot = servicesRef.current;
     const allIds = snapshot.map((service) => service.id);
     const desired = new Set(bookmark.layerIds);
     const capturedOrder = bookmark.layerOrder?.length ? bookmark.layerOrder : bookmark.layerIds;
-    const restoredOrder = mergeCapturedLayerOrder(preferences.layerOrder, capturedOrder, allIds);
+    const restoredOrder = mergeCapturedLayerOrder(layerOrderRef.current, capturedOrder, allIds);
     const restoredBasemap = bookmark.basemap ?? preferences.basemap;
     const bookmarkOpacity = bookmark.layerOpacity ?? {};
     const prepared = snapshot.map((service) => {
@@ -668,42 +714,70 @@ export default function App() {
         ? { ...service, opacity: Math.min(1, Math.max(0, nextOpacity!)) }
         : service;
     });
+    const changes = prepared.filter((service) => service.visible !== desired.has(service.id) || (desired.has(service.id) && service.status !== "ready"));
+    const waitBudget = workspaceRestoreTimeout(changes.filter((service) => desired.has(service.id)).length);
 
     setServices(prepared);
     servicesRef.current = prepared;
-    for (const service of prepared) runtime.setOpacity(service.id, service.opacity);
-    runtime.setBasemap(restoredBasemap);
-    setPreferences((current) => {
-      const next = {
-        ...current,
-        basemap: restoredBasemap,
-        layerOrder: restoredOrder,
-        layerOpacity: Object.fromEntries(prepared.map((service) => [service.id, service.opacity]))
-      };
-      savePreferences(next);
-      return next;
-    });
+    layerOrderRef.current = restoredOrder;
+    try {
+      for (const service of prepared) runtime.setOpacity(service.id, service.opacity);
+      runtime.setLayerOrder(restoredOrder);
+      runtime.setBasemap(restoredBasemap);
+      setPreferences((current) => {
+        const next = {
+          ...current,
+          basemap: restoredBasemap,
+          layerOrder: restoredOrder,
+          layerOpacity: Object.fromEntries(prepared.map((service) => [service.id, service.opacity]))
+        };
+        savePreferences(next);
+        return next;
+      });
 
-    await runtime.withLayerActivationBatch(async () => {
-      await Promise.all(prepared
-        .filter((service) => service.visible !== desired.has(service.id))
-        .map((service) => toggleLayer(service, desired.has(service.id), "restore")));
-    }, { navigate: false });
+      await runtime.withLayerActivationBatch(async () => {
+        await runQueryStage(async () => {
+          await Promise.all(changes
+            .map((service) => service.status === "error" && desired.has(service.id)
+              ? retryLayer(service, controller.signal)
+              : toggleLayer(service, desired.has(service.id), "restore", controller.signal)));
+        }, controller, waitBudget, "Görünüm katmanları");
+      }, { navigate: false });
+      if (!current() || controller.signal.aborted) return;
 
-    runtime.setLayerOrder(restoredOrder);
-    await runtime.goTo(bookmark.camera);
-    persistLayerPreferences(servicesRef.current);
-    pushToast(`${bookmark.name} çalışma görünümü geri yüklendi.`, "success");
-  }, [persistLayerPreferences, preferences.basemap, preferences.layerOrder, pushToast, toggleLayer]);
+      runtime.setLayerOrder(layerOrderRef.current);
+      setRestoringView({ id: bookmark.id, name: bookmark.name, phase: "camera" });
+      await runQueryStage(async () => { await runtime.goTo(bookmark.camera, controller.signal); }, controller, 10_000, "Görünümün konumu");
+      if (!current() || controller.signal.aborted) return;
+      persistLayerPreferences(servicesRef.current);
+      const incomplete = bookmark.layerIds.filter((id) => {
+        const service = servicesRef.current.find((item) => item.id === id);
+        return !service || !service.visible || service.status === "error";
+      }).length;
+      pushToast(incomplete
+        ? `${bookmark.name} görünümüne geçildi; ${incomplete} katman geri yüklenemedi.`
+        : `${bookmark.name} çalışma görünümü geri yüklendi.`, incomplete ? "info" : "success");
+    } catch (reason) {
+      if (current() && !isQueryCancellation(reason)) {
+        const message = controller.signal.aborted && reason instanceof Error ? reason.message : "Çalışma görünümü geri yüklenemedi. Yeniden deneyebilirsiniz.";
+        controller.abort();
+        pushToast(message, "error");
+        recordIncident({ severity: "error", kind: "system", message });
+      }
+    } finally {
+      if (current()) { restoreControllerRef.current = null; setRestoringView(null); }
+    }
+  }, [persistLayerPreferences, preferences.basemap, pushToast, recordIncident, retryLayer, toggleLayer]);
 
   const deleteBookmark = useCallback((bookmark: Bookmark) => {
+    if (restoreControllerRef.current?.id === bookmark.id) cancelBookmarkRestore();
     const bookmarks = preferences.bookmarks.filter((item) => item.id !== bookmark.id);
     setPreferences((current) => {
       const next = { ...current, bookmarks };
       savePreferences(next);
       return next;
     });
-  }, [preferences.bookmarks]);
+  }, [cancelBookmarkRestore, preferences.bookmarks]);
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -771,6 +845,9 @@ export default function App() {
         aria-label="Ankara 3B Kent Rehberi haritası"
         aria-describedby="map-usage-hint"
         aria-busy={!ready || shellMetrics.loading > 0}
+        onPointerDown={cancelBookmarkRestore}
+        onWheel={cancelBookmarkRestore}
+        onKeyDown={(event) => { if (MAP_NAVIGATION_KEYS.has(event.key) || MAP_NAVIGATION_KEYS.has(event.key.toLowerCase())) cancelBookmarkRestore(); }}
       />
       <div className="map-vignette" aria-hidden="true" />
 
@@ -817,7 +894,7 @@ export default function App() {
         activeTool={activeTool}
         onPanel={selectPanel}
         onTool={selectTool}
-        onHome={() => void runtimeRef.current?.goHome()}
+        onHome={() => { cancelBookmarkRestore(); void runtimeRef.current?.goHome(); }}
         onScreenshot={() => void takeScreenshot()}
         screenshotBusy={screenshotBusy}
         screenshotAvailable={ready}
@@ -846,6 +923,8 @@ export default function App() {
               panel={panel}
               services={services}
               bookmarks={preferences.bookmarks}
+              restoringView={restoringView}
+              onCancelRestore={cancelBookmarkRestore}
               onClose={() => setPanel(null)}
               onAddBookmark={addBookmark}
               onGoBookmark={(bookmark) => void goBookmark(bookmark)}

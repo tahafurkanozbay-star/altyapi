@@ -12,6 +12,8 @@ interface Props {
   panel: Exclude<PanelId, null | "layers">;
   services: ServiceDefinition[];
   bookmarks: Bookmark[];
+  restoringView?: { id: string; name: string; phase: "layers" | "camera" } | null;
+  onCancelRestore?: () => void;
   onClose: () => void;
   onAddBookmark: () => void;
   onGoBookmark: (bookmark: Bookmark) => void;
@@ -62,7 +64,7 @@ function PanelLoading({ label }: { label: string }) {
   );
 }
 
-function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookmark }: Props) {
+function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookmark, restoringView, onCancelRestore }: Props) {
   const [search, setSearch] = useState("");
   const normalized = search.trim().normalize("NFKC").toLocaleLowerCase("tr-TR");
   const visibleBookmarks = bookmarks.filter((bookmark) => bookmark.name.normalize("NFKC").toLocaleLowerCase("tr-TR").includes(normalized));
@@ -98,9 +100,17 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
           {search && <button type="button" className="icon-ghost" onClick={clearSearch} aria-label="Görünüm aramasını temizle"><Icon name="close" size={15} /></button>}
         </label>}
         <span className="bookmarks-count" role="status" aria-live="polite" aria-atomic="true">{visibleBookmarks.length} / {bookmarks.length} kayıtlı görünüm</span>
+        <div className="bookmark-restore-status" role="status" aria-live="polite" aria-atomic="true">
+          {restoringView && <><strong>{restoringView.name}</strong><span>{restoringView.phase === "layers" ? "Katmanlar geri yükleniyor…" : "Konuma geçiliyor…"}</span></>}
+        </div>
+        {restoringView && <div className="bookmark-restore-controls"><span>Tamamlanan değişiklikler korunur.</span><button type="button" className="catalog-action" onClick={() => {
+          onCancelRestore?.();
+          const target = listRef.current?.querySelector<HTMLButtonElement>(`[data-bookmark-id="${CSS.escape(restoringView.id)}"] .bookmark-main`) ?? searchRef.current ?? addRef.current;
+          target?.focus();
+        }}>Geri yüklemeyi durdur</button></div>}
       </div>
       <div ref={listRef} className="bookmark-list">
-        <p className="section-note">Konum, açık katmanlar, saydamlıklar, katman çizim sırası ve harita görünümünü birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma alanına dönün.</p>
+        {!restoringView && <p className="section-note">Konum, açık katmanlar, saydamlıklar, katman çizim sırası ve harita görünümünü birlikte kaydedin; daha sonra tek dokunuşla aynı çalışma alanına dönün.</p>}
         {bookmarks.length === 0 && (
           <div className="empty-state">
             <Icon name="bookmark" size={28} />
@@ -118,6 +128,7 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
           <BookmarkCard
             key={bookmark.id}
             bookmark={bookmark}
+            restoring={restoringView?.id === bookmark.id}
             onGo={() => onGoBookmark(bookmark)}
             onDelete={() => { deletedIndexRef.current = index; onDeleteBookmark(bookmark); }}
           />
@@ -127,7 +138,7 @@ function BookmarksPanel({ bookmarks, onAddBookmark, onGoBookmark, onDeleteBookma
   );
 }
 
-function BookmarkCard({ bookmark, onGo, onDelete }: { bookmark: Bookmark; onGo: () => void; onDelete: () => void }) {
+function BookmarkCard({ bookmark, onGo, onDelete, restoring }: { bookmark: Bookmark; onGo: () => void; onDelete: () => void; restoring?: boolean }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -142,12 +153,13 @@ function BookmarkCard({ bookmark, onGo, onDelete }: { bookmark: Bookmark; onGo: 
   };
 
   return (
-    <article className={`bookmark-card ${confirmDelete ? "is-confirming-delete" : ""}`}>
-      <button type="button" className="bookmark-main" onClick={onGo} aria-label={`${bookmark.name} çalışma görünümüne git`}>
+    <article data-bookmark-id={bookmark.id} className={`bookmark-card ${confirmDelete ? "is-confirming-delete" : ""} ${restoring ? "is-restoring" : ""}`}>
+      <button type="button" className="bookmark-main" onClick={onGo} aria-busy={restoring || undefined} aria-label={`${bookmark.name} çalışma görünümüne git`}>
         <span className="bookmark-icon"><Icon name="bookmark" /></span>
         <span>
           <strong>{bookmark.name}</strong>
           <small>{bookmarkMetadata(bookmark)}</small>
+          {restoring && <small className="bookmark-restore-label">Geri yükleniyor…</small>}
         </span>
       </button>
       {confirmDelete ? (
