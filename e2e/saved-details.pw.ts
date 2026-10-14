@@ -8,7 +8,7 @@ const detailFixture = runtimeFixture.replace(/attributes: \[[^\n]+\]/,
   container.replaceChildren();
   for(let i=0;i<30;i++) { const p=document.createElement('p'); p.textContent=tool+' aracı · satır '+i; container.append(p); }
   const button=document.createElement('button'); button.type='button'; button.textContent='Araç içerik sonu'; button.style.cssText='display:block;width:100%;min-height:44px;font:inherit'; container.append(button);
-`);
+`).replace("async goTo(camera) { this.camera = camera; }", "async goTo(camera) { this.camera = camera; window.bookmarkNavigation=(window.bookmarkNavigation||0)+1; }");
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -211,4 +211,45 @@ test("tool guidance and controls share keyboard scrolling while close stays visi
   await inViewport(dismiss, page);
   expect(await body.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await dismiss.click(); await expect(page.locator(".map-tool-panel")).toHaveCount(0);
+});
+
+test("saved view results remain reachable when the mobile keyboard shrinks and pans the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    let height = innerHeight;
+    const viewport = Object.assign(new EventTarget(), { width: innerWidth, offsetTop: 0, offsetLeft: 0, pageTop: 0, pageLeft: 0, scale: 1 });
+    Object.defineProperty(viewport, "height", { get: () => height });
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+    Object.assign(window, { setBookmarkViewport(next: number, top: number) {
+      height = next; Object.assign(viewport, { offsetTop: top, pageTop: top }); viewport.dispatchEvent(new Event("resize"));
+    } });
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator(".app-shell")).toBeVisible();
+  await expect(page.locator(".boot-screen")).toHaveCount(0);
+  await bookmarks(page);
+  const search = page.getByRole("searchbox", { name: "Kayıtlı görünümlerde ara", exact: true });
+  await search.focus();
+  await page.evaluate(() => (window as typeof window & { setBookmarkViewport(height: number, top: number): void }).setBookmarkViewport(360, 48));
+  await expect(page.locator("html")).toHaveAttribute("data-virtual-keyboard", "open");
+  const visible = async (locator: Locator) => {
+    await expect.poll(async () => { const box = await locator.boundingBox(); return Boolean(box && box.y >= 47 && box.y + box.height <= 409); }).toBe(true);
+  };
+  const last = page.locator(".bookmark-main").last();
+  await last.scrollIntoViewIfNeeded(); await visible(last);
+  await visible(page.locator(".operations-heading [data-panel-close]"));
+  await search.scrollIntoViewIfNeeded(); await visible(search);
+  await search.fill("içme");
+  const result = page.locator(".bookmark-main");
+  await expect(result).toHaveCount(1);
+  await result.locator("strong").scrollIntoViewIfNeeded(); await visible(result.locator("strong"));
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await search.scrollIntoViewIfNeeded(); await visible(search);
+  await result.locator("strong").scrollIntoViewIfNeeded(); await visible(result.locator("strong"));
+  await result.focus(); await expect(result).toBeFocused();
+  await visible(page.locator(".operations-heading [data-panel-close]"));
+  await accessible(page, ".operations-panel");
+  await page.screenshot({ path: test.info().outputPath("bookmarks-keyboard.png"), animations: "disabled", scale: "css" });
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => (window as Window & { bookmarkNavigation?: number }).bookmarkNavigation ?? 0)).toBe(1);
 });

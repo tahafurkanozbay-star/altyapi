@@ -639,6 +639,8 @@ html[data-experience="v60"] #kent-rehberi-notices[data-v54-inert="true"] { visib
   html[data-experience="v60"][data-virtual-keyboard="open"] .layer-explorer-header :is(.eyebrow, .catalog-overview) { display: none !important; }
   html[data-experience="v60"][data-virtual-keyboard="open"] .layer-explorer-header { padding-block: 10px; }
   html[data-experience="v60"][data-virtual-keyboard="open"] .panel-heading { padding-bottom: 6px; }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .bookmarks-workspace { overflow: auto; overscroll-behavior: contain; scroll-padding-block: 8px; }
+  html[data-experience="v60"][data-virtual-keyboard="open"] .bookmarks-workspace .bookmark-list { flex: 0 0 auto; overflow: visible; scrollbar-gutter: auto; }
   html[data-experience="v60"][data-virtual-keyboard="open"] #kent-rehberi-notices { visibility: hidden; pointer-events: none; }
   html[data-experience="v60"][data-virtual-keyboard="open"] .workspace-dialog {
     position: fixed; top: calc(var(--workspace-visual-top, 0px) + 12px); bottom: auto;
