@@ -93,4 +93,9 @@ describe("v17 adaptive service runtime", () => {
     expect(message).toContain("Onaylı dış IP");
     expect(message).not.toContain("https://");
   });
+  it("never exposes raw unknown provider failures or signed service URLs", () => {
+    const message = friendlyServiceError(PUBLIC_MAP, new Error("Unrecognized failure https://example.org/private?token=SECRET"));
+    expect(message).toContain("Servis yüklenemedi");
+    expect(message).not.toMatch(/SECRET|token=|https:\/\//);
+  });
 });
