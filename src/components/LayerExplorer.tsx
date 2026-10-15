@@ -65,6 +65,9 @@ export const LayerExplorer = memo(function LayerExplorer({
   const [availability, setAvailability] = useState<ServiceAvailability | "all">("all");
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Search results start expanded, but users can still collapse a group.
+  const [searchCollapsedGroups, setSearchCollapsedGroups] = useState<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const groupsInitialized = useRef(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [cooldownClock, setCooldownClock] = useState(Date.now);
@@ -127,8 +130,14 @@ export const LayerExplorer = memo(function LayerExplorer({
 
   const filtersActive = query.length > 0 || kind !== "all" || activeOnly || favoriteOnly || availability !== "all";
 
-  const resetFilters = () => {
+  const clearSearch = () => {
     setQuery("");
+    setSearchCollapsedGroups(new Set());
+    searchInputRef.current?.focus();
+  };
+
+  const resetFilters = () => {
+    clearSearch();
     setKind("all");
     setActiveOnly(false);
     setFavoriteOnly(false);
@@ -186,14 +195,18 @@ export const LayerExplorer = memo(function LayerExplorer({
         <label className="search-field">
           <Icon name="search" size={16} />
           <input
+            ref={searchInputRef}
             type="search"
             autoComplete="off"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSearchCollapsedGroups(new Set());
+            }}
             placeholder="Katman veya kurum ara…"
             aria-label="Katman veya kurum ara"
           />
-          {query && <button type="button" className="icon-ghost" onClick={() => setQuery("")} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
+          {query && <button type="button" className="icon-ghost" onClick={clearSearch} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
         </label>
 
       </div>
@@ -316,18 +329,24 @@ export const LayerExplorer = memo(function LayerExplorer({
             </div>
           )}
           {groups.map(([organization, items]) => {
-            const collapsed = !deferredQuery && collapsedGroups.has(organization);
+            const searching = deferredQuery.trim().length > 0;
+            const collapsed = searching ? searchCollapsedGroups.has(organization) : collapsedGroups.has(organization);
             return (
               <section className="layer-group" key={organization}>
                 <button
                   type="button"
                   className="group-heading"
                   aria-expanded={!collapsed}
-                  onClick={() => setCollapsedGroups((current) => {
-                    const next = new Set(current);
-                    collapsed ? next.delete(organization) : next.add(organization);
-                    return next;
-                  })}
+                  onClick={() => {
+                    const update = (current: Set<string>) => {
+                      const next = new Set(current);
+                      if (next.has(organization)) next.delete(organization);
+                      else next.add(organization);
+                      return next;
+                    };
+                    if (searching) setSearchCollapsedGroups(update);
+                    else setCollapsedGroups(update);
+                  }}
                 >
                   <span className={`chevron ${collapsed ? "" : "is-open"}`}><Icon name="chevron" size={14} /></span>
                   <span title={organization}>{organization}</span>

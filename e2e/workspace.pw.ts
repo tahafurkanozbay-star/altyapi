@@ -48,6 +48,48 @@ test("readable shell, map access and keyboard-safe panels", async ({ page }, inf
   expect(errors).toEqual([]);
 });
 
+test("search groups can be collapsed and clearing filters restores search focus", async ({ page }) => {
+  await layers(page);
+  const search = page.getByRole("searchbox", { name: "Katman veya kurum ara" });
+  await search.fill("DOĞALGAZ HATTI");
+  await expect(page.locator(".layer-card")).toHaveCount(2);
+
+  const heading = page.locator(".layer-group .group-heading").first();
+  await expect(heading).toHaveAttribute("aria-expanded", "true");
+  await heading.click();
+  await expect(heading).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".layer-card")).toHaveCount(0);
+  await heading.click();
+  await expect(page.locator(".layer-card")).toHaveCount(2);
+
+  // A new query begins with matching groups expanded instead of inheriting
+  // the previous search's collapsed-state choices.
+  await heading.click();
+  await search.fill("YAĞMUR");
+  await expect(page.locator(".layer-group .group-heading").first()).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".layer-card").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Aramayı temizle" }).click();
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("");
+  await search.fill("bulunmayan-katman");
+  await expect(page.locator(".empty-state")).toContainText("Katman bulunamadı");
+  await page.getByRole("button", { name: "Tüm katmanları göster" }).click();
+  await expect(search).toBeFocused();
+  await expect(page.locator(".layer-card")).toHaveCount(10);
+
+  await search.fill("DOĞALGAZ HATTI");
+  await page.getByRole("button", { name: "Filtreleri temizle" }).click();
+  await expect(search).toBeFocused();
+
+  const initialGroupSize = await heading.evaluate(el => Number.parseFloat(getComputedStyle(el).fontSize));
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await expect.poll(() => heading.evaluate(el => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(initialGroupSize * 1.8);
+  await expect.poll(() => search.evaluate(el => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(20);
+  const accessibility = await new AxeBuilder({ page }).include(".layer-explorer").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(accessibility.violations.map(v => ({ id: v.id, targets: v.nodes.map(n => n.target) }))).toEqual([]);
+});
+
 test("a pending layer can be cancelled and stays closed after its response", async ({ page }) => {
   await layers(page);
   const card = page.locator(".layer-card").filter({ hasText: "YAĞMUR" }).first();
