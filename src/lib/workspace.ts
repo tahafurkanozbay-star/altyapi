@@ -55,6 +55,14 @@ export function parseWorkspaceSnapshot(value: unknown, allowedServiceIds: Readon
 
   if (!preferences.camera) throw new Error("Çalışma alanında geçerli kamera bilgisi bulunamadı.");
 
+  // Nested bookmark stacks must obey the same service allowlist as the top level.
+  preferences.bookmarks = preferences.bookmarks.map((bookmark) => ({
+    ...bookmark,
+    layerIds: bookmark.layerIds.filter((id) => allowedServiceIds.has(id)),
+    ...(bookmark.layerOrder ? { layerOrder: bookmark.layerOrder.filter((id) => allowedServiceIds.has(id)) } : {}),
+    ...(bookmark.layerOpacity ? { layerOpacity: filterNumberRecord(bookmark.layerOpacity, allowedServiceIds) } : {})
+  }));
+
   return {
     schemaVersion: 1,
     application: "Başkent 3B CBS",
