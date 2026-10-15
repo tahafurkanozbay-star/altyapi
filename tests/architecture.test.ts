@@ -274,4 +274,12 @@ describe("architecture guardrails", () => {
     expect(serviceWorker).toContain('const SHELL_CACHE = "altyapi-shell-v');
     expect(serviceWorker).not.toContain("then(() => self.skipWaiting())");
   });
+  it("does not reflect raw exception contents in public bootstrap, query or TUCBS UI paths", async () => {
+    const app = await readFile("src/App.tsx", "utf8");
+    const tucbs = await readFile("src/components/TucbsAccessSetup.tsx", "utf8");
+    expect(app).not.toMatch(/(?:error|reason)\.message/);
+    expect(app).toContain("attributeQueryErrorMessage(error)");
+    expect(tucbs).not.toContain("cause.message");
+  });
+
 });

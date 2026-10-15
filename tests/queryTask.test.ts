@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runQueryStage } from "../src/gis/queryTask";
+import { QueryStageTimeoutError, runQueryStage } from "../src/gis/queryTask";
 
 describe("cancellable query stages", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -19,6 +19,8 @@ describe("cancellable query stages", () => {
     const operation = runQueryStage(() => new Promise<string>(resolve => { finish = resolve; }), controller, 100, "Katman", release);
     const rejected = expect(operation).rejects.toThrow("Katman zamanında tamamlanamadı");
     await vi.advanceTimersByTimeAsync(100); await rejected;
+    expect(controller.signal.reason).toBeInstanceOf(QueryStageTimeoutError);
+    expect(controller.signal.reason).toMatchObject({ stage: "Katman" });
     expect(controller.signal.aborted).toBe(true); finish("geç katman"); await Promise.resolve(); await Promise.resolve();
     expect(release).toHaveBeenCalledExactlyOnceWith("geç katman"); expect(vi.getTimerCount()).toBe(0);
   });

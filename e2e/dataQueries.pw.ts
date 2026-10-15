@@ -52,7 +52,7 @@ test("a failed filter keeps the last successful table and its pagination query",
   await page.getByRole("combobox", { name: "Alan", exact: true }).selectOption("id");
   await page.getByRole("textbox", { name: "Değer", exact: true }).fill("5");
   await mode(page, "fail"); await page.getByRole("button", { name: "Sorguyu uygula", exact: true }).click();
-  await expect(page.locator(".data-error")).toContainText("Deneme sorgusu reddedildi.");
+  await expect(page.locator(".data-error")).toContainText("Öznitelik verisi alınamadı.");
   await expect(page.locator(".query-active-badge")).toHaveCount(0); await expect(rows(page)).toHaveCount(100);
   await page.getByRole("button", { name: "Sonraki ›", exact: true }).click();
   await expect(page.locator(".data-pagination")).toContainText("101–200 / 205");

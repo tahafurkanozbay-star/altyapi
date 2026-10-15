@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
 import { defaultVisibleFields, filterAttributeRows, formatCell, rowsToCsv } from "../lib/attributeTable";
-import { filterNeedsValue, filterOperatorsForField } from "../lib/attributeQuery";
+import { attributeQueryErrorMessage, filterNeedsValue, filterOperatorsForField } from "../lib/attributeQuery";
 import { isQueryCancellation } from "../gis/queryTask";
 import type {
   AttributeFilter,
@@ -154,7 +154,7 @@ export function DataWorkbench({ services, onQuery }: Props) {
       setLimit(result?.limit ?? requestedLimit);
       if (controller.signal.aborted || isQueryCancellation(reason)) setNotice("Sorgu durduruldu.");
       else {
-        setError(reason instanceof Error ? reason.message : "Öznitelik verisi alınamadı.");
+        setError(attributeQueryErrorMessage(reason));
         setFailedQuery(options);
       }
     } finally {
