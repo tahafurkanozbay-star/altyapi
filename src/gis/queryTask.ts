@@ -1,8 +1,11 @@
 /** A stage deadline is distinguishable from untrusted provider errors. */
 export class QueryStageTimeoutError extends Error {
-  constructor(readonly stage: string) {
+  readonly stage: string;
+
+  constructor(stage: string) {
     super(`${stage} zamanında tamamlanamadı. Yeniden deneyebilirsiniz.`);
     this.name = "QueryStageTimeoutError";
+    this.stage = stage;
   }
 }
 
