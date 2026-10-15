@@ -128,9 +128,9 @@ export function friendlyServiceError(
   if (failure === "server") return `Servis geçici sunucu hatası döndürdü; otomatik yeniden denemeler tamamlandı.${failoverSuffix}`;
   if (failure === "format") return `Servis yanıtı beklenen biçimde değil.${failoverSuffix}`;
 
-  const text = errorText(error).trim();
-  if (!text) return `Servis yüklenemedi.${failoverSuffix}`;
-  return text.length > 190 ? `${text.slice(0, 187)}…` : text;
+  // Upstream messages may contain signed URLs or private provider diagnostics.
+  if (failure === "configuration") return "Servis yapılandırması doğrulanamadı.";
+  return `Servis yüklenemedi. Yeniden deneyebilirsiniz.${failoverSuffix}`;
 }
 
 export async function withRuntimeTimeout<T>(
