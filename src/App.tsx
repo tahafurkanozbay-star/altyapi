@@ -7,6 +7,7 @@ import { LayerIntentTracker } from "./lib/layerIntent";
 import { chooseStartupLayers } from "./lib/startupLayers";
 import { encodeShareState, decodeShareState } from "./lib/urlState";
 import { loadPreferences, saveCamera, savePreferences } from "./lib/storage";
+import { attributeQueryErrorMessage } from "./lib/attributeQuery";
 import { appendIncident, createIncident, loadIncidentJournal, type IncidentInput } from "./lib/incidentJournal";
 import {
   applyServiceHealthSnapshot,
@@ -344,7 +345,7 @@ export default function App() {
         }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
-        const message = error instanceof Error ? error.message : "Kent Rehberi başlatılamadı.";
+        const message = "Kent Rehberi başlatılamadı. Bağlantıyı kontrol edip yeniden yükleyin.";
         setBootError(message);
         pushToast(message, "error");
         recordIncident({ severity: "error", kind: "boot", message });
@@ -565,7 +566,7 @@ export default function App() {
       recordIncident({
         severity: "error",
         kind: "query",
-        message: error instanceof Error ? error.message : "Veri sorgusu başarısız oldu.",
+        message: attributeQueryErrorMessage(error),
         serviceId: service.id,
         serviceName: service.displayName,
         durationMs: Math.round(performance.now() - startedAt)
@@ -650,7 +651,7 @@ export default function App() {
       pushToast("Harita görüntüsü için PNG indirme başlatıldı.", "success");
     } catch (reason) {
       if (runtimeRef.current === runtime && screenshotControllerRef.current === controller && !isQueryCancellation(reason)) {
-        pushToast(controller.signal.aborted && reason instanceof Error ? reason.message : "Ekran görüntüsü oluşturulamadı. Yeniden deneyebilirsiniz.", "error");
+        pushToast("Ekran görüntüsü oluşturulamadı. Yeniden deneyebilirsiniz.", "error");
       }
     } finally {
       if (screenshotControllerRef.current === controller) {
@@ -759,7 +760,7 @@ export default function App() {
         : `${bookmark.name} çalışma görünümü geri yüklendi.`, incomplete ? "info" : "success");
     } catch (reason) {
       if (current() && !isQueryCancellation(reason)) {
-        const message = controller.signal.aborted && reason instanceof Error ? reason.message : "Çalışma görünümü geri yüklenemedi. Yeniden deneyebilirsiniz.";
+        const message = "Çalışma görünümü geri yüklenemedi. Yeniden deneyebilirsiniz.";
         controller.abort();
         pushToast(message, "error");
         recordIncident({ severity: "error", kind: "system", message });
