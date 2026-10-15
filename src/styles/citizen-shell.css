@@ -690,7 +690,7 @@ html[data-experience="v60"] .map-tool-error .primary-button { min-height: 44px; 
 /* Accessible layer catalogue: user text scaling must not be clamped by fixed px
    labels. Keep the scrollable catalogue usable when text size is 200%. */
 html[data-experience="v60"] .layer-explorer :is(.search-field input, .filter-reset, .filter-chip, .availability-chip, .catalog-action) {
-  font-size: .8125rem;
+  font-size: .8125rem !important;
   line-height: 1.45;
 }
 html[data-experience="v60"] .layer-explorer .toggle-filters,
@@ -715,7 +715,7 @@ html[data-experience="v60"] .layer-explorer .layer-card-title > strong {
   overflow-wrap: anywhere;
 }
 html[data-experience="v60"] .layer-explorer :is(.layer-meta-row, .layer-owner-line, .layer-info-box, .opacity-control span) {
-  font-size: .75rem;
+  font-size: .75rem !important;
   line-height: 1.5;
 }
 html[data-experience="v60"] .layer-explorer :is(.kind-pill, .availability-badge) {
