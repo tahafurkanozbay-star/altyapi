@@ -93,7 +93,7 @@ export function TucbsAccessSetup({ open, onClose, onApplied }: Props) {
       onApplied(Object.keys(verifiedEndpoints).length);
     } catch (cause) {
       setStatus(null);
-      setError(cause instanceof Error ? cause.message : "TUCBS servis bilgileri okunamadı.");
+      setError("TUCBS servis bilgileri doğrulanamadı. JSON biçimini ve yetkili ağ erişimini kontrol edin.");
     } finally {
       setBusy(false);
     }
