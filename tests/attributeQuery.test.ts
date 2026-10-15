@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOrderBy, buildWhereClause, filterNeedsValue, filterOperatorsForField, sanitizeQueryOptions } from "../src/lib/attributeQuery";
+import { AttributeQueryValidationError, attributeQueryErrorMessage, buildOrderBy, buildWhereClause, filterNeedsValue, filterOperatorsForField, sanitizeQueryOptions } from "../src/lib/attributeQuery";
 import type { AttributeField } from "../src/types";
 
 const fields: AttributeField[] = [
@@ -47,5 +47,33 @@ describe("attribute query builder", () => {
     expect(sanitizeQueryOptions({ limit: NaN, offset: Infinity })).toMatchObject({ limit: 100, offset: 0 });
     expect(sanitizeQueryOptions({ limit: Infinity, offset: NaN })).toMatchObject({ limit: 100, offset: 0 });
     expect(sanitizeQueryOptions({ limit: -20, offset: Number.MAX_VALUE })).toMatchObject({ limit: 1, offset: 2_147_483_647 });
+  });
+  it("rejects hostile provider metadata in WHERE and ORDER BY identifiers", () => {
+    const hostile: AttributeField[] = [
+      { name: "OBJECTID; DROP TABLE records--", alias: "Kimlik", type: "integer" }
+    ];
+    expect(() => buildWhereClause({ field: hostile[0]!.name, operator: "isNull" }, hostile))
+      .toThrow(AttributeQueryValidationError);
+    expect(() => buildOrderBy({ field: hostile[0]!.name, direction: "asc" }, hostile))
+      .toThrow(/güvenli sorgu/);
+    expect(buildOrderBy({ field: "GIS.TABLE.OBJECTID", direction: "desc" }, [
+      { name: "GIS.TABLE.OBJECTID", alias: "Kimlik", type: "integer" }
+    ])).toBe("GIS.TABLE.OBJECTID DESC");
+  });
+
+  it("rejects unbounded values and unsupported operators instead of querying all rows", () => {
+    expect(() => buildWhereClause({ field: "ADI", operator: "contains", value: "a".repeat(1_025) }, fields))
+      .toThrow(/çok uzun/);
+    expect(() => buildWhereClause({ field: "ADI", operator: "other" as "equals", value: "a" }, fields))
+      .toThrow(/Desteklenmeyen filtre/);
+  });
+
+  it("shows only local query validation and masks upstream errors", () => {
+    expect(attributeQueryErrorMessage(new AttributeQueryValidationError("Filtre değeri boş bırakılamaz.")))
+      .toContain("Filtre değeri");
+    expect(attributeQueryErrorMessage(new Error("https://example.org/data?token=PRIVATE")))
+      .not.toMatch(/PRIVATE|https:/);
+    expect(attributeQueryErrorMessage(new Error("Deneme sorgusu reddedildi.")))
+      .not.toContain("reddedildi");
   });
 });
