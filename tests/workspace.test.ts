@@ -41,4 +41,21 @@ describe("workspace snapshots", () => {
     expect(() => parseWorkspaceSnapshot({ schemaVersion: 2, application: "Other" }, new Set()))
       .toThrow(/desteklenmeyen/i);
   });
+  it("filters nested bookmark IDs, ordering and opacity against installed services", () => {
+    const parsed = parseWorkspaceSnapshot({
+      schemaVersion: 1,
+      application: "Başkent 3B CBS",
+      applicationVersion: "60.0.0",
+      exportedAt: "2026-10-15T00:00:00.000Z",
+      camera, basemap: "hybrid", layerVisibility: {}, layerOpacity: {}, favorites: [],
+      bookmarks: [{ id: "bookmark-1", name: "Görünüm", camera,
+        createdAt: "2026-10-15T00:00:00.000Z",
+        layerIds: ["layer-a", "foreign"], layerOrder: ["foreign", "layer-a"],
+        layerOpacity: { foreign: .2, "layer-a": .7 }
+      }]
+    }, new Set(["layer-a"]));
+    expect(parsed.bookmarks[0]?.layerIds).toEqual(["layer-a"]);
+    expect(parsed.bookmarks[0]?.layerOrder).toEqual(["layer-a"]);
+    expect(parsed.bookmarks[0]?.layerOpacity).toEqual({ "layer-a": .7 });
+  });
 });
