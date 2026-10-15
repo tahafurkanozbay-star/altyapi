@@ -686,3 +686,46 @@ html[data-experience="v60"] .map-tool-error .primary-button { min-height: 44px; 
   html[data-experience="v60"] .workspace-dialog-heading { grid-template-columns: minmax(0,1fr) 44px; }
   html[data-experience="v60"] .workspace-dialog-icon { display: none; }
 }
+
+/* Accessible layer catalogue: user text scaling must not be clamped by fixed px
+   labels. Keep the scrollable catalogue usable when text size is 200%. */
+html[data-experience="v60"] .layer-explorer :is(.search-field input, .filter-reset, .filter-chip, .availability-chip, .catalog-action) {
+  font-size: .8125rem;
+  line-height: 1.45;
+}
+html[data-experience="v60"] .layer-explorer .toggle-filters,
+html[data-experience="v60"] .layer-explorer .filter-result-count {
+  font-size: .75rem !important;
+  line-height: 1.5;
+}
+html[data-experience="v60"] .layer-explorer .group-heading {
+  font-size: .75rem;
+  min-height: 2.75rem;
+  grid-template-columns: 1.125rem minmax(0, 1fr) auto;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+html[data-experience="v60"] .layer-explorer .group-heading > span:nth-child(2) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+html[data-experience="v60"] .layer-explorer .layer-card-title > strong {
+  font-size: .8125rem !important;
+  overflow-wrap: anywhere;
+}
+html[data-experience="v60"] .layer-explorer :is(.layer-meta-row, .layer-owner-line, .layer-info-box, .opacity-control span) {
+  font-size: .75rem;
+  line-height: 1.5;
+}
+html[data-experience="v60"] .layer-explorer :is(.kind-pill, .availability-badge) {
+  font-size: .6875rem !important;
+}
+html[data-experience="v60"] .layer-explorer .search-field {
+  height: auto;
+  min-height: 2.75rem;
+}
+html[data-experience="v60"] .layer-explorer :is(.filter-reset, .filter-chip, .availability-chip) {
+  min-height: 2.75rem;
+  white-space: normal;
+}
