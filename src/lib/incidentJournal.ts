@@ -85,7 +85,11 @@ export function incidentJournalToJson(incidents: RuntimeIncident[]): string {
 export function sanitizeIncidentText(value: string): string {
   return String(value ?? "")
     .replace(/https?:\/\/\S+/gi, "[url]")
-    .replace(/([?&](?:token|key|apikey|api_key|access_token)=)[^&\s]+/gi, "$1[redacted]")
+    // Provider errors also contain standalone auth headers and key/value pairs.
+    // Redact those before persisting or exporting the incident journal.
+    .replace(/\b(authorization|proxy-authorization)\s*:\s*(?:bearer|basic)\s+[^\s,;]+/gi, "$1: [redacted]")
+    .replace(/\b(bearer|basic)\s+[A-Za-z0-9+/_~.=-]{4,}/gi, "$1 [redacted]")
+    .replace(/\b(token|access_token|api[_-]?key|apikey|key|client_secret|secret|password|signature|sig)\s*(?:=|:)\s*(?:"[^"]*"|'[^']*'|[^\s,;&]+)/gi, "$1=[redacted]")
     .replace(/[A-Za-z0-9_-]{64,}/g, "[redacted]")
     .replace(/\s+/g, " ")
     .trim()

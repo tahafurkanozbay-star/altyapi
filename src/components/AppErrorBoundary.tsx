@@ -17,8 +17,9 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[Ankara Kent Rehberi] React render error", error, info.componentStack);
+  override componentDidCatch(_error: Error, _info: ErrorInfo): void {
+    // Raw React component stacks and Error messages can contain provider details.
+    console.error("[Ankara Kent Rehberi] React görüntüleme hatası (ayrıntılar gizlendi).");
   }
 
   override render(): ReactNode {
