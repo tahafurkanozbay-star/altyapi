@@ -282,4 +282,15 @@ describe("architecture guardrails", () => {
     expect(tucbs).not.toContain("cause.message");
   });
 
+  it("does not log raw runtime, service-worker or React errors to the browser console", async () => {
+    const main = await readFile("src/main.tsx", "utf8");
+    const boundary = await readFile("src/components/AppErrorBoundary.tsx", "utf8");
+    expect(main).not.toContain("event.error ?? event.message");
+    expect(main).not.toContain("event.reason);");
+    expect(main).not.toContain('kaydedilemedi", error');
+    expect(boundary).not.toContain("error, info.componentStack");
+    expect(main).toContain("ayrıntılar gizlendi");
+    expect(boundary).toContain("ayrıntılar gizlendi");
+  });
+
 });
