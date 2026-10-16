@@ -282,6 +282,17 @@ describe("architecture guardrails", () => {
     expect(tucbs).not.toContain("cause.message");
   });
 
+  it("keeps the documented TUCBS security model aligned with the browser-only implementation", async () => {
+    const policy = await readFile("SECURITY.md", "utf8");
+    const runtime = await readFile("src/lib/tucbsAccess.ts", "utf8");
+    expect(policy).toContain("ucbp-api.tucbs.gov.tr/geoservice/spatial/");
+    expect(policy).toContain("sessionStorage");
+    expect(policy).toContain("localStorage");
+    expect(policy).toContain("sunucu tarafı proxy **bulunmamaktadır**");
+    expect(runtime).toContain('const TUCBS_HOST = "ucbp-api.tucbs.gov.tr"');
+    expect(runtime).toContain('parsed.hostname.toLowerCase() !== TUCBS_HOST');
+  });
+
   it("does not log raw runtime, service-worker or React errors to the browser console", async () => {
     const main = await readFile("src/main.tsx", "utf8");
     const boundary = await readFile("src/components/AppErrorBoundary.tsx", "utf8");
