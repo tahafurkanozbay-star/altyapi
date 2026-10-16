@@ -45,4 +45,34 @@ describe("incidentJournal", () => {
     expect(exported).toContain('"schemaVersion": 1');
     expect(exported).not.toContain("tokenUrl");
   });
+  it.each([
+    "Authorization: Bearer qwerTY12",
+    "proxy-authorization: Basic dGVzdDpwYXNz",
+    "Bearer xYz98765",
+    "api_key=shortkey7",
+    "access_token: shorttok9",
+    'client_secret="tiny-secret"',
+    "password='letmein'",
+    "signature: signed123",
+    "token = abc123"
+  ])("redacts standalone credentials in incident text: %s", (input) => {
+    const sanitized = sanitizeIncidentText(`Hata: ${input}`);
+    expect(sanitized).toContain("[redacted]");
+    expect(sanitized).not.toContain(input);
+  });
+
+  it("redacts credentials in exported incidents even when passed unsanitized entries", () => {
+    const raw = {
+      id: "incident-1",
+      occurredAt: "2026-10-16T00:00:00.000Z",
+      severity: "error" as const,
+      kind: "system" as const,
+      message: "Authorization: Bearer eXample123",
+      serviceName: "Sistem"
+    };
+    const exported = incidentJournalToJson([raw]);
+    expect(exported).toContain("[redacted]");
+    expect(exported).not.toContain("eXample123");
+  });
+
 });
