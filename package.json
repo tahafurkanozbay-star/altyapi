@@ -3,7 +3,7 @@
   "version": "60.0.0",
   "private": true,
   "type": "module",
-  "description": "Ankara Kent Rehberi: React 19, strict TypeScript 7 ve ArcGIS 5.1 ile erişilebilir 3B harita; iptal edilebilir katman yükleme, görünüm verisiyle doğrulanan hazırlık, dayanıklı servis erişimi, Türkçe harita araçları ve çevrimdışı çalışma.",
+  "description": "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması: React 19, strict TypeScript 7 ve ArcGIS 5.1 ile altyapı ve üstyapı koordinasyonu için erişilebilir 3D harita; iptal edilebilir katman yükleme, dayanıklı servis erişimi ve çevrimdışı çalışma.",
   "scripts": {
     "dev": "npm run prepare:assets && vite --host 127.0.0.1 --port 4173",
     "dev:host": "npm run prepare:assets && vite --host 0.0.0.0 --port 4173",
