@@ -20,7 +20,7 @@ function createBootFailureCard(): HTMLElement {
   card.style.cssText = "width:min(680px,100%);box-sizing:border-box;border:1px solid #dbe5eb;border-radius:20px;background:#fff;box-shadow:0 18px 52px rgba(43,72,91,.12);padding:26px";
 
   const title = document.createElement("strong");
-  title.textContent = "Kent Rehberi başlatılamadı";
+  title.textContent = "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması başlatılamadı";
   title.style.cssText = "display:block;font-size:20px;margin-bottom:10px";
 
   const explanation = document.createElement("p");
