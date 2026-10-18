@@ -23,19 +23,24 @@ describe("v43 citizen experience", () => {
     expect(files).toContain("src/boot.ts");
   });
 
-  it("ships Ankara Kent Rehberi metadata without stale v13 operations branding", async () => {
+  it("ships the official coordination web app name in browser and PWA metadata", async () => {
     const [html, manifest] = await Promise.all([
       readFile("index.html", "utf8"),
       readFile("public/manifest.webmanifest", "utf8")
     ]);
 
-    expect(html).toContain("Ankara Kent Rehberi · 3B Kent Haritası");
+    expect(html).toContain("<title>3D Altyapı / Üstyapı Koordinasyon Web Uygulaması</title>");
     expect(html).toContain('src="/src/boot.ts"');
     expect(html).toContain('href="./ankara-logo.png"');
     expect(html).not.toContain("Başkent 3B CBS v13");
     expect(html).not.toContain("window.__ALTYAPI_BOOT_TIMER__ =");
-    expect(manifest).toContain('"name": "Ankara Kent Rehberi"');
+    expect(manifest).toContain('"name": "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması"');
+    expect(manifest).toContain('"short_name": "3D Altyapı / Üstyapı"');
     expect(manifest).toContain('"src": "./ankara-logo.png"');
+    const app = await readFile("src/App.tsx", "utf8");
+    expect(app).toContain('aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması"');
+    expect(app).toContain('<strong>3D Altyapı / Üstyapı</strong><span>Koordinasyon Web Uygulaması</span>');
+    expect(app).not.toContain("Ankara Kent Rehberi");
   });
 
   it("exposes accessible landmarks, offline state and keyboard navigation", async () => {
