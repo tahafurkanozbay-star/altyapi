@@ -1,6 +1,6 @@
-# Ankara Kent Rehberi
+# 3D Altyapı / Üstyapı Koordinasyon Web Uygulaması
 
-Ankara odaklı, vatandaş kullanımına göre sadeleştirilmiş; ArcGIS Maps SDK for JavaScript tabanlı 3B kent rehberi.
+Ankara Büyükşehir Belediyesi altyapı ve üstyapı katmanlarını aynı 3D sahnede bir araya getiren; verileri görüntüleme, inceleme ve koordinasyon amacı taşıyan ArcGIS Maps SDK for JavaScript tabanlı web uygulaması.
 
 ## Teknoloji
 
