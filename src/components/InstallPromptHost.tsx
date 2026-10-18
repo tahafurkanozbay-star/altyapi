@@ -94,10 +94,10 @@ export function InstallPromptHost() {
   if (!promptEvent || dismissed || isStandaloneDisplay()) return null;
 
   return (
-    <aside className="install-banner" aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması uygulamasını yükle">
+    <aside className="install-banner" aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulamasını yükle">
       <span className="install-banner-icon" aria-hidden="true"><Icon name="download" size={18} /></span>
       <div className="install-banner-copy">
-        <strong>3D Altyapı / Üstyapı Koordinasyon Web Uygulaması uygulamasını cihazınıza ekleyin</strong>
+        <strong>3D Altyapı / Üstyapı Koordinasyon Web Uygulamasını cihazınıza ekleyin</strong>
         <span>Daha hızlı açılış ve uygulama benzeri tam ekran kullanım için yükleyebilirsiniz.</span>
       </div>
       <button type="button" className="primary-button install-banner-action" disabled={installing} onClick={() => void install()}>
