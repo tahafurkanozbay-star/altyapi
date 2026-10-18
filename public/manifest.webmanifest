@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Ankara Kent Rehberi",
-  "short_name": "Kent Rehberi",
-  "description": "Ankara Büyükşehir Belediyesi 3B kent haritası; kent ve altyapı katmanları, adres arama, ölçüm, yer imleri ve veri inceleme araçları.",
+  "name": "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması",
+  "short_name": "3D Altyapı / Üstyapı",
+  "description": "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması; Ankara Büyükşehir Belediyesi altyapı ve üstyapı katmanlarını aynı 3D sahnede görüntüleme ve koordinasyon uygulaması.",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",
