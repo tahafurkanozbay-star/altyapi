@@ -45,9 +45,9 @@ interface Props {
 
 export function ToolRail({ activePanel, activeTool, onPanel, onTool, onHome, onScreenshot, screenshotBusy = false, screenshotAvailable = true }: Props) {
   return (
-    <nav id="kent-rehberi-tools" className="tool-rail" aria-label="Kent Rehberi ana araçları" aria-describedby="tool-rail-keyboard-hint">
+    <nav id="kent-rehberi-tools" className="tool-rail" aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması ana araçları" aria-describedby="tool-rail-keyboard-hint">
       <span id="tool-rail-keyboard-hint" className="visually-hidden">Araçlar arasında ok tuşlarıyla, ilk ve son araca Home ve End tuşlarıyla geçebilirsiniz.</span>
-      <div className="tool-rail-mark" aria-hidden="true"><span>3B</span></div>
+      <div className="tool-rail-mark" aria-hidden="true"><span>3D</span></div>
 
       <div className="tool-group" role="group" aria-label="İçerik" data-tool-group="content">
         <span className="tool-group-label">İçerik</span>
