@@ -104,7 +104,7 @@ describe("v54+ unified citizen experience", () => {
     expect(css).toContain("overscroll-behavior: contain");
   });
 
-  it("ships modern mobile/PWA launch metadata without changing Ankara branding", async () => {
+  it("ships modern mobile/PWA launch metadata with the official application name", async () => {
     const [index, manifestText] = await Promise.all([
       readFile("index.html", "utf8"),
       readFile("public/manifest.webmanifest", "utf8")
@@ -120,7 +120,7 @@ describe("v54+ unified citizen experience", () => {
     expect(index).toContain('name="apple-mobile-web-app-capable" content="yes"');
     expect(manifest).toMatchObject({
       id: "./",
-      name: "Ankara Kent Rehberi",
+      name: "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması",
       start_url: "./",
       launch_handler: { client_mode: "navigate-existing" }
     });
