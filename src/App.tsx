@@ -345,7 +345,7 @@ export default function App() {
         }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
-        const message = "Kent Rehberi başlatılamadı. Bağlantıyı kontrol edip yeniden yükleyin.";
+        const message = "3D Altyapı / Üstyapı Koordinasyon Web Uygulaması başlatılamadı. Bağlantıyı kontrol edip yeniden yükleyin.";
         setBootError(message);
         pushToast(message, "error");
         recordIncident({ severity: "error", kind: "boot", message });
@@ -644,7 +644,7 @@ export default function App() {
       if (!dataUrl) throw new Error("Screenshot unavailable");
       const link = document.createElement("a");
       link.href = dataUrl;
-      link.download = `ankara-kent-rehberi-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+      link.download = `3d-altyapi-ustyapi-koordinasyon-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
       link.hidden = true;
       document.body.append(link);
       try { link.click(); } finally { link.remove(); }
@@ -849,7 +849,7 @@ export default function App() {
         className="map-view"
         role="region"
         tabIndex={-1}
-        aria-label="Ankara 3B Kent Rehberi haritası"
+        aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması haritası"
         aria-describedby="map-usage-hint"
         aria-busy={!ready || shellMetrics.loading > 0}
         onPointerDownCapture={cancelBookmarkRestore}
@@ -858,7 +858,7 @@ export default function App() {
       />
       <div className="map-vignette" aria-hidden="true" />
 
-      <header ref={headerRef} className="topbar" aria-label="Kent Rehberi üst menüsü">
+      <header ref={headerRef} className="topbar" aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması üst menüsü">
         <button
           type="button"
           className="mobile-menu"
@@ -874,9 +874,9 @@ export default function App() {
         >
           <Icon name="menu" />
         </button>
-        <div className="brand" aria-label="Ankara Kent Rehberi">
-          <div className="brand-symbol"><span>3B</span><i /></div>
-          <div><strong>Ankara Kent Rehberi</strong><span>Ankara Büyükşehir Belediyesi</span></div>
+        <div className="brand" aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması" title="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması">
+          <div className="brand-symbol"><span>3D</span><i /></div>
+          <div><strong>3D Altyapı / Üstyapı</strong><span>Koordinasyon Web Uygulaması</span></div>
         </div>
         <div className={`live-chip ${online ? "" : "is-offline"}`} role="status" aria-live="polite" title={online ? "İnternet bağlantısı mevcut" : "İnternet bağlantısı yok"}><i /> {online ? "ÇEVRİMİÇİ" : "ÇEVRİMDIŞI"}</div>
         <div className="workspace-summary" role="group" aria-label="Katman çalışma özeti">
@@ -907,7 +907,7 @@ export default function App() {
         screenshotAvailable={ready}
       />
 
-      <div id="kent-rehberi-panels" className={`panel-zone ${panel && mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="Kent Rehberi çalışma panelleri" tabIndex={-1}>
+      <div id="kent-rehberi-panels" className={`panel-zone ${panel && mobilePanelsVisible ? "is-mobile-visible" : ""}`} aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması çalışma panelleri" tabIndex={-1}>
         <ViewTransition name="workspace-panel">
           {panel === "layers" ? (
             <aside className="main-panel" key="layers" aria-label="Katmanlar paneli">
@@ -975,15 +975,15 @@ export default function App() {
 
       {!ready && !bootError && (
         <div className="boot-screen" role="status" aria-live="polite" aria-busy="true">
-          <div className="boot-logo"><span>3B</span><i /></div>
-          <div><strong>Ankara Kent Rehberi hazırlanıyor</strong><span>Harita ve katmanlar yükleniyor…</span></div>
+          <div className="boot-logo"><span>3D</span><i /></div>
+          <div><strong>3D Altyapı / Üstyapı Koordinasyon Web Uygulaması hazırlanıyor</strong><span>Altyapı ve üstyapı katmanları yükleniyor…</span></div>
           <div className="boot-progress" aria-hidden="true"><i /></div>
         </div>
       )}
       {bootError && (
         <div className="fatal-screen" role="alert">
           <Icon name="warning" size={34} />
-          <h1>Kent Rehberi açılamadı</h1>
+          <h1>3D Altyapı / Üstyapı Koordinasyon Web Uygulaması açılamadı</h1>
           <p>{bootError}</p>
           <button type="button" className="primary-button" onClick={() => location.reload()}><Icon name="refresh" /> Yeniden dene</button>
         </div>
