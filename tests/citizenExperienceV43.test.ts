@@ -41,6 +41,10 @@ describe("v43 citizen experience", () => {
     expect(app).toContain('aria-label="3D Altyapı / Üstyapı Koordinasyon Web Uygulaması"');
     expect(app).toContain('<strong>3D Altyapı / Üstyapı</strong><span>Koordinasyon Web Uygulaması</span>');
     expect(app).not.toContain("Ankara Kent Rehberi");
+    const rail = await readFile("src/components/ToolRail.tsx", "utf8");
+    const installPrompt = await readFile("src/components/InstallPromptHost.tsx", "utf8");
+    expect(rail).toContain('<span>3D</span>');
+    expect(installPrompt).toContain("3D Altyapı / Üstyapı Koordinasyon Web Uygulaması");
   });
 
   it("exposes accessible landmarks, offline state and keyboard navigation", async () => {
