@@ -45,7 +45,7 @@ describe("architecture guardrails", () => {
 
     expect(query).toContain("buildWhereClause");
     expect(app).toContain('useState<PanelId>("layers")');
-    expect(app).toContain("Ankara Kent Rehberi");
+    expect(app).toContain("3D Altyapı / Üstyapı Koordinasyon Web Uygulaması");
     expect(app).toContain("ViewTransition");
     expect(app).not.toContain("CommandPalette");
     expect(app).not.toContain("commandOpen");

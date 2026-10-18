@@ -28,7 +28,7 @@ if (!root) throw new Error("#root bulunamadı.");
 
 window.addEventListener("error", () => {
   // Do not forward raw Error objects: third-party exceptions may embed signed URLs.
-  console.error("[Ankara Kent Rehberi] Beklenmeyen tarayıcı hatası (ayrıntılar gizlendi).");
+  console.error("[3D Altyapı / Üstyapı Koordinasyon Web Uygulaması] Beklenmeyen tarayıcı hatası (ayrıntılar gizlendi).");
   publishRuntimeEvent("app-runtime-fault", {
     source: "window-error",
     message: "Beklenmeyen bir tarayıcı hatası oluştu. Haritayı yenilemek sorunu çözebilir.",
@@ -37,7 +37,7 @@ window.addEventListener("error", () => {
 });
 
 window.addEventListener("unhandledrejection", () => {
-  console.error("[Ankara Kent Rehberi] Tamamlanamayan arka plan işlemi (ayrıntılar gizlendi).");
+  console.error("[3D Altyapı / Üstyapı Koordinasyon Web Uygulaması] Tamamlanamayan arka plan işlemi (ayrıntılar gizlendi).");
   publishRuntimeEvent("app-runtime-fault", {
     source: "unhandled-rejection",
     message: "Bir arka plan işlemi tamamlanamadı. Harita yanıt vermiyorsa sayfayı yenileyebilirsiniz.",
@@ -109,7 +109,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 
       void nextRegistration.update();
     }).catch(() => {
-      console.warn("[Ankara Kent Rehberi] Service worker kaydedilemedi (ayrıntılar gizlendi).");
+      console.warn("[3D Altyapı / Üstyapı Koordinasyon Web Uygulaması] Service worker kaydedilemedi (ayrıntılar gizlendi).");
       publishRuntimeEvent("app-runtime-fault", {
         source: "service-worker",
         message: "Çevrimdışı destek bu oturumda başlatılamadı; canlı harita kullanılmaya devam edebilir.",

@@ -35,7 +35,7 @@ test("PNG capture reports progress, prevents duplicates and downloads a valid im
   const download = await downloadPromise;
   const buffer = await readFile((await download.path())!);
   expect(buffer.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
-  expect(download.suggestedFilename()).toMatch(/^ankara-kent-rehberi-.*\.png$/);
+  expect(download.suggestedFilename()).toMatch(/^3d-altyapi-ustyapi-koordinasyon-.*\.png$/);
   await expect(capture).toBeEnabled(); await expect(capture).not.toHaveAttribute("aria-busy", "true");
 });
 

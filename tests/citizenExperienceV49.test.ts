@@ -68,7 +68,7 @@ describe("v49 platform usability", () => {
     const boundary = await readFile("src/components/AppErrorBoundary.tsx", "utf8");
 
     expect(boundary).toContain("import.meta.env.DEV");
-    expect(boundary).toContain("Kent Rehberi beklenmeyen bir hatayla durdu");
+    expect(boundary).toContain("3D Altyapı / Üstyapı Koordinasyon Web Uygulaması beklenmeyen bir hatayla durdu");
     expect(boundary).toContain("Tercihleri sıfırla");
     expect(boundary).toContain('className="fatal-actions"');
   });
