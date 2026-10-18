@@ -19,7 +19,7 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(_error: Error, _info: ErrorInfo): void {
     // Raw React component stacks and Error messages can contain provider details.
-    console.error("[Ankara Kent Rehberi] React görüntüleme hatası (ayrıntılar gizlendi).");
+    console.error("[3D Altyapı / Üstyapı Koordinasyon Web Uygulaması] React görüntüleme hatası (ayrıntılar gizlendi).");
   }
 
   override render(): ReactNode {
@@ -28,7 +28,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <main className="fatal-screen" role="alert">
         <Icon name="warning" size={34} />
-        <h1>Kent Rehberi beklenmeyen bir hatayla durdu</h1>
+        <h1>3D Altyapı / Üstyapı Koordinasyon Web Uygulaması beklenmeyen bir hatayla durdu</h1>
         <p>
           {import.meta.env.DEV
             ? (this.state.error.message || "Bilinmeyen bir istemci hatası oluştu.")
