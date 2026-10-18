@@ -68,7 +68,7 @@ function verifyPng(buffer: Buffer): { width: number; height: number; idatBytes: 
   return { width, height, idatBytes: compressed.byteLength };
 }
 
-describe("Ankara Kent Rehberi branding", () => {
+describe("3D Altyapı / Üstyapı Koordinasyon Web Uygulaması branding", () => {
   it("uses a fully decodable bundled Ankara PNG for all visible brand marks", async () => {
     const entry = await readFile("src/main.tsx", "utf8");
     const css = await readFile("src/styles/ankara-brand.css", "utf8");
