@@ -139,7 +139,7 @@ test("local SDK assets and authorized-access dialog work without the SDK CDN", a
   }
   await page.evaluate(async () => {
     const events = await import(location.origin + "/src/platform/runtimeEvents.ts");
-    events.publishRuntimeEvent("tucbs-access-required", {});
+    events.publishRuntimeEvent("tucbs-access-setup-requested", {});
   });
   const dialog = page.getByRole("dialog", { name: "TUCBS yetkili erişimi" });
   await expect(dialog).toBeVisible();
