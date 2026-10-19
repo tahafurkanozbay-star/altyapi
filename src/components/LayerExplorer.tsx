@@ -3,6 +3,7 @@ import { hostLabel, serviceMatches } from "../lib/catalog";
 import { latencyLabel } from "../lib/serviceMetrics";
 import { warmLayerModuleOnIntent } from "../gis/layerModuleWarmup";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
+import { publishRuntimeEvent } from "../platform/runtimeEvents";
 import { groupServicesInStableOrder } from "../lib/layerOrdering";
 import { availabilityLabel, cooldownRemaining, isServiceCoolingDown } from "../lib/serviceHealth";
 import {
@@ -172,6 +173,7 @@ export const LayerExplorer = memo(function LayerExplorer({
   };
 
   const actionableErrors = services.filter((service) => isRetryableFailure(service, renderHealth[service.id])).length;
+  const unconfiguredTucbs = services.filter((service) => isUnconfiguredTucbsUrl(service.url)).length;
   const restricted = services.filter((service) => service.access === "network-restricted" || isUnconfiguredTucbsUrl(service.url)).length;
 
   return (
@@ -191,6 +193,19 @@ export const LayerExplorer = memo(function LayerExplorer({
           <div className="catalog-stat is-ready"><strong>{metrics.loading}</strong><span>Açılıyor</span></div>
           <div className="catalog-stat"><strong>{services.length}</strong><span>Toplam</span></div>
         </div>
+
+        {unconfiguredTucbs > 0 && (
+          <div className="catalog-actions tucbs-setup-actions">
+            <button
+              type="button"
+              className="catalog-action"
+              onClick={() => publishRuntimeEvent("tucbs-access-setup-requested", {})}
+              aria-label="TUCBS yetkili servis bağlantısını tanımla"
+            >
+              <Icon name="layers" size={14} /> TUCBS bağlantısını tanımla
+            </button>
+          </div>
+        )}
 
         <label className="search-field">
           <Icon name="search" size={16} />
