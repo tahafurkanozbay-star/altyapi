@@ -24,6 +24,7 @@ import {
 } from "../lib/serviceNavigation";
 import type { LayerOrderDirection, ServiceAvailability, ServiceDefinition, ServiceKind } from "../types";
 import { Icon } from "./Icon";
+import { TucbsAccessSetupPanel } from "./TucbsAccessSetup";
 
 interface Props {
   services: ServiceDefinition[];
@@ -70,6 +71,7 @@ export const LayerExplorer = memo(function LayerExplorer({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const groupsInitialized = useRef(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [accessSetupOpen, setAccessSetupOpen] = useState(false);
   const [cooldownClock, setCooldownClock] = useState(Date.now);
   const renderHealth = useSyncExternalStore(
     subscribeLayerRenderHealth,
@@ -173,6 +175,7 @@ export const LayerExplorer = memo(function LayerExplorer({
 
   const actionableErrors = services.filter((service) => isRetryableFailure(service, renderHealth[service.id])).length;
   const restricted = services.filter((service) => service.access === "network-restricted" || isUnconfiguredTucbsUrl(service.url)).length;
+  const unconfiguredTucbs = services.filter((service) => isUnconfiguredTucbsUrl(service.url)).length;
 
   return (
     <section className="panel-content layer-explorer" aria-label="Harita katmanları" aria-busy={bulkBusy}>
@@ -209,11 +212,30 @@ export const LayerExplorer = memo(function LayerExplorer({
           {query && <button type="button" className="icon-ghost" onClick={clearSearch} aria-label="Aramayı temizle"><Icon name="close" size={14} /></button>}
         </label>
 
+        {unconfiguredTucbs > 0 && (
+          <div className="catalog-access-inline-toggle">
+            <div>
+              <Icon name="info" size={16} />
+              <span><strong>{unconfiguredTucbs} TUCBS katmanı</strong> için yetkili servis adresi bu tarayıcıda kayıtlı değil. Erişim penceresi otomatik açılmayacak.</span>
+            </div>
+            <button
+              type="button"
+              className="catalog-action"
+              onClick={() => setAccessSetupOpen((open) => !open)}
+              aria-expanded={accessSetupOpen}
+            >
+              <Icon name={accessSetupOpen ? "chevron" : "layers"} size={14} />
+              {accessSetupOpen ? "Erişim alanını gizle" : "Servis erişimini tanımla"}
+            </button>
+            {accessSetupOpen && <TucbsAccessSetupPanel onApplied={() => window.location.reload()} />}
+          </div>
+        )}
+
       </div>
       <div className="layer-explorer-body">
         <details className="advanced-layer-filters">
           <summary>Filtreler ve katman ayarları {kind !== "all" || availability !== "all" ? <span>Filtre etkin</span> : null}</summary>
-          {restricted > 0 && <p className="catalog-access-note"><Icon name="info" size={16} /><span>{restricted} kurum katmanı için yetkili ağ bağlantısı gerekir. Erişim bilgisi katman ayrıntılarında görünür.</span></p>}
+          {restricted > 0 && <p className="catalog-access-note"><Icon name="info" size={16} /><span>{restricted} kurum katmanı için yetkili ağ bağlantısı gerekir. Yukarıdaki servis erişimi alanından yetkili JSON dosyası bir kez eklenebilir; katman seçimi pencere açmaz.</span></p>}
 
           <div className="catalog-actions">
             <button type="button" className="catalog-action" onClick={() => void deactivateVisible()} disabled={metrics.active === 0 || bulkBusy}>
