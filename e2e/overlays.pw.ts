@@ -174,7 +174,11 @@ test("clicking an unconfigured TUCBS layer does not open the authorization modal
   const layer = page.getByRole("button", { name: "DOĞALGAZ HATTI katmanını aç", exact: true }).first();
   await expect(layer).toBeVisible();
   await layer.click();
-  await expect(layer).toHaveAttribute("aria-pressed", "true");
+
+  // With no protected endpoint configured, loading should fail in the normal
+  // layer status path instead of interrupting the user with an access modal.
+  const card = layer.locator("xpath=ancestor::article[contains(@class, 'layer-card')]");
+  await expect(card).toHaveClass(/status-error/);
   await expect(page.locator(".tucbs-access-native[open]")).toHaveCount(0);
 });
 
