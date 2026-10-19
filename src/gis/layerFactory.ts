@@ -2,7 +2,6 @@ import type Layer from "@arcgis/core/layers/Layer.js";
 import type { ServiceDefinition } from "../types";
 import { isUnconfiguredTucbsUrl } from "../lib/tucbsAccess";
 import { serviceAttemptCandidates } from "../lib/serviceFailover";
-import { publishRuntimeEvent } from "../platform/runtimeEvents";
 import { applyLoadedLayerVisuals } from "./layerVisuals";
 import { releaseTrackedLayerLoad, trackLayerLoad } from "./layerLoadRegistry";
 
@@ -81,14 +80,9 @@ export function finalizeLoadedLayer(service: ServiceDefinition, layer: Layer): v
 export async function createLayer(service: ServiceDefinition, options: { trackLoad?: boolean } = {}): Promise<Layer> {
   const effectiveService = nextCreationService(service);
   if (isUnconfiguredTucbsUrl(effectiveService.url)) {
-    // v40 migration marker: legacy "altyapi:tucbs-access-required" CustomEvent
-    // is now a compile-time typed runtime-bus message.
-    publishRuntimeEvent("tucbs-access-required", {
-      serviceId: service.id,
-      serviceName: service.displayName,
-      kind: effectiveService.kind
-    });
-    throw new Error("TUCBS yetkili servis adresi bu tarayıcıda tanımlı değil.");
+    // Do not interrupt layer selection with a blocking dialog. The user can
+    // configure protected endpoints explicitly from the Layer Explorer.
+    throw new Error("TUCBS servis adresi bu tarayıcıda tanımlı değil. Katmanı açmak için Katmanlar bölümündeki TUCBS bağlantısını tanımlayın.");
   }
 
   // Do not push catalogue operationalMinScale / operationalMaxScale values into
