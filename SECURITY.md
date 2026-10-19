@@ -9,7 +9,7 @@ Uygulama güvenli varsayılanlar kullanır; ancak kaynak IP yetkilendirmesinin v
 ## Güncel TUCBS WMS/WFS bağlantı modeli
 
 1. Kamuya açık `public/services.json` içinde gerçek yetkili TUCBS adresleri yerine `/__runtime__/` işaretleyicileri bulunur.
-2. Kullanıcı, yalnız yetkili ortamda, TUCBS servis JSON'unu tarayıcıdaki erişim penceresine yükler veya yapıştırır. Uygulama yalnız HTTPS `ucbp-api.tucbs.gov.tr/geoservice/spatial/` adreslerini kabul eder.
+2. Kullanıcı, yalnız yetkili ortamda, Katmanlar bölümündeki **TUCBS bağlantısını tanımla** düğmesiyle açılan erişim penceresine servis JSON'unu yükler veya yapıştırır. Normal katman seçimi bu pencereyi kendiliğinden açmaz. Uygulama yalnız HTTPS `ucbp-api.tucbs.gov.tr/geoservice/spatial/` adreslerini kabul eder.
 3. Tarayıcı, gerçek servis adresine **doğrudan** WMS/WFS GetCapabilities isteği gönderir. Erişim onaylı dış IP, servis yetkisi ve tarayıcı ağ/CORS koşullarına bağlıdır. GitHub Actions çalıştırıcısından erişilememesi, yetkili ağda da erişilemeyeceği anlamına gelmez.
 4. Başarılı doğrulama sonrası adresler `sessionStorage` içinde tutulur. Kullanıcı **Bu cihazda hatırla** seçerse `localStorage` içine de kaydedilir. Paylaşılan cihazlarda kalıcı saklama seçeneğini kullanmayın; gerektiğinde site verilerini temizleyin.
 5. Başarısız veya geçersiz adresler aktif çalışma ortamına kaydedilmez; gözlem/sağlık kayıtlarına imzalı URL veya token yazılmaz.
