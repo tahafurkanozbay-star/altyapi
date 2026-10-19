@@ -26,7 +26,9 @@ interface Props {
 export function TucbsAccessSetupHost() {
   const [open, setOpen] = useState(false);
 
-  useEffect(() => subscribeRuntimeEvent("tucbs-access-required", () => setOpen(true)), []);
+  // Opening a TUCBS layer must never launch a modal. Only the explicit
+  // connection button in the Layer Explorer can request this setup dialog.
+  useEffect(() => subscribeRuntimeEvent("tucbs-access-setup-requested", () => setOpen(true)), []);
 
   return (
     <TucbsAccessSetup
