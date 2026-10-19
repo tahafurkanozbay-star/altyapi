@@ -33,6 +33,7 @@ test.beforeEach(async ({ page }) => {
 async function closePanel(page: Page) {
   const close = page.locator(".panel-zone [data-panel-close]");
   if (await close.isVisible()) await close.click();
+  await expect(page.locator(".main-panel")).toHaveCount(0);
   await expect(page.locator("#kent-rehberi-notices")).not.toHaveAttribute("inert", "");
 }
 
