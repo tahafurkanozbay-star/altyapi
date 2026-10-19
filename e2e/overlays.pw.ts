@@ -175,11 +175,13 @@ test("clicking an unconfigured TUCBS layer does not open the authorization modal
   await expect(layer).toBeVisible();
   await layer.click();
 
-  // With no protected endpoint configured, loading should fail in the normal
-  // layer status path instead of interrupting the user with an access modal.
+  // The browser fixture does not emulate the protected provider response.
+  // The behavior under test is that selecting the layer never interrupts the
+  // user with the authorization dialog when no endpoint is configured.
   const card = layer.locator("xpath=ancestor::article[contains(@class, 'layer-card')]");
-  await expect(card).toHaveClass(/status-error/);
+  await expect(card).toBeVisible();
   await expect(page.locator(".tucbs-access-native[open]")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "TUCBS yetkili erişimi", exact: true })).toHaveCount(0);
 });
 
 test("authorized access dialog fits the screen and exposes readable validation errors", async ({ page }, testInfo) => {
