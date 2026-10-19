@@ -137,6 +137,7 @@ test("local SDK assets and authorized-access dialog work without the SDK CDN", a
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).not.toContain("text/html");
   }
+  await layers(page);
   await page.getByRole("button", { name: "TUCBS yetkili servis bağlantısını tanımla", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "TUCBS yetkili erişimi" });
   await expect(dialog).toBeVisible();
