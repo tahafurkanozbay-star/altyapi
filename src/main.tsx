@@ -4,7 +4,6 @@ import "./platform/sdkAssets";
 import App from "./App";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { PlatformStatusHost } from "./components/PlatformStatusHost";
-import { TucbsAccessSetupHost } from "./components/TucbsAccessSetup";
 import { installSceneLayerWatchdog } from "./gis/layerViewWatchdog";
 import { installBrowserServiceHealthMemory } from "./lib/browserServiceHealth";
 import { installLayerRenderHealthStore } from "./lib/layerRenderHealth";
@@ -64,7 +63,6 @@ createRoot(root).render(
   <AppErrorBoundary>
     <App />
     <PlatformStatusHost />
-    <TucbsAccessSetupHost />
   </AppErrorBoundary>
 );
 
