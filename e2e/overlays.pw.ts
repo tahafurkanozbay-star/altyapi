@@ -154,10 +154,7 @@ test("save dialog follows the keyboard viewport and keeps submission reachable",
 
 test("authorized access dialog fits the screen and exposes readable validation errors", async ({ page }, testInfo) => {
   await closePanel(page);
-  await page.evaluate(async () => {
-    const { publishRuntimeEvent } = await import(new URL("/src/platform/runtimeEvents.ts", location.origin).href);
-    publishRuntimeEvent("tucbs-access-setup-requested", {});
-  });
+  await page.getByRole("button", { name: "TUCBS yetkili servis bağlantısını tanımla", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "TUCBS yetkili erişimi", exact: true });
   if (testInfo.project.name === "mobile") await setVisibleViewport(page, 380, 30);
   const height = testInfo.project.name === "mobile" ? 380 : page.viewportSize()!.height;
