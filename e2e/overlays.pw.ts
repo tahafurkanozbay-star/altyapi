@@ -33,7 +33,18 @@ test.beforeEach(async ({ page }) => {
 async function closePanel(page: Page) {
   const close = page.locator(".panel-zone [data-panel-close]");
   if (await close.isVisible()) await close.click();
+  await expect(page.locator(".main-panel")).toHaveCount(0);
   await expect(page.locator("#kent-rehberi-notices")).not.toHaveAttribute("inert", "");
+}
+
+async function openLayers(page: Page) {
+  if (await page.locator(".main-panel").isVisible()) return;
+  if (page.viewportSize()!.width <= 760) {
+    await page.locator(".mobile-menu").click();
+  } else {
+    await page.locator('[data-panel-target="layers"]').click();
+  }
+  await expect(page.locator(".main-panel")).toBeVisible();
 }
 
 async function setVisibleViewport(page: Page, height: number, offsetTop = 0) {
@@ -152,12 +163,31 @@ test("save dialog follows the keyboard viewport and keeps submission reachable",
   await expect(page.locator(".bookmark-main")).toContainText("Mobil görünüm");
 });
 
+test("clicking an unconfigured TUCBS layer does not open the authorization modal", async ({ page }) => {
+  await closePanel(page);
+  await openLayers(page);
+
+  const energyGroup = page.getByRole("button", { name: /ENERJİ VE TABİİ KAYNAKLAR BAKANLIĞI/ });
+  await expect(energyGroup).toBeVisible();
+  if (await energyGroup.getAttribute("aria-expanded") === "false") await energyGroup.click();
+
+  const layer = page.getByRole("button", { name: "DOĞALGAZ HATTI katmanını aç", exact: true }).first();
+  await expect(layer).toBeVisible();
+  await layer.click();
+
+  // The browser fixture does not emulate the protected provider response.
+  // The behavior under test is that selecting the layer never interrupts the
+  // user with the authorization dialog when no endpoint is configured.
+  const card = layer.locator("xpath=ancestor::article[contains(@class, 'layer-card')]");
+  await expect(card).toBeVisible();
+  await expect(page.locator(".tucbs-access-native[open]")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "TUCBS yetkili erişimi", exact: true })).toHaveCount(0);
+});
+
 test("authorized access dialog fits the screen and exposes readable validation errors", async ({ page }, testInfo) => {
   await closePanel(page);
-  await page.evaluate(async () => {
-    const { publishRuntimeEvent } = await import(new URL("/src/platform/runtimeEvents.ts", location.origin).href);
-    publishRuntimeEvent("tucbs-access-required", { serviceId: "test", serviceName: "Örnek servis", kind: "WMS" });
-  });
+  await openLayers(page);
+  await page.getByRole("button", { name: "TUCBS yetkili servis bağlantısını tanımla", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "TUCBS yetkili erişimi", exact: true });
   if (testInfo.project.name === "mobile") await setVisibleViewport(page, 380, 30);
   const height = testInfo.project.name === "mobile" ? 380 : page.viewportSize()!.height;

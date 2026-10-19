@@ -27,15 +27,18 @@ describe("v40+ typed runtime architecture", () => {
     const renderHealth = await readFile("src/lib/layerRenderHealth.ts", "utf8");
     const factory = await readFile("src/gis/layerFactory.ts", "utf8");
     const tucbsSetup = await readFile("src/components/TucbsAccessSetup.tsx", "utf8");
+    const layerExplorer = await readFile("src/components/LayerExplorer.tsx", "utf8");
 
     expect(bus).toContain("interface RuntimeEventMap");
     expect(bus).toContain("publishRuntimeEvent");
     expect(bus).toContain("subscribeRuntimeEvent");
     expect(activation).toContain('publishRuntimeEvent("atomic-layer-activation-complete"');
     expect(renderHealth).toContain('subscribeRuntimeEvent("layer-render-health"');
-    expect(factory).toContain('publishRuntimeEvent("tucbs-access-required"');
+    expect(factory).not.toContain('publishRuntimeEvent("tucbs-access-required"');
+    expect(factory).toContain("isUnconfiguredTucbsUrl");
     expect(factory).not.toContain("window.dispatchEvent");
-    expect(tucbsSetup).toContain('subscribeRuntimeEvent("tucbs-access-required"');
+    expect(tucbsSetup).toContain('subscribeRuntimeEvent("tucbs-access-setup-requested"');
+    expect(layerExplorer).toContain('publishRuntimeEvent("tucbs-access-setup-requested"');
     expect(bridge).toContain("Compatibility boundary");
   });
 

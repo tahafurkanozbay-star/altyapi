@@ -1,5 +1,3 @@
-import type { ServiceKind } from "../types";
-
 export type LayerRenderHealthPhase =
   | "created"
   | "stable"
@@ -26,11 +24,7 @@ export interface RuntimeEventMap {
     layerId: string;
   };
   "layer-render-health": LayerRenderHealthEventDetail;
-  "tucbs-access-required": {
-    serviceId: string;
-    serviceName: string;
-    kind: ServiceKind;
-  };
+  "tucbs-access-setup-requested": Record<never, never>;
   "app-runtime-fault": {
     source: RuntimeFaultSource;
     message: string;

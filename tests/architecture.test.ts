@@ -215,6 +215,7 @@ describe("architecture guardrails", () => {
     const catalog = await readFile("public/services.json", "utf8");
     const tucbs = await readFile("src/lib/tucbsAccess.ts", "utf8");
     const setup = await readFile("src/components/TucbsAccessSetup.tsx", "utf8");
+    const layerExplorer = await readFile("src/components/LayerExplorer.tsx", "utf8");
     const factory = await readFile("src/gis/layerFactory.ts", "utf8");
     const probe = await readFile("scripts/probe-service-health.ts", "utf8");
     const audit = await readFile("scripts/audit-service-scales.ts", "utf8");
@@ -233,7 +234,12 @@ describe("architecture guardrails", () => {
     expect(tucbs).toContain("verifyTucbsEndpoints");
     expect(tucbs).toContain("GetCapabilities");
     expect(setup).toContain("await verifyTucbsEndpoints(endpoints)");
-    expect(factory).toContain("altyapi:tucbs-access-required");
+    expect(factory).toContain("isUnconfiguredTucbsUrl");
+    expect(factory).not.toContain("tucbs-access-required");
+    expect(setup).toContain('subscribeRuntimeEvent("tucbs-access-setup-requested"');
+    expect(setup).not.toContain('subscribeRuntimeEvent("tucbs-access-required"');
+    expect(layerExplorer).toContain('publishRuntimeEvent("tucbs-access-setup-requested"');
+    expect(layerExplorer).toContain("TUCBS bağlantısını tanımla");
     expect(probe).toContain("isRuntimeTucbsService");
     expect(probe).toContain('access: "network-restricted"');
     expect(audit).toContain('source: "client-ip-required"');

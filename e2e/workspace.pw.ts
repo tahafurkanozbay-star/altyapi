@@ -137,10 +137,8 @@ test("local SDK assets and authorized-access dialog work without the SDK CDN", a
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).not.toContain("text/html");
   }
-  await page.evaluate(async () => {
-    const events = await import(location.origin + "/src/platform/runtimeEvents.ts");
-    events.publishRuntimeEvent("tucbs-access-required", {});
-  });
+  await layers(page);
+  await page.getByRole("button", { name: "TUCBS yetkili servis bağlantısını tanımla", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "TUCBS yetkili erişimi" });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: "Servis JSON içeriği" }).fill("geçersiz json");

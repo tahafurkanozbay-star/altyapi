@@ -6,24 +6,20 @@ import {
 } from "../src/platform/runtimeEvents";
 
 describe("typed runtime event bus", () => {
-  it("delivers typed payloads and detaches idempotently", () => {
+  it("delivers explicit setup requests and detaches idempotently", () => {
     const received: string[] = [];
-    const before = runtimeEventSubscriberCount("tucbs-access-required");
-    const detach = subscribeRuntimeEvent("tucbs-access-required", (detail) => {
-      received.push(`${detail.serviceId}:${detail.kind}`);
+    const before = runtimeEventSubscriberCount("tucbs-access-setup-requested");
+    const detach = subscribeRuntimeEvent("tucbs-access-setup-requested", () => {
+      received.push("setup-requested");
     });
 
-    expect(runtimeEventSubscriberCount("tucbs-access-required")).toBe(before + 1);
-    publishRuntimeEvent("tucbs-access-required", {
-      serviceId: "gas-wms",
-      serviceName: "Doğalgaz",
-      kind: "WMS"
-    });
-    expect(received).toEqual(["gas-wms:WMS"]);
+    expect(runtimeEventSubscriberCount("tucbs-access-setup-requested")).toBe(before + 1);
+    publishRuntimeEvent("tucbs-access-setup-requested", {});
+    expect(received).toEqual(["setup-requested"]);
 
     detach();
     detach();
-    expect(runtimeEventSubscriberCount("tucbs-access-required")).toBe(before);
+    expect(runtimeEventSubscriberCount("tucbs-access-setup-requested")).toBe(before);
   });
 
   it("isolates event channels", () => {
