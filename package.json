@@ -35,7 +35,7 @@
     "@arcgis/common-components": "5.1.27",
     "@arcgis/core": "5.1.27",
     "@arcgis/map-components": "5.1.27",
-    "@esri/calcite-components": "^5.1.2",
+    "@esri/calcite-components": "^5.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
